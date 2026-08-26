@@ -1,0 +1,103 @@
+{
+  "evidence_basis": "STATIC_POLICY_ONLY_NO_QC_RUNTIME",
+  "normalization_policies": [
+    {
+      "certification_status": "under_review",
+      "dataset_id": "cftc_commitments_of_traders_synthetic_timing",
+      "empirical_runtime_status": "NOT_EXECUTED",
+      "schema_version": "lift1.raw.v1"
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "qc_futures_contract_mapping",
+      "empirical_runtime_status": "NOT_EXECUTED",
+      "schema_version": "lift1.raw.v1"
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "qc_futures_open_interest",
+      "empirical_runtime_status": "NOT_EXECUTED",
+      "schema_version": "lift1.raw.v1"
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "qc_futures_quote_data",
+      "empirical_runtime_status": "NOT_EXECUTED",
+      "schema_version": "lift1.raw.v1"
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "qc_futures_trade_data",
+      "empirical_runtime_status": "NOT_EXECUTED",
+      "schema_version": "lift1.raw.v1"
+    }
+  ],
+  "schema_version": "lift1-dataset-certification-matrix-v1",
+  "use_policies": [
+    {
+      "certification_status": "under_review",
+      "dataset_id": "bls_macro_releases",
+      "dataset_name": "BLS",
+      "known_publication_semantics": "Release schedules are series-specific; exact release and platform-delivery timing is not certified in Lift 1.",
+      "missingness_policy": "Withhold absent releases; never forward-fill or replace with zero.",
+      "observation_semantics": "Release-specific official observations; observation period and first release are distinct clocks.",
+      "permitted_uses": ["descriptive_research", "risk_context_research"],
+      "policy_version": "lift1.dataset-use.v1",
+      "prohibited_uses": ["forecast_input", "signal_input", "silent_revised_history"],
+      "required_future_certification": "Certify each series release schedule, first-release history, revisions, delivery timing, DST, holidays, and missing/correction behavior.",
+      "revision_risk": "Revisions and benchmark revisions require first-release or vintage data."
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "continuous_backwards_ratio_series",
+      "dataset_name": "Continuous Backwards-Ratio Series",
+      "known_publication_semantics": "Usability follows the actual futures data and mapping observations delivered by the research environment; runtime timing remains under review.",
+      "missingness_policy": "Withhold missing intervals; never splice or fill with zero.",
+      "observation_semantics": "A continuity-oriented transformed futures series whose historical prices reflect the delivered mapping and normalization chain.",
+      "permitted_uses": ["continuity_research", "long_horizon_research_representation", "normalized_comparisons"],
+      "policy_version": "lift1.dataset-use.v1",
+      "prohibited_uses": ["actual_execution_price", "actual_fill_simulation", "actual_realized_pnl", "actual_volume_profile_price_bins"],
+      "required_future_certification": "Observe the real mapping chain and delivery timing, preserve actual mapped-contract prices separately, and certify each intended research use.",
+      "revision_risk": "Historical adjusted values can depend on the mapping chain and must retain the normalization mode and retrieval lineage."
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "economic_events_calendar",
+      "dataset_name": "Economic Events",
+      "known_publication_semantics": "Calendar/risk research only until historical schedule changes, consensus vintages, and platform delivery are proven point in time.",
+      "missingness_policy": "Keep unknown schedules or estimates missing; do not infer or backfill.",
+      "observation_semantics": "Event-calendar records whose scheduled time, actual value, and historical estimate availability are separate observations.",
+      "permitted_uses": ["calendar_research", "risk_context_research"],
+      "policy_version": "lift1.dataset-use.v1",
+      "prohibited_uses": ["historical_surprise_signal", "signal_input", "silent_latest_estimate"],
+      "required_future_certification": "Certify schedule-as-known history, estimate vintages, actual release time, revisions, delivery timing, holidays, and corrections.",
+      "revision_risk": "Schedules, estimates, and reported values can be revised or corrected."
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "fred_macro_series",
+      "dataset_name": "FRED",
+      "known_publication_semantics": "No signal use until first-release or vintage semantics and platform delivery are proven for each series.",
+      "missingness_policy": "Retain missing observations; no interpolation or zero substitution.",
+      "observation_semantics": "Series observations whose economic period differs from publication and retrieval time.",
+      "permitted_uses": ["descriptive_research", "risk_context_research"],
+      "policy_version": "lift1.dataset-use.v1",
+      "prohibited_uses": ["forecast_input", "signal_input", "silent_latest_vintage"],
+      "required_future_certification": "Certify release calendars, ALFRED or equivalent vintages, revision behavior, vendor delivery, holidays, and missing/correction handling by series.",
+      "revision_risk": "Default historical values may reflect later revisions without vintage data."
+    },
+    {
+      "certification_status": "under_review",
+      "dataset_id": "us_treasury_yield_curve",
+      "dataset_name": "US Treasury Yield Curve",
+      "known_publication_semantics": "Exact official publication, holiday, correction, and platform-delivery timing is not certified in Lift 1.",
+      "missingness_policy": "Withhold absent tenors/dates; never interpolate or substitute zero.",
+      "observation_semantics": "Official tenor observations identified by observation date separately from their publication and platform-delivery times.",
+      "permitted_uses": ["descriptive_research", "risk_context_research"],
+      "policy_version": "lift1.dataset-use.v1",
+      "prohibited_uses": ["forecast_input", "signal_input", "silent_revised_history"],
+      "required_future_certification": "Certify source timestamps, publication and platform delivery, tenor schema, holiday gaps, corrections, and revision behavior.",
+      "revision_risk": "Corrections and latest-history behavior require an explicit audit."
+    }
+  ]
+}

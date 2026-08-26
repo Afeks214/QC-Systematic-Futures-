@@ -1,0 +1,29 @@
+# pytest: decisive invariant and architecture tests.
+pytest==8.4.1
+# ruff: deterministic formatting and static linting.
+ruff==0.12.11
+# pyright: strict static type checking for the runtime-independent package.
+pyright==1.1.405
+# nbformat: controlled notebook creation and structural validation only.
+nbformat==5.10.4
+
+# pytest runtime dependencies, pinned to keep the test runner reproducible.
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+pygments==2.21.0
+
+# pyright runtime dependency, pinned for deterministic CLI installation.
+nodeenv==1.10.0
+
+# nbformat validation stack, pinned because notebook parsing is a quality gate.
+attrs==26.1.0
+fastjsonschema==2.22.2
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+jupyter-core==5.9.1
+platformdirs==4.11.4
+referencing==0.37.0
+rpds-py==2026.6.3
+traitlets==5.16.1
+typing-extensions==4.16.0

@@ -1,0 +1,72 @@
+{
+  "schema_version": "lift1-evidence-index-v2",
+  "generated_at_utc": "2026-08-26T00:00:00Z",
+  "source_git_revision": null,
+  "final_readiness_decision": "EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED",
+  "source_documents": [
+    {
+      "name": "Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
+      "sha256": "ef19e4242a48747ef13b235e38f9c9fa0c09a7ed07085b5bb689be39a8786747"
+    },
+    {
+      "name": "Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx",
+      "sha256": "bdebaf3e0ec38c3cb13d605b1fdc289db0a6316218756d0264ed23856f3195b2"
+    }
+  ],
+  "claims": [
+    {
+      "claim": "Pre-Alpha contracts and experiment ledger are present and deterministic",
+      "result": "STATIC_VERIFIED",
+      "evidence": [
+        {
+          "path": "artifacts/contracts/feature_semantics_v1.json",
+          "sha256": "8f84c8f357eaef9036818ec0a7ca802688dcfe040230e092a046383ae1299741"
+        },
+        {
+          "path": "artifacts/ledgers/experiment_ledger.jsonl",
+          "sha256": "a70e3338ed867095f1e97e9d4240c0df037f450242ecbb45e63d18432b9d225f"
+        }
+      ]
+    },
+    {
+      "claim": "Historical Lift 1 manifest remains immutable",
+      "result": "VERIFIED",
+      "evidence": [
+        {
+          "path": "artifacts/manifests/lift_1_manifest.json",
+          "sha256": "a07a32362e741cd21d33b4027b987992826e221ef68b2dfda6b68b64a773505c"
+        }
+      ]
+    },
+    {
+      "claim": "Authenticated QC futures runtime evidence",
+      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
+      "evidence": [],
+      "missing_required_artifact": "artifacts/certification/qc_futures_runtime_probe.json"
+    },
+    {
+      "claim": "Authenticated QC CFTC delivery evidence",
+      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
+      "evidence": [],
+      "missing_required_artifact": "artifacts/certification/cftc_release_delivery_audit.json"
+    },
+    {
+      "claim": "Authenticated QC Python.NET datetime evidence",
+      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
+      "evidence": [],
+      "missing_required_artifact": "artifacts/certification/pythonnet_datetime_probe.json"
+    },
+    {
+      "claim": "Executed Notebook 01 output",
+      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
+      "evidence": [],
+      "missing_required_artifact": "artifacts/data_probes/reference_markets_summary.json"
+    },
+    {
+      "claim": "Qualified closure manifest",
+      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
+      "evidence": [],
+      "missing_required_artifact": "artifacts/manifests/lift_1_closure_manifest.json"
+    }
+  ]
+}

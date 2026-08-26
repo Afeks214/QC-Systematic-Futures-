@@ -1,0 +1,135 @@
+{
+  "features": [
+    {
+      "feature_name": "acceptance_score",
+      "human_definition": "Future composite evidence that participation is forming new value.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "component_preserving_composite",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "dimensionless_score"
+    },
+    {
+      "feature_name": "distance_to_current_poc_ticks",
+      "human_definition": "Future signed price distance from the current point of control.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "raw_ticks",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "raw_ticks"
+    },
+    {
+      "feature_name": "distance_to_vah_vol",
+      "human_definition": "Future signed price distance from value-area high in volatility units.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "realized_volatility_units",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "volatility_units"
+    },
+    {
+      "feature_name": "distance_to_val_vol",
+      "human_definition": "Future signed price distance from value-area low in volatility units.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "realized_volatility_units",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "volatility_units"
+    },
+    {
+      "feature_name": "expected_shortfall_fraction_nav",
+      "human_definition": "Future expected-shortfall exposure expressed as a fraction of NAV.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "risk_nav_units",
+      "point_in_time_requirement": "Use only risk inputs available at the declared snapshot time.",
+      "source_family": "future_risk_contract",
+      "unit": "fraction_of_nav"
+    },
+    {
+      "feature_name": "poc_migration_vol",
+      "human_definition": "Future point-of-control migration relative to an explicit prior window.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "realized_volatility_units",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "volatility_units"
+    },
+    {
+      "feature_name": "profile_entropy",
+      "human_definition": "Future normalized entropy of the observed volume-at-price distribution.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "normalized_distribution",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "dimensionless_ratio"
+    },
+    {
+      "feature_name": "rejection_score",
+      "human_definition": "Future composite evidence of excursion failure and value re-entry.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "component_preserving_composite",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "dimensionless_score"
+    },
+    {
+      "feature_name": "return_h",
+      "human_definition": "Future horizon-explicit price return using completed observations.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "returns",
+      "point_in_time_requirement": "Both price observations must be usable by the snapshot time.",
+      "source_family": "market_state",
+      "unit": "decimal_return"
+    },
+    {
+      "feature_name": "time_outside_value_ratio",
+      "human_definition": "Future elapsed eligible time outside an explicit value area ratio.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "session_normalized_ratios",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "session_normalized_ratio"
+    },
+    {
+      "feature_name": "value_area_width_vol",
+      "human_definition": "Future value-area width expressed in volatility units.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "realized_volatility_units",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "volatility_units"
+    },
+    {
+      "feature_name": "volatility_percentile",
+      "human_definition": "Future point-in-time rolling percentile of realized volatility.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "rolling_percentiles",
+      "point_in_time_requirement": "Rank only against history usable before the snapshot time.",
+      "source_family": "market_state",
+      "unit": "percentile_0_1"
+    },
+    {
+      "feature_name": "volume_outside_value_ratio",
+      "human_definition": "Future observed volume outside value divided by eligible elapsed volume.",
+      "implementation_status": "not_implemented",
+      "missingness_policy": "Withhold the feature; never coerce missing input to zero.",
+      "normalization_family": "session_normalized_ratios",
+      "point_in_time_requirement": "Use only observations available at the snapshot time from one actual contract.",
+      "source_family": "auction_profile",
+      "unit": "session_normalized_ratio"
+    }
+  ],
+  "schema_version": "feature-semantics-v1"
+}

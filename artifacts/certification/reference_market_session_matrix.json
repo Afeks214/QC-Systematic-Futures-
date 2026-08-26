@@ -1,0 +1,36 @@
+{
+  "calendar_source": "https://github.com/QuantConnect/Lean/blob/185c691b89f28bd68e48d53c02147415134975f0/Data/market-hours/market-hours-database.json",
+  "calendar_version": "lean-185c691b89f28bd68e48d53c02147415134975f0",
+  "certification_scope": "Representative static fixtures only; no QC runtime calendar was executed.",
+  "markets": [
+    {
+      "root": "ES",
+      "ordinary_full_session": "STATIC_PASS",
+      "spring_dst_transition": "STATIC_PASS",
+      "fall_dst_transition": "STATIC_PASS",
+      "exchange_holiday": "NOT_CERTIFIED",
+      "verified_early_close": "NOT_TESTED_FOR_ROOT",
+      "roll_adjacent_session": "NOT_RUNTIME_OBSERVED"
+    },
+    {
+      "root": "ZN",
+      "ordinary_full_session": "STATIC_PASS",
+      "spring_dst_transition": "NOT_TESTED_FOR_ROOT",
+      "fall_dst_transition": "NOT_TESTED_FOR_ROOT",
+      "exchange_holiday": "SYNTHETIC_FIXTURE_ONLY",
+      "verified_early_close": "STATIC_PASS_2024-05-27_12:00_AMERICA_CHICAGO",
+      "roll_adjacent_session": "STATIC_CAUSAL_ROLL_TEST_ONLY"
+    },
+    {
+      "root": "6E",
+      "ordinary_full_session": "NOT_TESTED_FOR_ROOT",
+      "spring_dst_transition": "NOT_TESTED_FOR_ROOT",
+      "fall_dst_transition": "NOT_TESTED_FOR_ROOT",
+      "exchange_holiday": "NOT_CERTIFIED",
+      "verified_early_close": "NOT_TESTED_FOR_ROOT",
+      "roll_adjacent_session": "NOT_RUNTIME_OBSERVED"
+    }
+  ],
+  "overall_result": "NOT_CERTIFIED",
+  "schema_version": "lift1-reference-market-session-matrix-v1"
+}

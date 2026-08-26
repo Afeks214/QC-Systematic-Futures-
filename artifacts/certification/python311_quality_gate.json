@@ -1,0 +1,16 @@
+{
+  "gate_result": "NOT_EXECUTED",
+  "reason": "Neither Python 3.11 nor Docker is available in this workspace; an official LEAN Python 3.11 runtime could not be started.",
+  "runtime_python": null,
+  "schema_version": "lift1-python311-quality-gate-v1",
+  "commands": [
+    {"command": "python -m compileall systematic_futures main.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "ruff format --check .", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "ruff check .", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "pyright", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "pytest -q", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "python scripts/validate_notebooks.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "python scripts/build_manifest.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
+    {"command": "bash -n scripts/bootstrap_mac_m4.sh scripts/run_quality_checks.sh", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"}
+  ]
+}
