@@ -1,16 +1,94 @@
 {
-  "gate_result": "NOT_EXECUTED",
-  "reason": "Neither Python 3.11 nor Docker is available in this workspace; an official LEAN Python 3.11 runtime could not be started.",
-  "runtime_python": null,
-  "schema_version": "lift1-python311-quality-gate-v1",
+  "schema_version": "lift1-python311-quality-gate-v2",
+  "generated_at_utc": "2026-08-26T21:04:52Z",
+  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "runtime_python": "CPython 3.11.15",
+  "runtime_architecture": "x86_64",
+  "runtime_platform": "Linux 6.18.35 x86_64 GNU/Linux",
+  "lean_cli_version": "1.0.228",
+  "dependency_hash": "c2ba708dcc201105cf1c705a23e27de5c1c009090149eb34cbd8386848eb2959",
+  "gate_result": "PASS",
   "commands": [
-    {"command": "python -m compileall systematic_futures main.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "ruff format --check .", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "ruff check .", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "pyright", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "pytest -q", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "python scripts/validate_notebooks.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "python scripts/build_manifest.py", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"},
-    {"command": "bash -n scripts/bootstrap_mac_m4.sh scripts/run_quality_checks.sh", "exit_code": null, "started_at": null, "finished_at": null, "runtime_python": null, "stdout_hash": null, "stderr_hash": null, "result": "NOT_EXECUTED"}
-  ]
+    {
+      "command": ".venv/bin/python -m compileall systematic_futures main.py",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:44Z",
+      "finished_at_utc": "2026-08-26T21:04:45Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "d32eb9f50718667f0a3bcfd2e04fbc0c18751a344838c446b625fb588d20150c",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/ruff format --check .",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:45Z",
+      "finished_at_utc": "2026-08-26T21:04:45Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "3b2366898213ec462cc2627a223455c7687965818159c9592508d4dab7a0d600",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/ruff check .",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:45Z",
+      "finished_at_utc": "2026-08-26T21:04:45Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/pyright",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:45Z",
+      "finished_at_utc": "2026-08-26T21:04:50Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "6d88a1b220adb7a3d62092b6e38431f0b3fe8babe9864fab90e5849766260332",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/pytest -q",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:50Z",
+      "finished_at_utc": "2026-08-26T21:04:51Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "b0218d3f566cd2d229b504471dfa648104e74d03fb0717eff214cad6d86a529d",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/python scripts/validate_notebooks.py",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:51Z",
+      "finished_at_utc": "2026-08-26T21:04:52Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "359b42223ec049346e5184b6af5e30e3a9c7f92a4eb9cd2d56b448b5130c7812",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": ".venv/bin/python scripts/build_manifest.py",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:52Z",
+      "finished_at_utc": "2026-08-26T21:04:52Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "eb9166fe76d2193fd0f94b769dd61de8a6cb930dacc99ede0edef9639fd17f9d",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    },
+    {
+      "command": "bash -n scripts/bootstrap_mac_m4.sh scripts/run_quality_checks.sh",
+      "exit_code": 0,
+      "started_at_utc": "2026-08-26T21:04:52Z",
+      "finished_at_utc": "2026-08-26T21:04:52Z",
+      "runtime_python": "3.11.15",
+      "stdout_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "result": "PASS"
+    }
+  ],
+  "content_hash": "53f63b944b1406f68a2674e9591ed93058cc4bf2cf8998df57d20b9d13088632"
 }

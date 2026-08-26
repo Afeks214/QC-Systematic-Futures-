@@ -295,3 +295,20 @@ Consequences: every local/Git gate continues; QC project/backtest/data artifacts
 absent and the only permissible final result is external-access dependent.
 Reopen condition: the user authorizes a QC login/session with the required cloud and
 dataset entitlements.
+
+## 2026-08-27 — Publish through the authorized GitHub integration
+
+Date: 2026-08-27
+Decision: After non-interactive HTTPS push failed for lack of shell credentials, use
+the already-authorized GitHub integration to publish the exact local Git tree and move
+`main` only by fast-forward.
+Alternatives considered: request or store a token; force-push; leave Git externally
+blocked.
+Reason: the integration has verified push permission and preserves exact blob/tree
+identity without exposing credentials.
+Specification support: active directive sections 7, 8, and 38.
+Public-source support: GitHub Git Data object and ref semantics.
+Consequences: the certified source tree is public at revision
+`3f1bb4294d26acbe7f4977f65b7a69483a6f124a`; final evidence is published as its
+fast-forward child.
+Reopen condition: remote `main` changes before the final fast-forward update.

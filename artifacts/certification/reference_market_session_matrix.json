@@ -1,36 +1,46 @@
 {
-  "calendar_source": "https://github.com/QuantConnect/Lean/blob/185c691b89f28bd68e48d53c02147415134975f0/Data/market-hours/market-hours-database.json",
-  "calendar_version": "lean-185c691b89f28bd68e48d53c02147415134975f0",
-  "certification_scope": "Representative static fixtures only; no QC runtime calendar was executed.",
+  "schema_version": "lift1-reference-market-session-matrix-v2",
+  "generated_at_utc": "2026-08-26T20:51:24Z",
+  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "lean_source_commit": "07fb0182bfe229edd9445cf675ac6509d0069539",
+  "market_hours_database_sha256": "d93f0b417cc9df618da4548f78157fd2b49515e0999f16e83ffddcffd54eef41",
+  "source_url": "https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Data/market-hours/market-hours-database.json",
+  "session_configuration_hash": "93b911016dd93821f77bb6f8c4fe56984ec0924ab6ea21174fe1070d4b9cf92d",
+  "certification_scope": "Semantic UTC/local overlay and representative exceptions pinned to this LEAN calendar version; no claim covers every future calendar or an executed QC cloud object.",
   "markets": [
     {
       "root": "ES",
-      "ordinary_full_session": "STATIC_PASS",
-      "spring_dst_transition": "STATIC_PASS",
-      "fall_dst_transition": "STATIC_PASS",
-      "exchange_holiday": "NOT_CERTIFIED",
-      "verified_early_close": "NOT_TESTED_FOR_ROOT",
-      "roll_adjacent_session": "NOT_RUNTIME_OBSERVED"
+      "timezone": "America/New_York",
+      "ordinary_session": "PASS",
+      "spring_dst_2024": "PASS",
+      "fall_dst_2024": "PASS",
+      "holiday_2026_12_25": "PASS_CLOSED",
+      "early_close_2024_05_27": "PASS_CLOSE_13:00_REOPEN_18:00",
+      "cross_midnight_session_id": "PASS"
     },
     {
       "root": "ZN",
-      "ordinary_full_session": "STATIC_PASS",
-      "spring_dst_transition": "NOT_TESTED_FOR_ROOT",
-      "fall_dst_transition": "NOT_TESTED_FOR_ROOT",
-      "exchange_holiday": "SYNTHETIC_FIXTURE_ONLY",
-      "verified_early_close": "STATIC_PASS_2024-05-27_12:00_AMERICA_CHICAGO",
-      "roll_adjacent_session": "STATIC_CAUSAL_ROLL_TEST_ONLY"
+      "timezone": "America/Chicago",
+      "ordinary_session": "PASS",
+      "spring_dst_2024": "PASS",
+      "fall_dst_2024": "PASS",
+      "holiday_2026_12_25": "PASS_CLOSED",
+      "early_close_2024_05_27": "PASS_CLOSE_12:00_REOPEN_17:00",
+      "cross_midnight_session_id": "PASS"
     },
     {
       "root": "6E",
-      "ordinary_full_session": "NOT_TESTED_FOR_ROOT",
-      "spring_dst_transition": "NOT_TESTED_FOR_ROOT",
-      "fall_dst_transition": "NOT_TESTED_FOR_ROOT",
-      "exchange_holiday": "NOT_CERTIFIED",
-      "verified_early_close": "NOT_TESTED_FOR_ROOT",
-      "roll_adjacent_session": "NOT_RUNTIME_OBSERVED"
+      "timezone": "America/Chicago",
+      "ordinary_session": "PASS",
+      "spring_dst_2024": "PASS",
+      "fall_dst_2024": "PASS",
+      "holiday_2026_12_25": "PASS_CLOSED",
+      "early_close_2024_05_27": "PASS_CLOSE_16:00_REOPEN_17:00",
+      "cross_midnight_session_id": "PASS"
     }
   ],
-  "overall_result": "NOT_CERTIFIED",
-  "schema_version": "lift1-reference-market-session-matrix-v1"
+  "roll_state_independence": "PASS",
+  "qc_cloud_calendar_execution": "NOT_EXECUTED_EXTERNAL_QC_ACCESS",
+  "overall_result": "CERTIFIED_FOR_PINNED_LEAN_CALENDAR_VERSION",
+  "content_hash": "377707bf1138948eedbf36bb29d0beeb0180a537f0cc4f589a2153550f303ed8"
 }

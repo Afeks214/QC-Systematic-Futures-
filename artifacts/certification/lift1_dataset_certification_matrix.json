@@ -1,4 +1,8 @@
 {
+  "generated_at_utc": "2026-08-26T20:51:24Z",
+  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "lean_version": "lean-cli-1.0.228; qc-runtime-not-executed",
+  "market_registry_hash": "b4ea99cbdbed87b7d799e0f0107fb4cd776f1fa8cc996f0849e320621c89ece0",
   "evidence_basis": "STATIC_POLICY_ONLY_NO_QC_RUNTIME",
   "normalization_policies": [
     {
@@ -99,5 +103,6 @@
       "required_future_certification": "Certify source timestamps, publication and platform delivery, tenor schema, holiday gaps, corrections, and revision behavior.",
       "revision_risk": "Corrections and latest-history behavior require an explicit audit."
     }
-  ]
+  ],
+  "content_hash": "9d3d1da877ab8ade4e2429cf6245fdc2fd0bad41326756df1ece09d659204de4"
 }

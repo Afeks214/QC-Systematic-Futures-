@@ -1,10 +1,13 @@
 {
+  "generated_at_utc": "2026-08-26T20:51:24Z",
+  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "lean_version": "lean-cli-1.0.228; qc-runtime-not-executed",
   "holiday_delayed_release_dates": [
     "2026-01-05",
     "2026-06-22",
     "2026-07-06"
   ],
-  "normalized_fixture_sha256": "837ea6a48fb171be0ea00c54c236a2421fd47297434df81584c45fef41d6b02d",
+  "normalized_fixture_sha256": "02cd5fe9dbd83845a0473cb0591b197b0b1ea1af954e622f1d2c1aa0772fbb3b",
   "official_release_local_time": "15:30:00",
   "official_timezone": "America/New_York",
   "qc_delivery_audit_status": "NOT_EXECUTED",

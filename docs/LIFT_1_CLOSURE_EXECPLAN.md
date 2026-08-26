@@ -1,7 +1,7 @@
 # Lift 1 Closure ExecPlan
 
-Status: `ACTIVE_EXTERNAL_ACCESS_PATH_EXHAUSTED`
-Updated: 2026-08-26
+Status: `RECONCILED_EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED`
+Updated: 2026-08-27
 Boundary: Lift 1 research/data readiness only; no Lift 2 behavior.
 
 ## Purpose
@@ -35,29 +35,25 @@ documentation or synthetic fixture may substitute for a real QuantConnect observ
 
 | Gate | Evidence required | Command or test | Expected artifact | Pass | Fail | Status |
 |---|---|---|---|---|---|---|
-| Writable Git and push | Local and remote `main` resolve to the same SHA | Git commit; GitHub write API; fetch/verify | closure report/evidence index | SHA equality | write auth absent | IN PROGRESS |
-| Python 3.11 | Full mandated suite under 3.11.x | exact quality sequence | `python311_quality_gate.json` | every exit 0 | any failure | IN PROGRESS |
+| Writable Git and push | Local and remote `main` resolve to the same SHA | Git commit; GitHub write API; fetch/verify | closure report/evidence index | SHA equality | write auth absent | PASS — final delivery verification pending |
+| Python 3.11 | Full mandated suite under 3.11.x | exact quality sequence | `python311_quality_gate.json` | every exit 0 | any failure | PASS — CPython 3.11.15 |
 | LEAN CLI | Current official executable | `lean --version` | quality/evidence index | 1.0.228 observed | unavailable | PASS |
 | QC authentication/tier | Authenticated account status | `lean whoami` or official browser/cloud session | QC IDs/status | account and tier observed | no secret/session | EXTERNAL SECRET REQUIRED |
 | ES/ZN/6E runtime | Fixed-window read-only cloud probe | `lean cloud backtest ... --push` | futures probe evidence | all roots and zero actions | missing data/run | BLOCKED BY QC ACCESS |
 | Mapping/OI/metadata/datetime | Empirical fields from the same run | cloud result/API | futures and datetime evidence | required fields present | inferred/static only | BLOCKED BY QC ACCESS |
-| Sessions/calendar | Current official LEAN market-hours database plus semantic tests | parameterized pytest | session matrix | ordinary/DST/holiday/early-close/cross-midnight pass | guessed date/rule | IN PROGRESS |
+| Sessions/calendar | Current official LEAN market-hours database plus semantic tests | parameterized pytest | session matrix | ordinary/DST/holiday/early-close/cross-midnight pass | guessed date/rule | PASS — pinned version |
 | Notebook 01 | Actual execution or documented thin-client runtime parity | QC Research or certified shared probe | data-probe summary | real QC outputs | structural-only | BLOCKED BY QC ACCESS |
 | CFTC timing | Official clock plus actual QC ordinary/delayed delivery | CFTC cloud probe | CFTC timing evidence | gate never early | synthetic-only | BLOCKED BY QC ACCESS |
-| PIT/ledger/contracts | Deterministic local tests | pytest | quality record | invariant tests pass | any failure | IN PROGRESS |
+| PIT/ledger/contracts | Deterministic local tests | pytest | quality record | invariant tests pass | any failure | PASS |
 | Qualified closure manifest | Non-null Git, LEAN, QC IDs, and empirical hashes | manifest builder | closure manifest | all evidence real | placeholder/null | BLOCKED BY QC ACCESS |
 
 ## Exact remaining work
 
-1. Reconcile current LEAN source/API evidence and certify compact session fixtures.
-2. Remove obsolete preflight artifacts and duplicate blocker documents; retain historical
-   Lift 1 evidence and the minimum current certification set.
-3. Run and record all quality commands under CPython 3.11.15.
-4. Commit and push the cleaned tree; verify local and remote SHA equality.
-5. If a new authorized QC session becomes available, synchronize the exact Git revision,
+1. Commit and publish the final evidence/report tree; verify local and remote SHA equality.
+2. If a new authorized QC session becomes available, synchronize the exact Git revision,
    run futures and CFTC cloud probes, retrieve results through official APIs, execute or
    establish thin-client parity for Notebook 01, and build the qualified manifest.
-6. Otherwise issue `EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED` with QuantConnect access as
+3. Otherwise issue `EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED` with QuantConnect access as
    the sole unresolved dependency and no synthetic runtime claims.
 
 ## Verification commands
@@ -85,9 +81,10 @@ must never use a nonzero data-purchase limit.
 - [x] Exhaust the existing CLI-session and authorized browser-session access paths.
 - [x] Verify the current official LEAN market-hours database at commit
   `07fb0182bfe229edd9445cf675ac6509d0069539`.
-- [ ] Finish session fixtures, cleanup, and Python 3.11 evidence.
-- [ ] Commit, push, and verify the canonical Git revision.
-- [ ] Reconcile the closure report and evidence index.
+- [x] Finish session fixtures, cleanup, and Python 3.11 evidence.
+- [x] Publish the exact certified source tree to canonical remote `main`.
+- [x] Reconcile the closure report and evidence index.
+- [ ] Publish the final evidence commit and verify local/remote SHA equality.
 
 ## Decision log
 
@@ -101,4 +98,7 @@ must never use a nonzero data-purchase limit.
 
 ## Final reconciliation
 
-Pending final quality, Git push, and external-access determination.
+All locally executable milestones reconcile. The final delivery commit and remote-SHA
+check are the remaining mechanical handoff operations. Authenticated QC execution is
+the sole external dependency; without it, the required result is
+`EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED` and no qualified closure manifest is built.

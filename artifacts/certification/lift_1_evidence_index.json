@@ -1,7 +1,9 @@
 {
   "schema_version": "lift1-evidence-index-v2",
-  "generated_at_utc": "2026-08-26T00:00:00Z",
-  "source_git_revision": null,
+  "generated_at_utc": "2026-08-26T20:51:24Z",
+  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "lean_cli_version": "1.0.228",
+  "qc_runtime_version": null,
   "final_readiness_decision": "EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED",
   "source_documents": [
     {
@@ -15,8 +17,42 @@
   ],
   "claims": [
     {
-      "claim": "Pre-Alpha contracts and experiment ledger are present and deterministic",
-      "result": "STATIC_VERIFIED",
+      "claim": "Complete project quality suite passes under CPython 3.11.15",
+      "result": "PASS",
+      "evidence": [
+        {
+          "path": "artifacts/certification/python311_quality_gate.json",
+          "sha256": "3e6d676f2f893917f9d042e47070b982a1a9deb219c96636ae75c0486f4be986"
+        }
+      ]
+    },
+    {
+      "claim": "Current QC APIs and exact reference constants are source-resolved",
+      "result": "PASS_STATIC_NOT_RUNTIME",
+      "evidence": [
+        {
+          "path": "docs/QC_API_RESOLUTION.md",
+          "sha256": "a8c4276306913df9728d8889eb6971a75e9bf4daf9c737354ceb40f23478889a"
+        }
+      ]
+    },
+    {
+      "claim": "Reference semantic sessions are certified against the pinned LEAN calendar",
+      "result": "PASS_PINNED_VERSION",
+      "evidence": [
+        {
+          "path": "artifacts/certification/reference_market_session_matrix.json",
+          "sha256": "f1faad9abdc357393c7aa861d56e469c1a10a34d1f8f2ddafbd57488733ce952"
+        },
+        {
+          "path": "docs/SESSION_CALENDAR_CERTIFICATION.md",
+          "sha256": "10b47a93870664f58fd4bafb639b0d6c084ec67a1486b45a185e4bd69715cb7e"
+        }
+      ]
+    },
+    {
+      "claim": "Point-in-time, ledger, feature, ForecastPacket, cost, and safety contracts pass",
+      "result": "PASS_STATIC_CONTRACTS",
       "evidence": [
         {
           "path": "artifacts/contracts/feature_semantics_v1.json",
@@ -29,8 +65,36 @@
       ]
     },
     {
+      "claim": "Dataset and macro use classifications are explicit and conservative",
+      "result": "PASS_UNDER_REVIEW",
+      "evidence": [
+        {
+          "path": "artifacts/certification/lift1_dataset_certification_matrix.json",
+          "sha256": "5a04ddddb91cc412a279e6477c97bb683b29d6d343d7fe8b288956dd401f78cb"
+        },
+        {
+          "path": "docs/MACRO_DATA_POLICY_MATRIX.md",
+          "sha256": "cbe516c913cdb989f5bda0bd9b4a0e0889e0f25b6048a2cf93a26149e5f87e7e"
+        }
+      ]
+    },
+    {
+      "claim": "Official CFTC 2026 release-side clock is versioned and synthetic gating passes",
+      "result": "PASS_OFFICIAL_CLOCK_NO_QC_DELIVERY",
+      "evidence": [
+        {
+          "path": "artifacts/certification/cftc_release_schedule_2026_reference.json",
+          "sha256": "3b9733d3b83b709762f1813d8c4c408ade0e35eb1fa7213aa64894e9d6c4498b"
+        },
+        {
+          "path": "docs/CFTC_POINT_IN_TIME_CERTIFICATION.md",
+          "sha256": "d010bf35332787bb107b3cf99aa98fc394a6c1cc69bd0c9dd683c20577779666"
+        }
+      ]
+    },
+    {
       "claim": "Historical Lift 1 manifest remains immutable",
-      "result": "VERIFIED",
+      "result": "PASS",
       "evidence": [
         {
           "path": "artifacts/manifests/lift_1_manifest.json",
@@ -68,5 +132,6 @@
       "evidence": [],
       "missing_required_artifact": "artifacts/manifests/lift_1_closure_manifest.json"
     }
-  ]
+  ],
+  "content_hash": "1f66a80c2e00be7442cfd6fbf2e522a06759d3829457704225366fadcf9b27a6"
 }

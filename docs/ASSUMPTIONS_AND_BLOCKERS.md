@@ -25,9 +25,10 @@ substitute for empirical QuantConnect delivery evidence.
 - The Master Definition-of-Ready contracts exist: point-in-time normalizer/gate,
   ExperimentLedger, feature names/units marked unimplemented, ForecastPacket schema,
   number-free BASE/STRESS/SEVERE cost contract, and OBSERVE_ONLY hard-safety contract.
-- The target GitHub repository was empty at task start and the connected GitHub
-  integration reports push permission. The private specifications and all credentials,
-  raw data, caches, and bulk outputs are excluded.
+- The target GitHub repository was empty at task start. The connected GitHub integration
+  published the certified source tree to `main` at
+  `3f1bb4294d26acbe7f4977f65b7a69483a6f124a` without force-push. The private
+  specifications and all credentials, raw data, caches, and bulk outputs are excluded.
 
 ## ASSUMED_FOR_LOCAL_TEST_ONLY
 
