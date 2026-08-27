@@ -216,11 +216,12 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   stress memberships; the complete Python 3.11 gate passes 87 tests. Whole-engine
   hashes match at 100/250/500/1000/1500 observations of the frozen 2,000-observation
   stream. Result: `MATH_READY_FOR_LIFT_2_RUNTIME`.
-- 2026-08-27 — QC builds through `b77ac2-941e38` isolated an initialization-only
-  package cycle before data delivery. The four runtime-facing package initializers
-  were made side-effect free and the hashed runtime-source closure was expanded to
-  include every transitive package, data, domain, adapter, and research helper file.
-  Indicator mathematics remain frozen; fresh QC replay is pending.
+- 2026-08-27 — QC builds through `b77ac2-941e38` failed before data delivery. Direct
+  inspection proved the cloud `domain/enums.py` path contained `data/policies.py`
+  bytes. Runtime-facing initializers were also made side-effect free, and the hashed
+  runtime-source closure was expanded to every deployed transitive file while
+  excluding the two documented local-only filename facades. Indicator mathematics
+  remain frozen; exact cloud resynchronization and fresh replay are pending.
 
 ## Source acceptance matrix
 

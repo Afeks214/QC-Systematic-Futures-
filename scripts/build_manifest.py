@@ -98,7 +98,11 @@ LIFT2_RUNTIME_SOURCE_FILES = (
     PROJECT_ROOT / "systematic_futures/domain/identifiers.py",
     PROJECT_ROOT / "systematic_futures/domain/schemas.py",
     PROJECT_ROOT / "systematic_futures/domain/serialization.py",
-    *sorted((PROJECT_ROOT / "systematic_futures/measurement").glob("*.py")),
+    *sorted(
+        path
+        for path in (PROJECT_ROOT / "systematic_futures/measurement").glob("*.py")
+        if path.name not in {"profile.py", "types.py"}
+    ),
     PROJECT_ROOT / "systematic_futures/qc_adapters/__init__.py",
     PROJECT_ROOT / "systematic_futures/qc_adapters/lift2_runtime.py",
     PROJECT_ROOT / "systematic_futures/qc_adapters/futures_registration.py",

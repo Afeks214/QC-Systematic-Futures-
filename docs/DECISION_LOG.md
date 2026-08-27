@@ -462,6 +462,8 @@ Public-source support: none; this decision is based on observed project `3569718
 compile/initialization evidence on LEAN `2.5.0.0.18036`.
 Consequences: local callers retain the specified imports; the cloud source omits the
 two rejected facades and executes byte-identical implementation modules instead.
+The runtime-source content hash likewise excludes those two local-only facades and
+includes their canonical implementation modules.
 Reopen condition: QC Cloud accepts nested `types.py` and `profile.py` without
 flattening or standard-library conflicts.
 

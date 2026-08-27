@@ -463,9 +463,10 @@ unrelated repository packages or re-enter a partially initialized domain module.
 
 Observed behavior: fresh QC build `b77ac2-941e38` initialized `main.py` but failed
 before data delivery with `DatasetCertificationStatus` reported from a partially
-initialized `systematic_futures.domain.enums` module. The failure persisted after
-the known cloud filename conflicts were excluded, which isolated eager package
-initializers as the remaining import-time cause.
+initialized `systematic_futures.domain.enums` module. Direct post-failure inspection
+then proved that the cloud path held the bytes of `data/policies.py`, despite the
+local path containing only enums. The cloud editor synchronization was therefore the
+proximate failure; eager package exports remained an avoidable import-order risk.
 
 Resolution: `config`, `domain`, `qc_adapters`, and `research_lib` package
 initializers now declare no submodule imports. Callers import concrete symbols from
@@ -473,7 +474,7 @@ their defining modules, and a source-boundary regression test enforces the rule.
 This changes package loading only; indicator formulas and state transitions are
 unchanged.
 
-Status: `OBSERVED_FAILURE_RESOLVED_LOCALLY_QC_REPLAY_PENDING`.
+Status: `OBSERVED_CLOUD_SOURCE_MISMATCH_CORRECTION_AND_QC_REPLAY_PENDING`.
 
 ### Python project filename compatibility
 

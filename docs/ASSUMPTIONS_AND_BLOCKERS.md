@@ -69,9 +69,9 @@ trading, and live trading remain unimplemented.
 
 - `MATH_READY_FOR_LIFT_2_RUNTIME`: all local mathematical reconciliation gates pass
   against the three supplied indicator specifications.
-- `QC_REPLAY_PENDING`: build `b77ac2-941e38` exposed an eager package-initialization
-  cycle before any market data was processed. The runtime-facing initializers are now
-  side-effect free and locally verified; a fresh cloud build and replay must pass
-  before Lift 2 can be declared complete.
+- `QC_REPLAY_PENDING`: build `b77ac2-941e38` failed before any market data was
+  processed. Direct inspection found `data/policies.py` bytes at the cloud
+  `domain/enums.py` path. The cloud source requires exact resynchronization; a fresh
+  build and replay must pass before Lift 2 can be declared complete.
 - This packaging issue does not invalidate the reconciled formulas, but local success
   is not substituted for QC runtime evidence.
