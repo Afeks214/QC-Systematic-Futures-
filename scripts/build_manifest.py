@@ -536,8 +536,8 @@ def _validate_lift2_math_evidence(document: dict[str, object]) -> None:
         "analytic_test_count": 19,
         "differential_test_count": 9,
         "metamorphic_test_count": 14,
-        "causality_test_count": 13,
-        "stress_test_count": 19,
+        "causality_test_count": 14,
+        "stress_test_count": 20,
     }
     for field_name, expected in expected_counts.items():
         if document.get(field_name) != expected:
