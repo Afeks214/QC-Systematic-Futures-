@@ -31,6 +31,24 @@ from systematic_futures.qc_adapters import lift2_runtime
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MEASUREMENT_ROOT = PROJECT_ROOT / "systematic_futures/measurement"
+RUNTIME_PACKAGE_INITIALIZERS = (
+    PROJECT_ROOT / "systematic_futures/config/__init__.py",
+    PROJECT_ROOT / "systematic_futures/domain/__init__.py",
+    PROJECT_ROOT / "systematic_futures/qc_adapters/__init__.py",
+    PROJECT_ROOT / "systematic_futures/research_lib/__init__.py",
+)
+
+
+def test_runtime_package_initializers_are_side_effect_free() -> None:
+    for path in RUNTIME_PACKAGE_INITIALIZERS:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        imports = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import | ast.ImportFrom)
+            and not (isinstance(node, ast.ImportFrom) and node.module == "__future__")
+        ]
+        assert imports == [], f"{path} must not import runtime submodules"
 
 
 def test_measurement_modules_are_qc_free_and_use_only_authorized_dependency() -> None:

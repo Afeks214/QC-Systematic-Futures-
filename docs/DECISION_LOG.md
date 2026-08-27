@@ -479,3 +479,22 @@ Consequences: event time remains the QC data timestamp, availability remains the
 frontier, and `exchange_time_utc <= available_at_utc` stays fail-closed.
 Reopen condition: an official QC API or runtime version establishes different Python
 tick timestamp semantics under an explicitly UTC algorithm.
+
+## 2026-08-27 — Make runtime package initialization side-effect free
+
+Date: 2026-08-27
+Decision: package initializers used by the QC runtime export no eager submodule
+imports; every composition root imports the concrete defining module directly.
+Alternatives considered: reorder the circular imports; duplicate enum definitions;
+weaken the domain boundary; retain a cloud-only source fork.
+Reason: QC build `b77ac2-941e38` reached algorithm initialization but re-entered
+`domain.enums` through eager package imports before the enum module had finished
+loading. Side-effect-free initializers remove that ambiguous runtime ordering while
+preserving one byte-audited implementation tree.
+Specification support: Lift 2 sections 12, 17, 22, and 71-73 require one modular,
+deterministic implementation and QC/local parity.
+Consequences: the package-root convenience re-exports are removed; existing code in
+the repository already imports concrete modules. A static regression test prevents
+the cycle from returning. No indicator equation or numerical state is changed.
+Reopen condition: a separately versioned public facade is required and can be proven
+not to introduce import-time side effects in local Python and QC Cloud.

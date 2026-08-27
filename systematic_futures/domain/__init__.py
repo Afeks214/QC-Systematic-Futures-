@@ -1,53 +1,10 @@
+"""Domain package with side-effect-free initialization.
+
+Domain types and errors are imported from their defining modules.  This avoids
+re-entering ``domain.enums`` while Python is resolving a direct submodule import in
+restricted runtimes such as QuantConnect Cloud.
+"""
+
 from __future__ import annotations
 
-from systematic_futures.domain.enums import (
-    AssetClassGroup,
-    AuctionLocationState,
-    CandidateEventType,
-    DataQualityStatus,
-    DatasetCertificationStatus,
-    ExperimentDecision,
-    IAEGapDirection,
-    IAEGapState,
-    ProfileKind,
-    ResearchEnvironment,
-    RollState,
-    SessionType,
-)
-from systematic_futures.domain.errors import (
-    ContractBoundaryError,
-    DataQualityError,
-    DataTimingInvariantError,
-    DuplicateIdentifierError,
-    LedgerIntegrityError,
-    MarketConfigurationError,
-    SessionBoundaryError,
-    SystematicFuturesError,
-    TimeSemanticsError,
-    UnverifiedQuantConnectApiError,
-)
-
-__all__ = (
-    "AssetClassGroup",
-    "AuctionLocationState",
-    "CandidateEventType",
-    "ContractBoundaryError",
-    "DataQualityError",
-    "DataQualityStatus",
-    "DataTimingInvariantError",
-    "DatasetCertificationStatus",
-    "DuplicateIdentifierError",
-    "ExperimentDecision",
-    "IAEGapDirection",
-    "IAEGapState",
-    "LedgerIntegrityError",
-    "MarketConfigurationError",
-    "ProfileKind",
-    "ResearchEnvironment",
-    "RollState",
-    "SessionBoundaryError",
-    "SessionType",
-    "SystematicFuturesError",
-    "TimeSemanticsError",
-    "UnverifiedQuantConnectApiError",
-)
+__all__: tuple[str, ...] = ()

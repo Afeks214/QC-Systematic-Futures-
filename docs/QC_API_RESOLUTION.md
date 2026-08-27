@@ -456,6 +456,25 @@ Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
 Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
 
+### Python package initialization in QC Cloud
+
+Requirement: importing one concrete Lift 2 runtime module must not eagerly import
+unrelated repository packages or re-enter a partially initialized domain module.
+
+Observed behavior: fresh QC build `b77ac2-941e38` initialized `main.py` but failed
+before data delivery with `DatasetCertificationStatus` reported from a partially
+initialized `systematic_futures.domain.enums` module. The failure persisted after
+the known cloud filename conflicts were excluded, which isolated eager package
+initializers as the remaining import-time cause.
+
+Resolution: `config`, `domain`, `qc_adapters`, and `research_lib` package
+initializers now declare no submodule imports. Callers import concrete symbols from
+their defining modules, and a source-boundary regression test enforces the rule.
+This changes package loading only; indicator formulas and state transitions are
+unchanged.
+
+Status: `OBSERVED_FAILURE_RESOLVED_LOCALLY_QC_REPLAY_PENDING`.
+
 ### Python project filename compatibility
 
 Requirement: preserve the Lift 2 public module surface while compiling in QC Cloud.

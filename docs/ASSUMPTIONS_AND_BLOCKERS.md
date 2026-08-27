@@ -64,3 +64,14 @@ Reviewed: **2026-08-27**
 Market Profile, Auction State, IMSI, ICM, IAE, L2, candidate events, labels, returns,
 P&L, forecasts, ML, Alpha, portfolio construction, risk, execution, orders, paper
 trading, and live trading remain unimplemented.
+
+## Lift 2 runtime certification — 2026-08-27
+
+- `MATH_READY_FOR_LIFT_2_RUNTIME`: all local mathematical reconciliation gates pass
+  against the three supplied indicator specifications.
+- `QC_REPLAY_PENDING`: build `b77ac2-941e38` exposed an eager package-initialization
+  cycle before any market data was processed. The runtime-facing initializers are now
+  side-effect free and locally verified; a fresh cloud build and replay must pass
+  before Lift 2 can be declared complete.
+- This packaging issue does not invalidate the reconciled formulas, but local success
+  is not substituted for QC runtime evidence.
