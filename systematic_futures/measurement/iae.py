@@ -18,7 +18,7 @@ from systematic_futures.domain.errors import (
     DataTimingInvariantError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.types import CompletedTradeBar, IAEStateSnapshot
+from systematic_futures.measurement.models import CompletedTradeBar, IAEStateSnapshot
 
 _VERSION = "iae_l1_gap_geometry_v1"
 _MAX_GAP_AGE_BARS = 48

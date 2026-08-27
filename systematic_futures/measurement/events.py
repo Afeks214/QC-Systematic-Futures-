@@ -18,7 +18,7 @@ from systematic_futures.domain.errors import (
     DuplicateIdentifierError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.types import (
+from systematic_futures.measurement.models import (
     AuctionStateSnapshot,
     CandidateEventObservation,
     IAEStateSnapshot,

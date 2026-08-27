@@ -394,3 +394,24 @@ Public-source support: Cont, Kukanov and Stoikov (2010); Xu, Gould and Howison (
 Consequences: no queue, cancellation, replenishment, institutional-absorption, OFI,
 or MLOFI claim appears in executable measurement outputs.
 Reopen condition: a later separately authorized lift certifies incremental L2 data.
+
+## 2026-08-27 — Preserve public module facades around QC filename collisions
+
+Date: 2026-08-27
+Decision: Keep directive-specified `measurement/types.py` and
+`measurement/profile.py` as thin public facades, place their implementations in
+`measurement/models.py` and `measurement/volume_profile.py`, and make the QC runtime
+import only the non-conflicting implementation names.
+Alternatives considered: accept an initialization failure; duplicate the full modules;
+create `types`/`profile` packages; rename the directive's public imports outright.
+Reason: QC Cloud rejected both filenames as Python-module conflicts; a `types` package
+then shadowed the standard library and broke `enum`/`re`. The selected layout keeps one
+implementation per responsibility and preserves the specified local public API.
+Specification support: Lift 2 sections 12, 17, and 22; the two additional modules are
+an unavoidable QC packaging responsibility inside the already authorized package.
+Public-source support: none; this decision is based on observed project `35697180`
+compile/initialization evidence on LEAN `2.5.0.0.18036`.
+Consequences: local callers retain the specified imports; the cloud source omits the
+two rejected facades and executes byte-identical implementation modules instead.
+Reopen condition: QC Cloud accepts nested `types.py` and `profile.py` without
+flattening or standard-library conflicts.

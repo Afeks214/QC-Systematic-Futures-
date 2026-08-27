@@ -36,7 +36,8 @@ portfolio, risk, execution, order, or L2 behavior.
 - Existing files reused: `domain/enums.py`, `domain/research_contracts.py`,
   `config/feature_semantics.py`, `config/research.py`.
 - Files changed: those existing files.
-- Files added: `measurement/__init__.py`, `measurement/types.py`.
+- Files added: `measurement/__init__.py`, `measurement/types.py`, and the
+  QC-compatible single-source implementation `measurement/models.py`.
 - Invariants: frozen/slotted records; aware UTC; exact actual contract and session;
   no outcome fields; v1 feature semantics remain unchanged.
 - Tests: validation, source-schema outcome guard, v1 immutability, v2 status checks.
@@ -64,13 +65,20 @@ portfolio, risk, execution, order, or L2 behavior.
   Auction features, and emit descriptive transitions once.
 - Existing files reused: measurement contracts, session/roll state, canonical hashes.
 - Files changed: none outside the measurement package.
-- Files added: `measurement/profile.py`.
+- Files added: `measurement/profile.py` and the QC-compatible single-source
+  implementation `measurement/volume_profile.py`.
 - Invariants: actual TRADE ticks only; one root/contract/session per profile; no future
   tick; immutable final profile; no acceptance/rejection composite.
 - Tests: conservation, POC tie, Value Area minimality/contiguity, boundaries, replay,
   rolling subtraction, transition deduplication/parents.
 - QC evidence: profile/snapshot/finalization counts and invariant counters.
 - Completion state: `COMPLETE_LOCAL`.
+
+QC packaging note: cloud project `35697180` rejects nested `types.py` and
+`profile.py`, and a `types` directory shadows Python's standard library. The two
+directive-named files therefore remain thin public facades locally; the cloud runtime
+uses byte-identical implementations from `models.py` and `volume_profile.py`. This is
+an observed, version-recorded platform constraint rather than a second formula path.
 
 ### 5. IMSI descriptive measurement
 

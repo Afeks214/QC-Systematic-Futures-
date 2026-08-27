@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from systematic_futures.measurement.types import (
+from systematic_futures.measurement.models import (
     AuctionFeatureVector,
     AuctionStateSnapshot,
     CandidateEventObservation,

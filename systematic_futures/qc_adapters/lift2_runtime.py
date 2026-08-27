@@ -28,8 +28,8 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.serialization import canonical_json_bytes, sha256_hex
 from systematic_futures.measurement.events import candidate_coverage
+from systematic_futures.measurement.models import TradeObservation
 from systematic_futures.measurement.stream import MeasurementStream
-from systematic_futures.measurement.types import TradeObservation
 from systematic_futures.qc_adapters.futures_registration import register_measurement_future
 from systematic_futures.qc_adapters.probe_recorder import qc_datetime_to_utc
 

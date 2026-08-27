@@ -27,14 +27,7 @@ from systematic_futures.measurement.events import (
 from systematic_futures.measurement.iae import IAEEngine, IAERetestObservation
 from systematic_futures.measurement.icm import ICMEngine
 from systematic_futures.measurement.imsi import IMSIEngine
-from systematic_futures.measurement.profile import (
-    DEFAULT_PROFILE_DEFINITION,
-    VolumeProfileEngine,
-    auction_features,
-    auction_location,
-    local_price_scale,
-)
-from systematic_futures.measurement.types import (
+from systematic_futures.measurement.models import (
     AuctionStateSnapshot,
     CandidateEventObservation,
     CompletedTradeBar,
@@ -44,6 +37,13 @@ from systematic_futures.measurement.types import (
     IndicatorSynergySnapshot,
     TradeObservation,
     VolumeProfileSnapshot,
+)
+from systematic_futures.measurement.volume_profile import (
+    DEFAULT_PROFILE_DEFINITION,
+    VolumeProfileEngine,
+    auction_features,
+    auction_location,
+    local_price_scale,
 )
 
 _FEATURE_VERSION = "feature_semantics_v2"

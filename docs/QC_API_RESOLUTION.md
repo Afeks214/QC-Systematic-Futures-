@@ -456,6 +456,25 @@ Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
 Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
 
+### Python project filename compatibility
+
+Requirement: preserve the Lift 2 public module surface while compiling in QC Cloud.
+
+Observed behavior: project `35697180` rejected nested files named `types.py` and
+`profile.py` as Python-module conflicts. Replacing them with package directories was
+also invalid because a `types` package shadowed the standard library and caused
+`from types import GenericAlias` to fail during build `f68193`.
+
+Resolution: the directive-named files remain thin local facades. Runtime
+implementations live in `measurement/models.py` and
+`measurement/volume_profile.py`, which are the files synchronized to QC Cloud.
+
+Runtime evidence: failed backtest `Sleepy Red Koala`; failed build signature
+`f68193`; LEAN `2.5.0.0.18036`.
+
+Status: `VERIFIED_RUNTIME_CONSTRAINT`; the corrected source still requires a new
+successful build and replay before certification.
+
 ### Tick collection and trade filtering
 
 Requirement: admit traded price/quantity only for the mapped contract.

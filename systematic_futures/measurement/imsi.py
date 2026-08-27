@@ -15,7 +15,7 @@ from systematic_futures.domain.errors import (
     DataTimingInvariantError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.types import (
+from systematic_futures.measurement.models import (
     CompletedTradeBar,
     IMSIStateSnapshot,
     TradeObservation,
