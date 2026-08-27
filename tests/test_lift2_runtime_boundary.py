@@ -220,7 +220,12 @@ def test_runtime_boundary_filters_quotes_and_routes_trade_ticks(monkeypatch) -> 
     )
     ticks = [
         SimpleNamespace(tick_type="quote", end_time=start, price=5000, quantity=99),
-        SimpleNamespace(tick_type="trade", end_time=start, price=5000, quantity=1),
+        SimpleNamespace(
+            tick_type="trade",
+            end_time=start.replace(tzinfo=None),
+            price=5000,
+            quantity=1,
+        ),
         SimpleNamespace(
             tick_type="trade",
             end_time=start + timedelta(minutes=4),

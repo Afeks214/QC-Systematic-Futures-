@@ -495,6 +495,30 @@ Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`; no queue, cancellation, replenishment,
 MLOFI, or native exchange-sequence claim is authorized.
 
+### Tick EndTime at the UTC algorithm boundary
+
+Requirement: assign a causal UTC event time without reinterpreting LEAN's delivered
+clock as an exchange-local wall clock.
+
+Verified behavior: official time-model documentation states that LEAN uses each data
+point's `EndTime` to advance the time frontier, that `Algorithm.Time` equals that
+frontier, and that all data is synchronized in UTC before delivery. The Lift 2
+algorithm explicitly sets its algorithm timezone to UTC. Tick `Time` and `EndTime`
+are equal because ticks are point values.
+
+Official source: [Timeslices](https://www.quantconnect.com/docs/v2/writing-algorithms/key-concepts/time-modeling/timeslices),
+[Periods](https://www.quantconnect.com/docs/v2/writing-algorithms/key-concepts/time-modeling/periods),
+[Initialization time zone](https://www.quantconnect.com/docs/v2/writing-algorithms/initialization#02-Set-Time-Zone).
+
+Runtime evidence: backtest `58ceb00e5c5444d5dee37f85ffae0045` demonstrated
+that treating the delivered naive `EndTime` as exchange-local moved it ahead of the
+UTC algorithm frontier and correctly tripped `DataTimingInvariantError`.
+
+Resolution: interpret naive delivered tick `EndTime` under the configured UTC
+algorithm timezone. Do not clip, backdate, or silently coerce the time.
+
+Status: `VERIFIED_SOURCE_AND_FAILURE_EVIDENCE`; corrected runtime replay pending.
+
 ### Contract metadata
 
 Requirement: obtain the actual contract's minimum price variation.

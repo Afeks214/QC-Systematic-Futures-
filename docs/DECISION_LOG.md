@@ -415,3 +415,18 @@ Consequences: local callers retain the specified imports; the cloud source omits
 two rejected facades and executes byte-identical implementation modules instead.
 Reopen condition: QC Cloud accepts nested `types.py` and `profile.py` without
 flattening or standard-library conflicts.
+
+## 2026-08-27 — Interpret delivered tick EndTime at the UTC frontier
+
+Date: 2026-08-27
+Decision: Convert a naive QC-delivered tick `EndTime` from the configured algorithm
+timezone, which Lift 2 fixes to UTC, rather than from the market exchange timezone.
+Alternatives considered: clip future timestamps; reuse `Algorithm.Time` as the event
+timestamp; treat the delivered wall clock as exchange-local; weaken the invariant.
+Reason: official LEAN time modeling makes `EndTime` the delivery frontier and states
+that algorithm time equals that frontier. The failed ES replay proved that a second
+exchange-timezone conversion moved the event into the future.
+Consequences: event time remains the QC data timestamp, availability remains the QC
+frontier, and `exchange_time_utc <= available_at_utc` stays fail-closed.
+Reopen condition: an official QC API or runtime version establishes different Python
+tick timestamp semantics under an explicitly UTC algorithm.

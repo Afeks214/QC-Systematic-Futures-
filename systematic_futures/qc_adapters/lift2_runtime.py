@@ -102,8 +102,9 @@ class Lift2Runtime:
     def on_slice(self, algorithm: object, qc_slice: object) -> None:
         """Observe mapping/chain identity and admit only mapped actual-contract trades.
 
-        Units: QC native tick price and quantity. Time semantics: tick EndTime uses the
-        root's documented exchange timezone; availability is the UTC algorithm clock.
+        Units: QC native tick price and quantity. Time semantics: LEAN delivers tick
+        EndTime in the configured algorithm timezone (UTC); availability is the same
+        UTC time frontier.
         Missingness: no mapped contract means no measurement row. Raises: API,
         boundary, session, timing, or data-quality errors.
         """
@@ -139,7 +140,7 @@ class Lift2Runtime:
                 exchange_time = qc_datetime_to_utc(
                     getattr(tick, "end_time", None),
                     "trade tick end_time",
-                    naive_source_timezone=get_market_definition(self.root).exchange_timezone,
+                    naive_source_timezone="UTC",
                 )
                 price = float(getattr(tick, "price", 0.0))
                 quantity = float(getattr(tick, "quantity", 0.0))
