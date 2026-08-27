@@ -32,7 +32,7 @@ portfolio construction, risk, execution, L2 order-book inference, or trading act
 |---|---|---|
 | `domain/`, `data/`, `ledger/` | Standard-library identity, clocks, sessions, rolls, lineage, and immutable contracts | Python standard library |
 | `config/` | Eight-market registry, frozen measurement policy, feature semantics v1-v4 | Python standard library |
-| `measurement/types.py` / `models.py` | Public facade / QC-safe implementation for frozen Lift 2 observations and snapshots | Python standard library |
+| `measurement/types.py` / `state_models.py` | Public facades over split QC-safe `measurement_records.py` and `measurement_snapshots.py` implementations | Python standard library |
 | `measurement/profile.py` / `volume_profile.py` | Public facade / QC-safe implementation for tick bins, POC/Value Area, rolling profiles, and Auction primitives | Python standard library |
 | `measurement/volatility.py` | Shared arithmetic 24-true-range five-minute ATR measurement | Python standard library |
 | `measurement/imsi.py` | Prior-only IMSI StateCore, EWMA diagonal shrinkage, and neighbor embargo | NumPy 1.26.4 |

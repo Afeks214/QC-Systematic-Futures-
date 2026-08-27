@@ -13,6 +13,7 @@ from systematic_futures.config.feature_semantics import (
     feature_semantics_v4,
     feature_semantics_v5,
 )
+from systematic_futures.config.research import LIFT2_DEEP_END_DATE, LIFT2_DEEP_START_DATE
 from systematic_futures.data.sessions import SessionEngine, reference_session_policies
 from systematic_futures.domain.research_contracts import FeatureImplementationStatus
 from systematic_futures.measurement.types import (
@@ -328,6 +329,16 @@ def test_runtime_boundary_filters_quotes_and_routes_trade_ticks(monkeypatch) -> 
     assert runtime.runtime_summary["counts"]["trade_ticks"] == 3
     assert runtime.runtime_summary["counts"]["rejected_trade_ticks"] == 1
     assert runtime.runtime_summary["quality_counts"]["DATA:SOURCE_SUSPICIOUS"] == 1
+    assert runtime.runtime_summary["mode"] == "deep"
+    assert runtime.runtime_summary["period"] == {
+        "end": LIFT2_DEEP_END_DATE,
+        "start": LIFT2_DEEP_START_DATE,
+    }
+    assert runtime.runtime_summary["zero_actions"] == {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0,
+    }
     assert host.statistics["L2.ES.FiveMinuteBars"] == 1
     assert host.statistics["L2.NoOrders"] == 0
     assert host.statistics["L2.NoInsights"] == 0

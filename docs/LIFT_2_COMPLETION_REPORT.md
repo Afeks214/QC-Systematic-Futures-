@@ -22,7 +22,8 @@ behavior. Engineering correctness is not evidence of predictive value or profita
 
 The production footprint is limited to the existing configuration/domain/session
 boundaries, one `measurement/` package, the thin QC adapter and composition root, and
-the existing research/certification surfaces. `models.py` owns immutable records;
+the existing research/certification surfaces. `state_models.py` is the stable facade
+over the single-source `measurement_records.py` and `measurement_snapshots.py` modules;
 `volume_profile.py`, `imsi.py`, `icm.py`, `iae.py`, `events.py`, and `stream.py` each
 own one current measurement responsibility. The local `profile.py` and `types.py`
 files are import facades required by existing notebook names and are excluded from the
@@ -114,13 +115,18 @@ treated as an engineering failure.
 - Project: `35697180` (`Geeky Sky Blue Pig`).
 - LEAN: `2.5.0.0.18036`, master `v18036`.
 - Cloud Python/NumPy: `3.11.14` / `1.26.4`.
-- Source-forensic runtime tree hash: `PENDING_FINAL_LOCAL_GATE`.
+- Source-forensic runtime tree hash:
+  `43535ea8f01832b5b8222a1038399cef2edb8abf0c5a9dda48f7e199cd5a7008`.
 - Pre-floor ES smoke/deep integration runs completed but are superseded and cannot
   qualify final evidence.
 - ZN deep backtest `0f2c86d773425e9db2b6f81ad3f0a90b` exposed a valid zero true range in a locked
   bar. The source specification requires retaining that observation and flooring the
   warmed ATR at `1e-6`; the formula, version, reference vector, prefix certificate,
   and local suite were recertified before replay.
+- Post-reconciliation replay `cd72b8ce4944656538ff443fd2d1f213` exposed an IAE
+  ID collision when a first retest and a new formation occurred on the same bar. The
+  identity now includes the changed aggregate `active_gap_count`; the deterministic
+  reproducer and full local suite pass before corrected build `f3b3ae-94b66a`.
 - Recertified ES/ZN/6E deep matrix: `PENDING_QC_MATRIX`.
 
 The superseded ES smoke result contains 1,223,512 admitted trade ticks, 828 five-minute bars,
@@ -136,8 +142,8 @@ integration evidence only and is not part of the final acceptance matrix.
 ## 16. Quality Results
 
 Python 3.11 local gate: compile PASS; Ruff format/check PASS; strict Pyright PASS;
-99 tests PASS; 4 notebooks PASS; deterministic source rebuild PASS. The 32 marked math
-cases contain 19 analytic, 9 differential, 14 metamorphic, 13 causality, and 19 stress
+100 tests PASS; 4 notebooks PASS; deterministic source rebuild PASS. The marked math
+cases contain 19 analytic, 9 differential, 14 metamorphic, 14 causality, and 20 stress
 memberships.
 
 ## 17. Performance / Memory Observations

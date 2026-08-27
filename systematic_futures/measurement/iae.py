@@ -19,7 +19,7 @@ from systematic_futures.domain.errors import (
     DataTimingInvariantError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.models import (
+from systematic_futures.measurement.state_models import (
     ATRMeasurement,
     CompletedTradeBar,
     IAEStateSnapshot,
@@ -338,7 +338,9 @@ class IAEEngine:
         normalization_ready: bool,
     ) -> IAEStateSnapshot:
         volume_score_input = max(volume_z, _VOLUME_Z_FLOOR) if volume_z is not None else None
+        active_gap_count = self.active_gap_count
         identity = {
+            "active_gap_count": active_gap_count,
             "as_of_utc": bar.end_utc,
             "contract_symbol": self.contract_symbol,
             "gap_id": gap.gap_id if gap is not None else None,
@@ -374,7 +376,7 @@ class IAEEngine:
             score_raw=metrics.score_raw if metrics is not None else None,
             score_effective=metrics.score_effective if metrics is not None else None,
             absorption_confirmed=gap is not None and gap.state is IAEGapState.ABSORBED,
-            active_gap_count=self.active_gap_count,
+            active_gap_count=active_gap_count,
             measurement_ready=gap is not None and normalization_ready,
             quality_flags=tuple(sorted(flags)),
             version=_VERSION,

@@ -28,7 +28,7 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.serialization import canonical_json_bytes, sha256_hex
 from systematic_futures.measurement.events import candidate_coverage
-from systematic_futures.measurement.models import TradeObservation
+from systematic_futures.measurement.state_models import TradeObservation
 from systematic_futures.measurement.stream import MeasurementStream
 from systematic_futures.qc_adapters.futures_registration import register_measurement_future
 from systematic_futures.qc_adapters.probe_recorder import qc_datetime_to_utc
@@ -48,8 +48,15 @@ class Lift2Runtime:
         root: str,
         continuous_subscription: object,
         session_engine: SessionEngine,
+        *,
+        mode: str = "deep",
+        period_start: str = LIFT2_DEEP_START_DATE,
+        period_end: str = LIFT2_DEEP_END_DATE,
     ) -> None:
         self.root = root
+        self.mode = mode
+        self._period_start = period_start
+        self._period_end = period_end
         self._continuous = cast(Any, continuous_subscription)
         self._sessions = session_engine
         self._rolls = RollManager()
@@ -91,7 +98,14 @@ class Lift2Runtime:
         host.set_start_date(start_date.year, start_date.month, start_date.day)
         host.set_end_date(end_date.year, end_date.month, end_date.day)
         subscription = register_measurement_future(host, get_market_definition(root))
-        return cls(root, subscription, SessionEngine(reference_session_policies()))
+        return cls(
+            root,
+            subscription,
+            SessionEngine(reference_session_policies()),
+            mode=mode,
+            period_start=start,
+            period_end=end,
+        )
 
     @property
     def runtime_summary(self) -> Mapping[str, object] | None:
@@ -234,16 +248,20 @@ class Lift2Runtime:
         summary = {
             "chain_observations": self._chain_observations,
             "contract_count": len(self._contracts),
+            "contracts": sorted(self._contracts),
             "counts": dict(sorted(counts.items())),
             "coverage": coverage,
             "coverage_hash": sha256_hex(coverage),
             "measurement_hash": measurement_hash,
+            "mode": self.mode,
             "numpy_version": np.__version__,
+            "period": {"end": self._period_end, "start": self._period_start},
             "python_version": platform.python_version(),
             "quality_counts": dict(sorted(quality.items())),
             "quote_ticks_ignored": self._quote_ticks_ignored,
             "roll_count": self._roll_count,
             "root": self.root,
+            "zero_actions": {"insights": 0, "orders": 0, "portfolio_targets": 0},
         }
         self._runtime_summary = MappingProxyType(summary)
         prefix = f"L2.{self.root}"

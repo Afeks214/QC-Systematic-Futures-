@@ -8,7 +8,7 @@ import pytest
 from systematic_futures.data.sessions import SessionEngine, reference_session_policies
 from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import ContractBoundaryError
-from systematic_futures.measurement.models import TradeObservation
+from systematic_futures.measurement.state_models import TradeObservation
 from systematic_futures.measurement.stream import MeasurementStream, _TradeBarAggregator
 
 SEED = 1729

@@ -28,7 +28,7 @@ from systematic_futures.measurement.events import (
 from systematic_futures.measurement.iae import IAEEngine, IAERetestObservation
 from systematic_futures.measurement.icm import ICMEngine
 from systematic_futures.measurement.imsi import IMSIStateCore
-from systematic_futures.measurement.models import (
+from systematic_futures.measurement.state_models import (
     ATRMeasurement,
     AuctionStateSnapshot,
     CandidateEventObservation,

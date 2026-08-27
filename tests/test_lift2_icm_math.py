@@ -11,7 +11,7 @@ from systematic_futures.measurement.icm import (
     fit_quadratic_geometry,
     quadratic_design,
 )
-from systematic_futures.measurement.models import CompletedTradeBar, PriceScale
+from systematic_futures.measurement.state_models import CompletedTradeBar, PriceScale
 
 SEED = 1729
 

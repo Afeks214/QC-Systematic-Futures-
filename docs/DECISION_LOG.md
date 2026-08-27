@@ -449,7 +449,7 @@ Reopen condition: a later separately authorized lift certifies incremental L2 da
 Date: 2026-08-27
 Decision: Keep directive-specified `measurement/types.py` and
 `measurement/profile.py` as thin public facades, place their implementations in
-`measurement/models.py` and `measurement/volume_profile.py`, and make the QC runtime
+`measurement/state_models.py` and `measurement/volume_profile.py`, and make the QC runtime
 import only the non-conflicting implementation names.
 Alternatives considered: accept an initialization failure; duplicate the full modules;
 create `types`/`profile` packages; rename the directive's public imports outright.
@@ -460,6 +460,23 @@ Specification support: Lift 2 sections 12, 17, and 22; the two additional module
 an unavoidable QC packaging responsibility inside the already authorized package.
 Public-source support: none; this decision is based on observed project `35697180`
 compile/initialization evidence on LEAN `2.5.0.0.18036`.
+
+## 2026-08-27 — Split the QC state-model implementation at a persistence boundary
+
+Date: 2026-08-27
+Decision: Keep `state_models.py` as a stable export facade and split its implementation
+between `measurement_records.py` and `measurement_snapshots.py`.
+Alternatives considered: trust an editor buffer without reload; retain the corrupted
+`models.py` binding; infer and hard-code an undocumented platform file-size limit;
+delete and recreate cloud files.
+Reason: project `35697180` repeatedly reverted 35,303-byte and 35,374-byte model
+payloads after server reload, while 17,249-byte and 18,796-byte split modules persisted
+with exact SHA-256 equality. The split changes packaging only: class definitions remain
+single-source, and the public import surface is preserved by the facade.
+Specification support: Lift 2 sections 12, 17, and 22 permit QC packaging inside the
+measurement boundary; no formula, threshold, readiness rule, or event contract changed.
+Public-source support: none. This is direct observed QC Cloud behavior on LEAN
+`2.5.0.0.18036`; no undocumented universal size threshold is claimed.
 Consequences: local callers retain the specified imports; the cloud source omits the
 two rejected facades and executes byte-identical implementation modules instead.
 The runtime-source content hash likewise excludes those two local-only facades and
@@ -538,3 +555,21 @@ to distinct gap snapshots; candidate breadth and research usability are reported
 separately. No outcome, Alpha, or execution behavior is introduced.
 Reopen condition: a separately verified source adapter supplies a stronger event-ID or
 sequence contract, or a later lift authorizes outcomes under a preregistered policy.
+
+## 2026-08-27 — Include aggregate active-gap state in IAE snapshot identity
+
+Date: 2026-08-27
+Decision: Include `active_gap_count` in the content-derived IAE snapshot identity.
+Alternatives considered: suppress the bar snapshot; reuse the earlier retest snapshot;
+ignore unequal payloads that share an ID; stop allowing formation after a retest bar.
+Reason: QC replay `cd72b8ce4944656538ff443fd2d1f213` proved that a bar can first
+retest an existing gap and then form another gap. Both snapshots legitimately share
+the same time and selected gap, but the aggregate state changes from one active gap
+to two. Omitting that field made unequal immutable records share one ID and correctly
+triggered the stream integrity guard.
+Consequences: the formation and retest equations are unchanged; only state identity
+is corrected. A deterministic regression reproduces the exact lifecycle and proves
+that the retest and bar-close records have different IDs while preserving identical
+gap and as-of lineage.
+Reopen condition: the IAE snapshot schema removes `active_gap_count` or replaces it
+with a separately versioned aggregate-state identity contract.

@@ -16,7 +16,7 @@ from systematic_futures.measurement.imsi import (
     neighbor_distance_summary,
     volume_weighted_rsi,
 )
-from systematic_futures.measurement.models import CompletedTradeBar
+from systematic_futures.measurement.state_models import CompletedTradeBar
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SEED = 1729

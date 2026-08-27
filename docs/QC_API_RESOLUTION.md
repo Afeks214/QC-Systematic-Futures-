@@ -533,16 +533,25 @@ Observed behavior: project `35697180` rejected nested files named `types.py` and
 also invalid because a `types` package shadowed the standard library and caused
 `from types import GenericAlias` to fail during build `f68193`.
 
-Resolution: the directive-named files remain thin local facades. Runtime
-implementations live in `measurement/models.py` and
-`measurement/volume_profile.py`, which are the files synchronized to QC Cloud.
+Resolution: the directive-named files remain thin local facades. Runtime model
+implementations are split once between `measurement/measurement_records.py` and
+`measurement/measurement_snapshots.py`, exported by `measurement/state_models.py`;
+Profile remains in `measurement/volume_profile.py`. These are the files synchronized
+to QC Cloud.
 
 Runtime evidence: failed backtest `Sleepy Red Koala`; failed build signature
 `f68193`; LEAN `2.5.0.0.18036`.
 
-Status: `VERIFIED_RUNTIME_CONSTRAINT_RESOLVED`; corrected build
-`7de0cd-7f0de9` and ES backtest `cd7b3f083a248def2d4720ae38613f5a`
-completed from the independently byte-audited 34-file deployment.
+Additional observed constraint: two independent save/reload trials of a 35,374-byte
+model module reverted to the server skeleton, while the split 17,249-byte records and
+18,796-byte snapshots modules persisted with exact SHA-256 equality. The repository
+does not infer a general platform size limit from those observations; it uses the
+smallest semantics-preserving split proven in project `35697180`.
+
+Status: `VERIFIED_RUNTIME_CONSTRAINT_RESOLVED`; corrected source build
+`f3b3ae-94b66a` on LEAN `2.5.0.0.18036` completed after the independently
+byte-audited 36-file deployment and the IAE state-identity correction. Final replay
+identifiers remain in the completion report.
 
 ### Tick collection and trade filtering
 
@@ -620,7 +629,8 @@ positive native tick lattice from the actual-contract security metadata.
 Requirement: run the same source separately by root when bounded tick replay is
 needed.
 
-Verified symbol/API: `get_parameter("lift2_root", "ES")`; algorithm date and UTC
+Verified symbol/API: `get_parameter("lift2_root", "ES")` and
+`get_parameter("lift2_mode", "deep")`; algorithm date and UTC
 methods, mapping callback, `set_summary_statistic`, continuous `mapped`, futures
 chains, and zero-action evidence retain the previously resolved names above.
 
@@ -631,7 +641,9 @@ Source version/date: living docs inspected 2026-08-27.
 
 Used in file: `main.py`, `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+Status: `VERIFIED_SOURCE_AND_UI_PARAMETERS`; the exact project keys are
+`lift2_root` and `lift2_mode`. The aliases `root` and `mode` are not consumed by the
+runtime and cannot qualify a matrix row.
 
 ### NumPy runtime
 

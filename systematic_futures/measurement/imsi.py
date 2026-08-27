@@ -16,7 +16,7 @@ from systematic_futures.domain.errors import (
     DataTimingInvariantError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.models import CompletedTradeBar, IMSIStateSnapshot
+from systematic_futures.measurement.state_models import CompletedTradeBar, IMSIStateSnapshot
 
 _VERSION = "imsi_state_core_math_v3|ewma_diagonal_shrinkage_spec_v1"
 _ALPHA = 1.0 / 14.0

@@ -36,8 +36,9 @@ portfolio, risk, execution, order, or L2 behavior.
 - Existing files reused: `domain/enums.py`, `domain/research_contracts.py`,
   `config/feature_semantics.py`, `config/research.py`.
 - Files changed: those existing files.
-- Files added: `measurement/__init__.py`, `measurement/types.py`, and the
-  QC-compatible single-source implementation `measurement/models.py`.
+- Files added: `measurement/__init__.py`, `measurement/types.py`, the stable
+  `measurement/state_models.py` facade, and the split QC-safe single-source
+  implementations `measurement_records.py` and `measurement_snapshots.py`.
 - Invariants: frozen/slotted records; aware UTC; exact actual contract and session;
   no outcome fields; v1 feature semantics remain unchanged.
 - Tests: validation, source-schema outcome guard, v1 immutability, v2 status checks.
@@ -79,8 +80,9 @@ portfolio, risk, execution, order, or L2 behavior.
 QC packaging note: cloud project `35697180` rejects nested `types.py` and
 `profile.py`, and a `types` directory shadows Python's standard library. The two
 directive-named files therefore remain thin public facades locally; the cloud runtime
-uses byte-identical implementations from `models.py` and `volume_profile.py`. This is
-an observed, version-recorded platform constraint rather than a second formula path.
+uses the byte-identical `state_models.py` facade, its two implementation modules, and
+`volume_profile.py`. This is an observed, version-recorded platform constraint rather
+than a second formula path.
 
 ### 5. IMSI descriptive measurement
 
@@ -257,6 +259,17 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   supported local suite passes 99 tests; the 32 marked math cases contain 19 analytic,
   9 differential, 14 metamorphic, 13 causality, and 19 stress memberships. Source
   status is `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`.
+- 2026-08-27 — Post-reconciliation QC replay
+  `cd72b8ce4944656538ff443fd2d1f213` reached real ES tick data and exposed a
+  same-bar IAE state-identity defect: a first retest snapshot and the closing bar
+  snapshot shared an ID when a second gap formed later in the same update, although
+  `active_gap_count` changed. The snapshot identity now includes that state field.
+  A deterministic regression reproduces the exact retest-plus-formation sequence and
+  proves distinct IDs with preserved gap/time lineage. The complete gate passes 100
+  tests and source tree hash
+  `43535ea8f01832b5b8222a1038399cef2edb8abf0c5a9dda48f7e199cd5a7008`;
+  corrected QC build `f3b3ae-94b66a` is under replay. Runtime parameter evidence
+  uses the exact keys `lift2_root` and `lift2_mode`; shorter aliases are ignored.
 
 ## Source acceptance matrix
 

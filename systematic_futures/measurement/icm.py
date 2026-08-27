@@ -16,7 +16,11 @@ from systematic_futures.domain.errors import (
     MarketConfigurationError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.models import CompletedTradeBar, ICMStateSnapshot, PriceScale
+from systematic_futures.measurement.state_models import (
+    CompletedTradeBar,
+    ICMStateSnapshot,
+    PriceScale,
+)
 
 _VERSION = "icm_quadratic_geometry_math_v3|pinv_solver_v1"
 _EPSILON = 1e-12

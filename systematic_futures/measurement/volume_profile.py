@@ -17,7 +17,7 @@ from systematic_futures.domain.errors import (
     SessionBoundaryError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.models import (
+from systematic_futures.measurement.state_models import (
     ATRMeasurement,
     AuctionFeatureVector,
     AuctionTransitionMetrics,

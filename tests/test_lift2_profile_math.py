@@ -13,12 +13,6 @@ from systematic_futures.domain.errors import (
     SessionBoundaryError,
 )
 from systematic_futures.measurement.events import AuctionTransitionEngine
-from systematic_futures.measurement.models import (
-    ATRMeasurement,
-    AuctionTransitionMetrics,
-    CompletedTradeBar,
-    TradeObservation,
-)
 from systematic_futures.measurement.profile import (
     DEFAULT_PROFILE_DEFINITION,
     VolumeProfileEngine,
@@ -27,6 +21,12 @@ from systematic_futures.measurement.profile import (
     price_to_tick,
     select_poc,
     select_value_area,
+)
+from systematic_futures.measurement.state_models import (
+    ATRMeasurement,
+    AuctionTransitionMetrics,
+    CompletedTradeBar,
+    TradeObservation,
 )
 
 

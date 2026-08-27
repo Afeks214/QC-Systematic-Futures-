@@ -14,7 +14,7 @@ from systematic_futures.measurement.iae import (
     formation_is_eligible,
     formation_quality,
 )
-from systematic_futures.measurement.models import ATRMeasurement, CompletedTradeBar
+from systematic_futures.measurement.state_models import ATRMeasurement, CompletedTradeBar
 from systematic_futures.measurement.volatility import ATR5m24, true_range
 
 
@@ -473,6 +473,33 @@ def test_two_gaps_retested_on_one_bar_have_exact_distinct_snapshot_lineage() -> 
         retest_observation.gap_id == snapshots[retest_observation.iae_snapshot_id].gap_id
         for retest_observation in update.retests
     } == {True}
+
+
+@pytest.mark.causality_math
+@pytest.mark.stress_math
+def test_retest_and_same_bar_formation_have_collision_free_state_lineage() -> None:
+    base = datetime(2024, 3, 4, 14, 30, tzinfo=UTC)
+    engine = IAEEngine("ES", "ESH24", 0.25)
+    bars = (
+        _bar(0, base=base, open_price=99.5, high=100.0, low=99.0, close=99.75),
+        _bar(1, base=base, open_price=100.0, high=102.5, low=99.75, close=102.0),
+        _bar(2, base=base, open_price=101.0, high=103.0, low=101.0, close=102.5),
+        _bar(3, base=base, open_price=104.0, high=106.0, low=104.0, close=105.0),
+        _bar(4, base=base, open_price=105.0, high=105.0, low=101.5, close=102.0),
+        _bar(5, base=base, open_price=100.5, high=100.75, low=99.5, close=100.5),
+    )
+    update = None
+    for bar in bars:
+        update = engine.on_bar(bar, _atr(bar), SessionType.RTH, base)
+
+    assert update is not None and update.bar_snapshot is not None
+    assert len(update.retest_snapshots) == 1
+    retest_snapshot = update.retest_snapshots[0]
+    assert retest_snapshot.gap_id == update.bar_snapshot.gap_id
+    assert retest_snapshot.as_of_utc == update.bar_snapshot.as_of_utc
+    assert retest_snapshot.active_gap_count == 1
+    assert update.bar_snapshot.active_gap_count == 2
+    assert retest_snapshot.snapshot_id != update.bar_snapshot.snapshot_id
 
 
 @pytest.mark.analytic_math

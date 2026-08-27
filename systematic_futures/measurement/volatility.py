@@ -10,7 +10,7 @@ from systematic_futures.domain.errors import (
     DataQualityError,
     DataTimingInvariantError,
 )
-from systematic_futures.measurement.models import ATRMeasurement, CompletedTradeBar
+from systematic_futures.measurement.state_models import ATRMeasurement, CompletedTradeBar
 
 ATR_5M_24_VERSION = "atr_5m_24_arithmetic_tr_floor_1e-6_v2"
 _WINDOW = 24
