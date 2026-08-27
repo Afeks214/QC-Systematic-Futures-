@@ -60,11 +60,54 @@ class ExperimentDecision(str, Enum):
     KILL = "kill"
 
 
+class ProfileKind(str, Enum):
+    DEVELOPING_SESSION = "developing_session"
+    FINAL_SESSION = "final_session"
+    ROLLING_30M = "rolling_30m"
+    ROLLING_60M = "rolling_60m"
+    ROLLING_120M = "rolling_120m"
+
+
+class AuctionLocationState(str, Enum):
+    INSIDE_VALUE = "inside_value"
+    ABOVE_VALUE = "above_value"
+    BELOW_VALUE = "below_value"
+    NO_REFERENCE = "no_reference"
+
+
+class IAEGapDirection(str, Enum):
+    BULLISH = "bullish"
+    BEARISH = "bearish"
+
+
+class IAEGapState(str, Enum):
+    OPEN = "open"
+    RETESTED = "retested"
+    INVALIDATED = "invalidated"
+    EXPIRED = "expired"
+
+
+class CandidateEventType(str, Enum):
+    VALUE_EXIT_UP = "value_exit_up"
+    VALUE_EXIT_DOWN = "value_exit_down"
+    VALUE_REENTRY_FROM_ABOVE = "value_reentry_from_above"
+    VALUE_REENTRY_FROM_BELOW = "value_reentry_from_below"
+    POC_MIGRATION_ABOVE_PRIOR_VAH = "poc_migration_above_prior_vah"
+    POC_MIGRATION_BELOW_PRIOR_VAL = "poc_migration_below_prior_val"
+    IAE_RETEST_BULL = "iae_retest_bull"
+    IAE_RETEST_BEAR = "iae_retest_bear"
+
+
 __all__ = (
     "AssetClassGroup",
+    "AuctionLocationState",
+    "CandidateEventType",
     "DataQualityStatus",
     "DatasetCertificationStatus",
     "ExperimentDecision",
+    "IAEGapDirection",
+    "IAEGapState",
+    "ProfileKind",
     "ResearchEnvironment",
     "RollState",
     "SessionType",

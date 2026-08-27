@@ -431,3 +431,98 @@ Status: `VERIFIED`.
   that single conversion remains withheld.
 - CFTC is certified for context only. QC delivered no rows after 2026-05-29 inside the
   configured window, and revision/live-delivery semantics are not claimed.
+
+## Lift 2 API resolution
+
+Resolution date: **2026-08-27**. These entries are source-verified before Lift 2
+implementation. Runtime qualification is added only after the exact source executes
+in QC Cloud.
+
+### Actual-contract tick subscription
+
+Requirement: subscribe explicitly to the current mapped actual futures contract.
+
+Verified symbol/API: `add_future_contract(symbol, Resolution.TICK,
+fill_forward=False, extended_market_hours=True)`. The documented Python overload
+accepts an actual `Symbol`; tick resolution provides trade and quote ticks and does
+not fill forward.
+
+Official source: [Individual futures contracts](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/requesting-data/individual-contracts),
+[AddFutureContract source](https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Algorithm/QCAlgorithm.cs).
+
+Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
+
+Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
+
+Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+
+### Tick collection and trade filtering
+
+Requirement: admit traded price/quantity only for the mapped contract.
+
+Verified symbol/API: `slice.ticks` is keyed by `Symbol`; each `Tick` exposes
+`tick_type`, `price`, `quantity`, `time`, and `end_time`. `TickType.TRADE` identifies
+trades; quote ticks are distinct and are excluded. Official documentation states
+that backtests batch ticks in approximately one-millisecond groups, so callback order
+is not represented as nanosecond exchange-event sequencing.
+
+Official source: [Handling futures data](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/handling-data),
+[Tick source](https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Common/Data/Market/Tick.cs).
+
+Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
+
+Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
+
+Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`; no queue, cancellation, replenishment,
+MLOFI, or native exchange-sequence claim is authorized.
+
+### Contract metadata
+
+Requirement: obtain the actual contract's minimum price variation.
+
+Verified symbol/API: the `Security` returned by `add_future_contract` exposes
+`symbol` and `symbol_properties.minimum_price_variation`.
+
+Official source: [Futures key concepts](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/key-concepts),
+[SymbolProperties source](https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Common/Securities/SymbolProperties.cs).
+
+Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
+
+Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
+
+Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+
+### Runtime parameter and version reporting
+
+Requirement: run the same source separately by root when bounded tick replay is
+needed.
+
+Verified symbol/API: `get_parameter("lift2_root", "ES")`; algorithm date and UTC
+methods, mapping callback, `set_summary_statistic`, continuous `mapped`, futures
+chains, and zero-action evidence retain the previously resolved names above.
+
+Official source: [Algorithm parameters](https://www.quantconnect.com/docs/v2/writing-algorithms/optimization/parameters),
+[Algorithm statistics](https://www.quantconnect.com/docs/v2/writing-algorithms/key-concepts/algorithm-engine#09-Statistics).
+
+Source version/date: living docs inspected 2026-08-27.
+
+Used in file: `main.py`, `systematic_futures/qc_adapters/lift2_runtime.py`.
+
+Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+
+### NumPy runtime
+
+Requirement: use the numerical-library version supported by the certified QC Python
+environment.
+
+Verified package/version: `numpy==1.26.4` is listed in QuantConnect's current
+supported Python libraries. It is the only Lift 2 numerical runtime dependency.
+
+Official source: [Packages and libraries](https://www.quantconnect.com/docs/v2/local-platform/development-environment/packages-and-libraries).
+
+Source version/date: living docs inspected 2026-08-27.
+
+Used in file: `pyproject.toml`, `requirements.txt`, `measurement/imsi.py`, and
+`measurement/icm.py`.
+
+Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.

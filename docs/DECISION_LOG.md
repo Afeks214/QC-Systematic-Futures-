@@ -342,3 +342,55 @@ Consequences: the ordinary and delayed examples are `CERTIFIED_CONTEXT`; CFTC re
 prohibited from signal use and its missing post-2026-05-29 tail stays explicit.
 Reopen condition: official schedule corrections or new empirical delivery semantics
 require a versioned audit update.
+
+## 2026-08-27 — Use explicit eigen-floor covariance for IMSI
+
+Date: 2026-08-27
+Decision: Stabilize the empirical 2x2 prior-state covariance by replacing each
+eigenvalue below `max(largest * 1e-8, 1e-12)` with that floor.
+Alternatives considered: label the historical heuristic Ledoit-Wolf; add a shrinkage
+library; use an inverse without conditioning; optimize a floor.
+Reason: the selected rule is transparent, deterministic, numerically bounded, and
+does not imply an estimator that is not implemented.
+Specification support: Lift 2 sections 34–37.
+Public-source support: none required; this is a disclosed numerical implementation
+choice, not a market claim.
+Consequences: IMSI can represent collinear prior states without fabricated zero
+distances; the condition number and warmup flags remain observable.
+Reopen condition: Lift 3 may register a true shrinkage estimator as an explicit
+research variant without mutating this version.
+
+## 2026-08-27 — Share semantic session shapes by futures family
+
+Date: 2026-08-27
+Decision: Preserve the certified ES, ZN, and 6E semantic partitions and apply the
+same versioned shapes to NQ/RTY, ZT, and 6J/6B respectively, while retaining each
+root's own session identifiers and official exchange timezone.
+Alternatives considered: create another calendar engine; invent root-specific
+intraday segments; leave the five smoke markets unclassifiable.
+Reason: the market registry already groups these roots by asset class and timezone;
+Lift 2 needs one deterministic semantic overlay, while LEAN remains authoritative
+for actual tradable hours and closures.
+Specification support: Lift 2 sections 20, 68–70, and 93.
+Public-source support: current official LEAN market-hours database and futures data
+documentation.
+Consequences: all eight roots use the existing `SessionEngine`; no claim is made that
+the semantic partitions are exchange products or universally optimal research
+sessions.
+Reopen condition: empirical QC evidence or an updated authoritative specification
+requires a root-specific versioned policy.
+
+## 2026-08-27 — Keep IAE-L1 distinct from order-flow imbalance
+
+Date: 2026-08-27
+Decision: Name and implement IAE-L1 only as completed-bar gap/retest geometry and
+prior-session time-of-day volume context.
+Alternatives considered: infer aggressor flow from trade ticks; treat top-of-book
+quotes as depth; label the proxy OFI or MLOFI.
+Reason: the reviewed OFI papers require best-quote or multi-level order-book events
+that the Lift 2 data contract intentionally excludes.
+Specification support: Lift 2 sections 5, 45–55, and 67.
+Public-source support: Cont, Kukanov and Stoikov (2010); Xu, Gould and Howison (2019).
+Consequences: no queue, cancellation, replenishment, institutional-absorption, OFI,
+or MLOFI claim appears in executable measurement outputs.
+Reopen condition: a later separately authorized lift certifies incremental L2 data.

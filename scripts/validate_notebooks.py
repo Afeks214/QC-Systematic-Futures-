@@ -38,6 +38,19 @@ _NOTEBOOK_1_MARKERS = (
     "Verified facts, unresolved facts, and limitations",
 )
 
+_NOTEBOOK_2_MARKERS = (
+    "# 1. Scope",
+    "# 2. Environment",
+    "# 3. Profile QA",
+    "# 4. Auction Features",
+    "# 5. IMSI State",
+    "# 6. ICM State",
+    "# 7. IAE-L1",
+    "# 8. Candidate Event Coverage",
+    "# 9. Data Quality",
+    "# 10. Final Lift 2 Summary",
+)
+
 _PROHIBITED_CODE_TOKENS = (
     "market_order",
     "limit_order",
@@ -87,9 +100,10 @@ def validate_notebooks(paths: Sequence[Path] | None = None) -> tuple[str, ...]:
         notebooks[path] = cast(Mapping[str, object], parsed)
     if NOTEBOOK_1 in notebooks:
         errors.extend(_validate_notebook_1(notebooks[NOTEBOOK_1]))
-    for path in (NOTEBOOK_2, NOTEBOOK_3):
-        if path in notebooks:
-            errors.extend(_validate_shell(path, notebooks[path]))
+    if NOTEBOOK_2 in notebooks:
+        errors.extend(_validate_notebook_2(notebooks[NOTEBOOK_2]))
+    if NOTEBOOK_3 in notebooks:
+        errors.extend(_validate_shell(NOTEBOOK_3, notebooks[NOTEBOOK_3]))
     if ROOT_NOTEBOOK in notebooks:
         errors.extend(_validate_root_index(notebooks[ROOT_NOTEBOOK]))
     return tuple(errors)
@@ -154,6 +168,37 @@ def _validate_shell(path: Path, notebook: Mapping[str, object]) -> list[str]:
     return errors
 
 
+def _validate_notebook_2(notebook: Mapping[str, object]) -> list[str]:
+    cells = _cells(notebook)
+    errors: list[str] = []
+    if len(cells) != 20:
+        return [f"Notebook 2 must contain 20 alternating section cells; found {len(cells)}"]
+    for index, marker in enumerate(_NOTEBOOK_2_MARKERS):
+        markdown = cells[index * 2]
+        code_cell = cells[index * 2 + 1]
+        if markdown.get("cell_type") != "markdown" or marker not in _source(markdown):
+            errors.append(f"Notebook 2 section {index + 1} is missing marker {marker!r}")
+        if code_cell.get("cell_type") != "code":
+            errors.append(f"Notebook 2 section {index + 1} must have one code client cell")
+    text = "\n".join(_source(cell) for cell in cells)
+    if "Lift 2 measurement only. No outcome or strategy study." not in text:
+        errors.append("Notebook 2 scope statement is missing")
+    code = "\n".join(_source(cell) for cell in cells if cell.get("cell_type") == "code")
+    for token in _PROHIBITED_CODE_TOKENS:
+        if token in code:
+            errors.append(f"Notebook 2 contains prohibited code token: {token}")
+    for line in code.splitlines():
+        if line.startswith("def ") or line.startswith("class "):
+            errors.append("Notebook 2 may not define business-logic functions or classes")
+    for import_name in (
+        "systematic_futures.measurement.types",
+        "systematic_futures.measurement.events",
+    ):
+        if import_name not in code:
+            errors.append(f"Notebook 2 is missing shared-code import {import_name}")
+    return errors
+
+
 def _validate_root_index(notebook: Mapping[str, object]) -> list[str]:
     text = "\n".join(_source(cell) for cell in _cells(notebook))
     required = (
@@ -177,7 +222,7 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("Notebook validation: PASS (4 notebooks parsed; Lift 1 boundaries verified)")
+    print("Notebook validation: PASS (4 notebooks parsed; Lift 1/2 boundaries verified)")
     return 0
 
 

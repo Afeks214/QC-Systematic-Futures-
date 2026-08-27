@@ -421,3 +421,96 @@ The public review informs engineering discipline only. Exact Lift 1 requirements
 come from the current task and the two supplied specifications. QuantConnect API
 resolution is recorded separately, item by item, in `docs/QC_API_RESOLUTION.md`;
 no API is treated as verified merely because a general source was reviewed here.
+
+## Lift 2 — Auction-State Measurement Review
+
+Review date: **2026-08-27**
+
+This review changes engineering acceptance criteria only. It does not import a
+public firm's strategy, claim that a descriptive feature is predictive, or relax
+the Lift 2 prohibition on outcomes, Alpha, orders, and execution.
+
+### QuantConnect / LEAN — futures identity, ticks, and time
+
+Sources: [individual futures contracts](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/requesting-data/individual-contracts),
+[handling futures data](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/handling-data),
+[futures universes](https://www.quantconnect.com/docs/v2/writing-algorithms/universes/futures),
+[time periods](https://www.quantconnect.com/docs/v2/writing-algorithms/key-concepts/time-modeling/periods),
+[time-period consolidators](https://www.quantconnect.com/docs/v2/writing-algorithms/consolidating-data/consolidator-types/time-period-consolidators), and
+[US futures data](https://www.quantconnect.com/docs/v2/writing-algorithms/datasets/algoseek/us-futures).
+
+Official owner: QuantConnect. Living documentation inspected 2026-08-27.
+
+Accepted for Lift 2: the continuous future identifies the root and exposes its
+current mapped contract; the futures chain supplies contract identity and Open
+Interest context; `SymbolChangedEvents` identifies mapping changes; and
+`add_future_contract(..., Resolution.TICK, fill_forward=False,
+extended_market_hours=True)` subscribes an actual contract. Tick type must be
+checked because a tick subscription can contain trades and quotes. Trade ticks
+carry price and quantity. Backtests batch ticks at the engine's documented
+millisecond cadence, so arrival inside one callback is not interpreted as native
+exchange sequencing. QC bars and consolidators are end-time based, while default
+time-period consolidation is exchange-time-zone aligned.
+
+Engineering implication: continuous adjusted prices are excluded from profile and
+bar measurement. The runtime admits only `TickType.TRADE` observations for the
+currently mapped actual contract, resets contract-local state on a mapping event,
+and performs semantic-session-anchored aggregation in the deterministic core.
+Default QC consolidator alignment is not used as a substitute for semantic session
+alignment. Market hours and actual-contract history remain explicit QC boundaries.
+Every exact API name used by production code is resolved separately in
+`docs/QC_API_RESOLUTION.md`.
+
+Rejected inference: QC data availability does not establish exchange-native order,
+complete order-book state, or predictive value.
+
+### Public research-engineering principles
+
+Sources: Man AHL [About AHL](https://www.man.com/ahl?language=en-gb), Two Sigma
+[About](https://www.twosigma.com/about-us/) and
+[Treating Data as Code](https://www.twosigma.com/articles/treating-data-as-code-at-two-sigma/),
+Jump Trading [AI & ML](https://www.jumptrading.com/ai-ml), Jane Street
+[Quantitative Research](https://www.janestreet.com/quantitative-research/) and
+[Quantitative Researcher: Machine Learning](https://www.janestreet.com/join-jane-street/position/8071941002/),
+and Susquehanna [Decision Science](https://sig.com/who-we-are/game-theory-decision-science/).
+
+Official owners: Man Group, Two Sigma, Jump Trading, Jane Street, and Susquehanna.
+Material inspected 2026-08-27.
+
+Accepted for Lift 2:
+
+- Man AHL supports scientific empirical testing, testable ideas, a common research
+  language and codebase, robust technology, and the path from data acquisition
+  through research to implementation and practical evidence.
+- Two Sigma supports explicit data sourcing, cleaning, labeling, validation,
+  versioning, lineage, and treating featurization as a combination of data and
+  intellectual work supported by reproducible research infrastructure.
+- Jump supports clean/refined data, rigorous validation, fast feedback, and close
+  integration across research, engineering, and trading in non-stationary markets.
+- Jane Street supports precise experiment design, dataset generation, time-series
+  analysis, feature engineering, and clear, reproducible research code.
+- Susquehanna supports expected-value reasoning, decisions under uncertainty, and
+  pruning decision trees. Game theory is not added to Lift 2.
+
+Engineering implication: Lift 2 uses versioned deterministic measurements,
+source-to-output lineage, explicit missingness, compact evidence, and immutable
+provisional parameters. No public material is treated as a disclosed proprietary
+feature, threshold, infrastructure design, or trading rule.
+
+### Academic boundary — OFI and the IAE-L1 proxy
+
+Sources: Cont, Kukanov, and Stoikov,
+[The Price Impact of Order Book Events](https://arxiv.org/abs/1011.6402), and Xu,
+Gould, and Howison,
+[Multi-Level Order-Flow Imbalance in a Limit Order Book](https://arxiv.org/abs/1907.06230).
+
+Primary papers inspected 2026-08-27. Cont et al. define imbalance from limit-order,
+market-order, and cancellation events at the best bid and ask. Xu et al. extend the
+measurement across multiple limit-order-book price levels.
+
+Accepted boundary: both constructs require quote/order-book event information that
+Lift 2 intentionally does not possess. IAE-L1 therefore measures only causal trade
+and completed-bar geometry: gaps, impulse, retest, wick geometry, close position,
+and time-of-day context. It is named a **Level-1 proxy** and is never labeled OFI,
+multi-level OFI, queue imbalance, aggressor flow, or order-book pressure. L2 remains
+a later incremental data test, not a hidden dependency of this lift.

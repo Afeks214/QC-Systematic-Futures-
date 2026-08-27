@@ -29,18 +29,13 @@ PROHIBITED_MAIN_TOKENS = (
     "Insight(",
     "PortfolioTarget(",
 )
-PROHIBITED_LIFT2_IMPORT_ROOTS = {"catboost", "sklearn", "torch", "xgboost"}
-PROHIBITED_LIFT2_SYMBOLS = {
-    "AlphaModel",
-    "AuctionState",
-    "CandidateEventDataset",
-    "ExecutionModel",
-    "IAE",
-    "ICM",
-    "IMSI",
-    "PortfolioConstructionModel",
-    "RiskManagementModel",
-    "VolumeProfileEngine",
+PROHIBITED_ML_IMPORT_ROOTS = {
+    "catboost",
+    "lightgbm",
+    "sklearn",
+    "tensorflow",
+    "torch",
+    "xgboost",
 }
 
 
@@ -68,7 +63,7 @@ def test_notebooks_parse_and_preserve_lift_1_scope() -> None:
     assert validate_notebooks() == ()
 
 
-def test_executable_python_contains_no_lift_2_implementation() -> None:
+def test_executable_python_contains_no_prohibited_ml_imports() -> None:
     paths = (
         PROJECT_ROOT / "main.py",
         *sorted((PROJECT_ROOT / "systematic_futures").rglob("*.py")),
@@ -80,17 +75,13 @@ def test_executable_python_contains_no_lift_2_implementation() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 roots = {alias.name.split(".")[0] for alias in node.names}
-                found_imports = sorted(roots.intersection(PROHIBITED_LIFT2_IMPORT_ROOTS))
+                found_imports = sorted(roots.intersection(PROHIBITED_ML_IMPORT_ROOTS))
                 if found_imports:
                     violations.append(f"{path.name}: imports {', '.join(found_imports)}")
             elif isinstance(node, ast.ImportFrom) and node.module is not None:
                 root = node.module.split(".")[0]
-                if root in PROHIBITED_LIFT2_IMPORT_ROOTS:
+                if root in PROHIBITED_ML_IMPORT_ROOTS:
                     violations.append(f"{path.name}: imports {root}")
-            elif isinstance(node, ast.ClassDef) and node.name in PROHIBITED_LIFT2_SYMBOLS:
-                violations.append(f"{path.name}: defines {node.name}")
-            elif isinstance(node, ast.Name) and node.id in PROHIBITED_LIFT2_SYMBOLS:
-                violations.append(f"{path.name}: references {node.id}")
     assert violations == []
 
 

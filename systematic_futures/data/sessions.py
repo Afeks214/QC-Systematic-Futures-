@@ -142,6 +142,52 @@ class SessionEngine:
         )
         return f"session_{digest}"
 
+    def session_bounds(
+        self,
+        root: str,
+        timestamp_utc: datetime,
+    ) -> tuple[datetime, datetime]:
+        """Return the open semantic segment containing one aware UTC instant.
+
+        Units: UTC datetimes. Time semantics: ordinary local session boundaries are
+        converted with the policy IANA timezone and clipped at configured calendar
+        closures; the result is half-open. Missingness: closed, unknown, or ambiguous
+        instants are rejected. Raises: ``TimeSemanticsError`` or
+        ``SessionBoundaryError``.
+        """
+
+        local_timestamp, matches = self._matching_windows(root, timestamp_utc)
+        if len(matches) != 1:
+            raise SessionBoundaryError(
+                f"expected exactly one session match for {root!r}; found {len(matches)}"
+            )
+        if self._matching_calendar_closure(root, local_timestamp) is not None:
+            raise SessionBoundaryError(f"timestamp for {root!r} falls inside a calendar closure")
+        window = matches[0]
+        timezone = ZoneInfo(window.timezone_name)
+        anchor_date = _session_anchor_date(window, local_timestamp)
+        end_date = anchor_date + timedelta(days=1) if window.crosses_midnight else anchor_date
+        start_local = datetime.combine(anchor_date, window.start_local_time, tzinfo=timezone)
+        end_local = datetime.combine(end_date, window.end_local_time, tzinfo=timezone)
+        segment_start = start_local
+        segment_end = end_local
+        for closure_start, closure_end in self._closure_intervals(
+            root,
+            start_local,
+            end_local,
+        ):
+            if closure_start <= local_timestamp < closure_end:
+                raise SessionBoundaryError(
+                    f"timestamp for {root!r} falls inside a calendar closure"
+                )
+            if closure_end <= local_timestamp:
+                segment_start = max(segment_start, closure_end)
+            elif closure_start > local_timestamp:
+                segment_end = min(segment_end, closure_start)
+        if not segment_start <= local_timestamp < segment_end:
+            raise SessionBoundaryError(f"no open semantic segment for {root!r}")
+        return segment_start.astimezone(ZoneInfo("UTC")), segment_end.astimezone(ZoneInfo("UTC"))
+
     def windows_for_market(self, root: str) -> tuple[SessionWindow, ...]:
         """Return immutable semantic windows for ``root``.
 
@@ -202,6 +248,30 @@ class SessionEngine:
             )
         return matches[0] if matches else None
 
+    def _closure_intervals(
+        self,
+        root: str,
+        start_local: datetime,
+        end_local: datetime,
+    ) -> tuple[tuple[datetime, datetime], ...]:
+        intervals: list[tuple[datetime, datetime]] = []
+        timezone = start_local.tzinfo
+        if timezone is None:
+            raise SessionBoundaryError("session boundary unexpectedly lacks timezone")
+        for exception in self.calendar_exceptions_for_market(root):
+            if exception.all_day_closed:
+                closure_start = datetime.combine(exception.local_date, time(), tzinfo=timezone)
+                closure_end = closure_start + timedelta(days=1)
+                if closure_start < end_local and closure_end > start_local:
+                    intervals.append((closure_start, closure_end))
+            for window in exception.closed_windows:
+                raw_start, raw_end = _closure_datetime_bounds(exception.local_date, window)
+                closure_start = raw_start.replace(tzinfo=timezone)
+                closure_end = raw_end.replace(tzinfo=timezone)
+                if closure_start < end_local and closure_end > start_local:
+                    intervals.append((closure_start, closure_end))
+        return tuple(sorted(intervals))
+
 
 def validate_session_closure_window(window: SessionClosureWindow) -> None:
     """Validate one explicit exchange-local closure interval.
@@ -257,17 +327,19 @@ def validate_session_calendar_exception(exception: SessionCalendarException) -> 
 
 
 def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
-    """Return Lift 1 semantic windows for ES, ZN, and 6E.
+    """Return the versioned semantic windows for all eight registered roots.
 
     Units: exchange-local wall-clock times. Time semantics: these versioned
     ordinary-day semantic partitions use each registry market's named timezone;
     they do not certify holidays or early closes. Missingness: no fallback
     market is supplied. Raises: none.
     """
-    policies = {
-        "ES": (
+    policies: dict[str, tuple[SessionWindow, ...]] = {}
+    for root in ("ES", "NQ", "RTY"):
+        lower = root.lower()
+        policies[root] = (
             _window(
-                "es_eth_overnight",
+                f"{lower}_eth_overnight",
                 SessionType.ETH,
                 time(18),
                 time(9, 30),
@@ -275,7 +347,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _NEW_YORK_TIMEZONE,
             ),
             _window(
-                "es_rth",
+                f"{lower}_rth",
                 SessionType.RTH,
                 time(9, 30),
                 time(16),
@@ -283,7 +355,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _NEW_YORK_TIMEZONE,
             ),
             _window(
-                "es_eth_afternoon",
+                f"{lower}_eth_afternoon",
                 SessionType.ETH,
                 time(16),
                 time(17),
@@ -291,17 +363,19 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _NEW_YORK_TIMEZONE,
             ),
             _window(
-                "es_maintenance",
+                f"{lower}_maintenance",
                 SessionType.MAINTENANCE,
                 time(17),
                 time(18),
                 False,
                 _NEW_YORK_TIMEZONE,
             ),
-        ),
-        "ZN": (
+        )
+    for root in ("ZT", "ZN"):
+        lower = root.lower()
+        policies[root] = (
             _window(
-                "zn_eth_overnight",
+                f"{lower}_eth_overnight",
                 SessionType.ETH,
                 time(17),
                 time(7, 20),
@@ -309,7 +383,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "zn_us_cash_hours",
+                f"{lower}_us_cash_hours",
                 SessionType.US_CASH_HOURS,
                 time(7, 20),
                 time(14),
@@ -317,7 +391,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "zn_eth_afternoon",
+                f"{lower}_eth_afternoon",
                 SessionType.ETH,
                 time(14),
                 time(16),
@@ -325,17 +399,19 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "zn_maintenance",
+                f"{lower}_maintenance",
                 SessionType.MAINTENANCE,
                 time(16),
                 time(17),
                 False,
                 _CHICAGO_TIMEZONE,
             ),
-        ),
-        "6E": (
+        )
+    for root in ("6E", "6J", "6B"):
+        lower = root.lower()
+        policies[root] = (
             _window(
-                "6e_asia",
+                f"{lower}_asia",
                 SessionType.ASIA,
                 time(17),
                 time(2),
@@ -343,7 +419,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "6e_london",
+                f"{lower}_london",
                 SessionType.LONDON,
                 time(2),
                 time(7),
@@ -351,7 +427,7 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "6e_new_york",
+                f"{lower}_new_york",
                 SessionType.NEW_YORK,
                 time(7),
                 time(16),
@@ -359,15 +435,14 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
                 _CHICAGO_TIMEZONE,
             ),
             _window(
-                "6e_maintenance",
+                f"{lower}_maintenance",
                 SessionType.MAINTENANCE,
                 time(16),
                 time(17),
                 False,
                 _CHICAGO_TIMEZONE,
             ),
-        ),
-    }
+        )
     return MappingProxyType(policies)
 
 

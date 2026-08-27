@@ -16,6 +16,7 @@ from systematic_futures.domain.errors import (
 from systematic_futures.domain.schemas import MarketDefinition, validate_market_definition
 
 _REFERENCE_ROOTS = frozenset({"ES", "ZN", "6E"})
+_MEASUREMENT_ROOTS = frozenset({"ES", "NQ", "RTY", "ZT", "ZN", "6E", "6J", "6B"})
 
 
 def _load_registration_api() -> tuple[Any, Any, Any, Any]:
@@ -57,6 +58,16 @@ def _future_constant(path: str, futures: Any) -> object:
         return cast(object, futures.Financials.Y_10_TREASURY_NOTE)
     if path == "Futures.Currencies.EUR":
         return cast(object, futures.Currencies.EUR)
+    if path == "Futures.Indices.NASDAQ_100_E_MINI":
+        return cast(object, futures.Indices.NASDAQ_100_E_MINI)
+    if path == "Futures.Indices.RUSSELL_2000_E_MINI":
+        return cast(object, futures.Indices.RUSSELL_2000_E_MINI)
+    if path == "Futures.Financials.Y_2_TREASURY_NOTE":
+        return cast(object, futures.Financials.Y_2_TREASURY_NOTE)
+    if path == "Futures.Currencies.JPY":
+        return cast(object, futures.Currencies.JPY)
+    if path == "Futures.Currencies.GBP":
+        return cast(object, futures.Currencies.GBP)
     raise UnverifiedQuantConnectApiError(
         f"Lift 1 has no verified reference registration for {path!r}"
     )
@@ -104,6 +115,37 @@ def register_reference_future(host: object, market: MarketDefinition) -> object:
         data_mapping_mode=_mapping_mode(market.mapping_mode_name, mapping_api),
         data_normalization_mode=_normalization_mode(
             market.normalization_mode_name, normalization_api
+        ),
+        contract_depth_offset=0,
+    )
+    if subscription is None or getattr(subscription, "symbol", None) is None:
+        raise UnverifiedQuantConnectApiError("add_future returned no continuous subscription")
+    subscription.set_filter(0, market.contract_filter_days)
+    return cast(object, subscription)
+
+
+def register_measurement_future(host: object, market: MarketDefinition) -> object:
+    """Register one of the eight verified continuous roots for Lift 2 mapping only.
+
+    Units: minute root resolution and calendar-day expiry filter. Time semantics:
+    extended hours, Open Interest mapping, Backwards Ratio normalization, and depth
+    zero are explicit. Missingness: an absent subscription/symbol raises. Raises:
+    market, API-resolution, or QC runtime errors.
+    """
+
+    validate_market_definition(market)
+    if market.root not in _MEASUREMENT_ROOTS:
+        raise MarketConfigurationError(f"{market.root} is not a Lift 2 measurement market")
+    mapping_api, normalization_api, futures, resolution = _load_registration_api()
+    qc_host = cast(Any, host)
+    subscription = qc_host.add_future(
+        _future_constant(market.qc_future_constant_path, futures),
+        resolution.MINUTE,
+        extended_market_hours=market.extended_market_hours,
+        data_mapping_mode=_mapping_mode(market.mapping_mode_name, mapping_api),
+        data_normalization_mode=_normalization_mode(
+            market.normalization_mode_name,
+            normalization_api,
         ),
         contract_depth_offset=0,
     )
@@ -288,6 +330,7 @@ def request_quantbook_histories(
 
 __all__ = (
     "configure_quantbook_utc",
+    "register_measurement_future",
     "register_reference_cftc",
     "register_reference_future",
     "register_reference_futures",

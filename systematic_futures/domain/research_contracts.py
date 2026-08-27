@@ -15,6 +15,7 @@ from systematic_futures.domain.errors import (
 
 class FeatureImplementationStatus(str, Enum):
     NOT_IMPLEMENTED = "not_implemented"
+    RESEARCH_MEASUREMENT = "research_measurement"
 
 
 class CostScenario(str, Enum):
@@ -145,12 +146,12 @@ def _require_sorted_unique_text(values: tuple[str, ...], field_name: str) -> Non
 
 
 def validate_feature_semantic(feature: FeatureSemantic) -> None:
-    """Validate metadata for one unimplemented future feature.
+    """Validate metadata for one registered feature.
 
     Units: ``unit`` names the future value unit; no value is calculated or converted.
     Time semantics: ``point_in_time_requirement`` must state the availability rule in text.
     Missingness: ``missingness_policy`` is mandatory and no fallback is inferred.
-    Raises: ``DataQualityError`` for blank metadata or an implemented status.
+    Raises: ``DataQualityError`` for blank metadata or an unknown status.
     """
 
     for field_name, value in (
@@ -167,8 +168,8 @@ def validate_feature_semantic(feature: FeatureSemantic) -> None:
         raise DataQualityError("feature_name may not contain surrounding whitespace")
     if feature.feature_name.lower() != feature.feature_name or " " in feature.feature_name:
         raise DataQualityError("feature_name must use lowercase snake_case")
-    if feature.implementation_status is not FeatureImplementationStatus.NOT_IMPLEMENTED:
-        raise DataQualityError("Lift 1 feature semantics must remain NOT_IMPLEMENTED")
+    if not isinstance(feature.implementation_status, FeatureImplementationStatus):
+        raise DataQualityError("implementation_status must be a FeatureImplementationStatus")
 
 
 def validate_forecast_packet(packet: ForecastPacket) -> None:

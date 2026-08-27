@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from systematic_futures.domain.enums import (
     AssetClassGroup,
+    AuctionLocationState,
+    CandidateEventType,
     DataQualityStatus,
     DatasetCertificationStatus,
     ExperimentDecision,
+    IAEGapDirection,
+    IAEGapState,
+    ProfileKind,
     ResearchEnvironment,
     RollState,
     SessionType,
@@ -24,6 +29,8 @@ from systematic_futures.domain.errors import (
 
 __all__ = (
     "AssetClassGroup",
+    "AuctionLocationState",
+    "CandidateEventType",
     "ContractBoundaryError",
     "DataQualityError",
     "DataQualityStatus",
@@ -31,8 +38,11 @@ __all__ = (
     "DatasetCertificationStatus",
     "DuplicateIdentifierError",
     "ExperimentDecision",
+    "IAEGapDirection",
+    "IAEGapState",
     "LedgerIntegrityError",
     "MarketConfigurationError",
+    "ProfileKind",
     "ResearchEnvironment",
     "RollState",
     "SessionBoundaryError",

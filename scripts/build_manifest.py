@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import sys
 import tempfile
@@ -9,17 +10,27 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
+import numpy as np
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if not (PROJECT_ROOT / "systematic_futures").is_dir():
     raise RuntimeError("Repository package directory is missing")
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from systematic_futures.config.feature_semantics import (  # noqa: E402
+    feature_semantics_v2,
+)
+from systematic_futures.config.markets import all_market_definitions  # noqa: E402
 from systematic_futures.config.research import (  # noqa: E402 - repository script entrypoint
     PROBE_END_DATE,
     PROBE_START_DATE,
     REFERENCE_MARKETS,
     RESEARCH_RANDOM_SEED,
     lift_1_manifest_configuration,
+    lift_2_measurement_configuration,
+)
+from systematic_futures.data.sessions import (  # noqa: E402
+    reference_session_policies,
 )
 from systematic_futures.domain.enums import (  # noqa: E402 - repository script entrypoint
     ResearchEnvironment,
@@ -29,12 +40,18 @@ from systematic_futures.domain.schemas import (  # noqa: E402 - repository scrip
 )
 from systematic_futures.domain.serialization import (  # noqa: E402 - repository script entrypoint
     canonical_json_bytes,
+    sha256_hex,
 )
 from systematic_futures.ledger.run_manifest import (  # noqa: E402 - repository script entrypoint
     RunManifestBuilder,
 )
 
-DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/manifests/lift_1_rebuild_check.json"
+DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/manifests/lift_2_rebuild_check.json"
+LIFT1_DEFAULT_OUTPUT = PROJECT_ROOT / "artifacts/manifests/lift_1_rebuild_check.json"
+LIFT2_MANIFEST = PROJECT_ROOT / "artifacts/manifests/lift_2_manifest.json"
+LIFT2_RUNTIME_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_runtime_measurement.json"
+LIFT2_COVERAGE_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_candidate_coverage.json"
+LIFT2_EVIDENCE_INDEX = PROJECT_ROOT / "artifacts/certification/lift_2_evidence_index.json"
 SOURCE_DOCUMENTS = (
     PROJECT_ROOT / "upload/Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
     PROJECT_ROOT / "upload/Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx",
@@ -50,6 +67,17 @@ VERIFIED_SOURCE_DOCUMENT_HASHES = {
 DEPENDENCY_FILES = (
     PROJECT_ROOT / "pyproject.toml",
     PROJECT_ROOT / "requirements.txt",
+)
+LIFT2_RUNTIME_SOURCE_FILES = (
+    PROJECT_ROOT / "main.py",
+    *sorted((PROJECT_ROOT / "systematic_futures/measurement").glob("*.py")),
+    PROJECT_ROOT / "systematic_futures/qc_adapters/lift2_runtime.py",
+    PROJECT_ROOT / "systematic_futures/qc_adapters/futures_registration.py",
+    PROJECT_ROOT / "systematic_futures/config/feature_semantics.py",
+    PROJECT_ROOT / "systematic_futures/config/research.py",
+    PROJECT_ROOT / "systematic_futures/data/sessions.py",
+    PROJECT_ROOT / "systematic_futures/domain/enums.py",
+    PROJECT_ROOT / "systematic_futures/domain/research_contracts.py",
 )
 
 
@@ -139,6 +167,119 @@ def write_manifest(manifest: object, output_path: Path) -> None:
         raise
 
 
+def lift2_source_contract() -> dict[str, object]:
+    """Return deterministic hashes for the current Lift 2 policy and runtime files.
+
+    Units: SHA-256 digests and the installed NumPy version. Time semantics: no wall
+    clock is read. Missingness: every authorized runtime file must exist. Raises:
+    ``OSError`` or canonical-serialization errors.
+    """
+
+    source_hashes = {
+        str(path.relative_to(PROJECT_ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in LIFT2_RUNTIME_SOURCE_FILES
+    }
+    from systematic_futures.measurement.profile import DEFAULT_PROFILE_DEFINITION
+
+    return {
+        "feature_semantics_v2_hash": sha256_hex(feature_semantics_v2()),
+        "market_registry_hash": sha256_hex(all_market_definitions()),
+        "measurement_policy_hash": sha256_hex(lift_2_measurement_configuration()),
+        "numpy_version": np.__version__,
+        "profile_definition_hash": sha256_hex(DEFAULT_PROFILE_DEFINITION),
+        "runtime_source_file_hashes": source_hashes,
+        "runtime_source_tree_hash": sha256_hex(source_hashes),
+        "session_policy_hash": sha256_hex(reference_session_policies()),
+    }
+
+
+def build_lift2_rebuild_check() -> dict[str, object]:
+    """Build a disposable source/evidence validation record for the quality gate.
+
+    Units: hashes and validation status. Time semantics: deterministic and clock-free.
+    Missingness: absent final artifacts are reported as source-ready evidence pending;
+    a partially present final set raises. Raises: evidence/hash validation errors.
+    """
+
+    contract = lift2_source_contract()
+    required = (
+        LIFT2_MANIFEST,
+        LIFT2_RUNTIME_EVIDENCE,
+        LIFT2_COVERAGE_EVIDENCE,
+        LIFT2_EVIDENCE_INDEX,
+    )
+    present = tuple(path.is_file() for path in required)
+    if any(present) and not all(present):
+        missing = [
+            str(path.relative_to(PROJECT_ROOT))
+            for path, exists in zip(required, present, strict=True)
+            if not exists
+        ]
+        raise RuntimeError(f"partial Lift 2 evidence set; missing {missing}")
+    if all(present):
+        _validate_lift2_final_evidence(contract)
+        status = "PASS_FINAL_EVIDENCE_VALIDATED"
+    else:
+        status = "PASS_SOURCE_READY_RUNTIME_EVIDENCE_PENDING"
+    payload: dict[str, object] = {
+        "schema_version": "lift2-rebuild-check-v1",
+        "source_contract": contract,
+        "status": status,
+    }
+    payload["content_hash"] = sha256_hex(payload)
+    return payload
+
+
+def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
+    manifest = _read_and_validate_content_hash(LIFT2_MANIFEST)
+    runtime = _read_and_validate_content_hash(LIFT2_RUNTIME_EVIDENCE)
+    coverage = _read_and_validate_content_hash(LIFT2_COVERAGE_EVIDENCE)
+    _read_and_validate_content_hash(LIFT2_EVIDENCE_INDEX)
+    for field_name in (
+        "feature_semantics_v2_hash",
+        "market_registry_hash",
+        "measurement_policy_hash",
+        "numpy_version",
+        "profile_definition_hash",
+        "runtime_source_file_hashes",
+        "runtime_source_tree_hash",
+        "session_policy_hash",
+    ):
+        if manifest.get(field_name) != source_contract[field_name]:
+            raise RuntimeError(f"Lift 2 manifest current-source mismatch: {field_name}")
+    if manifest.get("runtime_measurement_hash") != runtime["content_hash"]:
+        raise RuntimeError("Lift 2 runtime measurement hash mismatch")
+    if manifest.get("candidate_coverage_hash") != coverage["content_hash"]:
+        raise RuntimeError("Lift 2 candidate coverage hash mismatch")
+    for field_name in (
+        "source_git_sha",
+        "evidence_git_sha",
+        "qc_project_id",
+        "qc_build_ids",
+        "qc_backtest_ids",
+        "lean_version",
+        "python_version",
+        "test_result_hash",
+    ):
+        if not manifest.get(field_name):
+            raise RuntimeError(f"Lift 2 manifest field is missing: {field_name}")
+
+
+def _read_and_validate_content_hash(path: Path) -> dict[str, object]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"evidence root must be an object: {path.name}")
+    document = cast(dict[str, object], raw)
+    expected = document.get("content_hash")
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise RuntimeError(f"evidence content_hash is invalid: {path.name}")
+    payload = dict(document)
+    del payload["content_hash"]
+    if sha256_hex(payload) != expected:
+        raise RuntimeError(f"evidence content_hash mismatch: {path.name}")
+    return document
+
+
 def main() -> int:
     """Build the manifest and return a process status code.
 
@@ -149,12 +290,24 @@ def main() -> int:
     historical `lift_1_manifest.json` is never overwritten by a quality command.
     Raises: argparse, domain, and filesystem errors are surfaced to the caller.
     """
-    parser = argparse.ArgumentParser(description="Build the deterministic Lift 1 manifest")
+    parser = argparse.ArgumentParser(description="Build or validate a deterministic lift manifest")
+    parser.add_argument("--lift", choices=("1", "2"), default="2")
     parser.add_argument("--created-at", type=parse_created_at)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     arguments = parser.parse_args()
+    lift = cast(str, arguments.lift)
     created_at = cast(datetime | None, arguments.created_at)
     output_path = cast(Path, arguments.output)
+    if lift == "2":
+        check = build_lift2_rebuild_check()
+        write_manifest(check, output_path)
+        source_contract = cast(dict[str, object], check["source_contract"])
+        print(f"Lift 2 rebuild check written: {output_path}")
+        print(f"Lift 2 source tree hash: {source_contract['runtime_source_tree_hash']}")
+        print(f"Lift 2 evidence status: {check['status']}")
+        return 0
+    if output_path == DEFAULT_OUTPUT:
+        output_path = LIFT1_DEFAULT_OUTPUT
     if created_at is None:
         created_at = datetime.now(UTC)
     manifest = build_manifest(created_at)

@@ -9,7 +9,10 @@ Resolve conflicts in this order: (1) the active Lift task, (2) `Institutional_Sy
 - `systematic_futures/domain`, `data`, and `ledger` are standard-library core modules and never import QuantConnect.
 - QuantConnect imports are allowed only in root `main.py` and `systematic_futures/qc_adapters/`.
 - Notebooks are thin research clients. Business logic belongs in importable modules.
-- Lift 1 contains no trading logic, signals, forecasts, P&L, Market Profile, IMSI, ICM, IAE, ML, portfolio, risk, or execution implementation.
+- Lift 2 permits Auction measurement, Volume Profile, IMSI descriptive state, ICM
+  descriptive state, IAE-L1 descriptive state, and candidate research events.
+- Lift 2 prohibits future-outcome labels, Alpha, ML, portfolio construction, risk
+  allocation, execution, orders, and L2 order-book behavior.
 
 ## Commands
 
@@ -40,4 +43,10 @@ Never infer an API, enum, property, future constant, or CLI command. Verify it i
 
 ## Definition of Done
 
-Lift 1 is done only when the current `docs/LIFT_1_EXECPLAN.md` is reconciled, all supported quality commands pass, unsupported QC runtime checks are explicitly `NOT_EXECUTED`, every research-affecting output retains lineage, and `docs/LIFT_1_COMPLETION_REPORT.md` distinguishes verified facts from blockers. Update the ExecPlan after each major subsystem. If evidence is missing or an invariant cannot be established, record it in `docs/ASSUMPTIONS_AND_BLOCKERS.md` and stop the affected path.
+Lift 2 is done only when `docs/LIFT_2_EXECPLAN.md` is reconciled, all supported
+quality commands pass under Python 3.11, the real QC deep replay and all-eight smoke
+gate pass with zero orders/Insights/PortfolioTargets, required evidence hashes and the
+Lift 2 manifest validate, and `docs/LIFT_2_COMPLETION_REPORT.md` answers all eleven
+questions. Update the ExecPlan after each major subsystem. If evidence is missing or
+an invariant cannot be established, record it in `docs/ASSUMPTIONS_AND_BLOCKERS.md`
+and stop the affected path.

@@ -1,9 +1,9 @@
 [project]
-name = "systematic-futures-lift-1"
-version = "0.1.0"
-description = "Deterministic point-in-time futures research foundation"
+name = "systematic-futures-lift-2"
+version = "0.2.0"
+description = "Deterministic point-in-time futures auction-state measurement"
 requires-python = ">=3.11,<3.12"
-dependencies = []
+dependencies = ["numpy==1.26.4"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
