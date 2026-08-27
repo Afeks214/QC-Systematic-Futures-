@@ -171,7 +171,7 @@ _REQUIRED_NORMALIZATION_FAMILIES = frozenset(
     }
 )
 
-_MEASUREMENT_VOCABULARY: dict[str, tuple[str, str, str]] = {
+_MEASUREMENT_VOCABULARY_V3: dict[str, tuple[str, str, str]] = {
     "consecutive_minutes_outside": ("minutes", "elapsed_session", "auction_profile"),
     "distance_to_current_poc_ticks": ("raw_ticks", "raw_ticks", "auction_profile"),
     "distance_to_prior_poc_vol": ("local_range_units", "local_price_scale", "auction_profile"),
@@ -193,7 +193,22 @@ _MEASUREMENT_VOCABULARY: dict[str, tuple[str, str, str]] = {
     "icm_sigma_ols": ("native_price", "quadratic_residual_scale", "icm"),
     "icm_slope_norm": ("residual_scale_units", "quadratic_residual_scale", "icm"),
     "icm_z_score": ("z_score", "quadratic_residual_scale", "icm"),
-    "imsi_dist_vwap_pct": ("decimal_ratio", "session_vwap", "imsi"),
+    "imsi_covariance_condition_number": (
+        "dimensionless_ratio",
+        "prior_state_ewma_shrinkage",
+        "imsi",
+    ),
+    "imsi_covariance_effective_sample_size": (
+        "effective_observation_count",
+        "prior_state_ewma_shrinkage",
+        "imsi",
+    ),
+    "imsi_covariance_shrinkage_delta": (
+        "dimensionless_ratio",
+        "prior_state_ewma_shrinkage",
+        "imsi",
+    ),
+    "imsi_dist_vwap_pct": ("percentage_points", "session_vwap", "imsi"),
     "imsi_mahalanobis_distance": ("distance", "prior_state_covariance", "imsi"),
     "imsi_neighbor_distance_mean": ("distance", "prior_state_covariance", "imsi"),
     "imsi_neighbor_distance_p90": ("distance", "prior_state_covariance", "imsi"),
@@ -213,6 +228,77 @@ _MEASUREMENT_VOCABULARY: dict[str, tuple[str, str, str]] = {
     "volume_above_poc_ratio": ("dimensionless_ratio", "elapsed_volume", "auction_profile"),
     "volume_outside_value_ratio": ("session_normalized_ratio", "elapsed_volume", "auction_profile"),
 }
+
+_MEASUREMENT_VOCABULARY_V4 = {
+    name: metadata
+    for name, metadata in _MEASUREMENT_VOCABULARY_V3.items()
+    if name not in {"icm_curvature_norm", "icm_slope_norm", "icm_z_score"}
+}
+_MEASUREMENT_VOCABULARY_V4.update(
+    {
+        "atr_5m_24": ("native_price", "atr_5m_24_arithmetic_true_range", "volatility"),
+        "iae_absorption_confirmed": ("boolean", "iae_absorption_guard", "iae_l1"),
+        "iae_formation_quality": ("dimensionless_score", "iae_formation", "iae_l1"),
+        "iae_score_effective": ("dimensionless_score", "iae_absorption", "iae_l1"),
+        "iae_score_raw": ("dimensionless_score", "iae_absorption", "iae_l1"),
+        "iae_time_decay": ("dimensionless_ratio", "elapsed_bars", "iae_l1"),
+        "icm_curvature_normalized": (
+            "residual_scale_units_per_bar_squared",
+            "quadratic_residual_scale",
+            "icm",
+        ),
+        "icm_curvature_per_bar2": (
+            "native_price_per_bar_squared",
+            "quadratic_window",
+            "icm",
+        ),
+        "icm_slope_normalized": (
+            "residual_scale_units_per_bar",
+            "quadratic_residual_scale",
+            "icm",
+        ),
+        "icm_slope_per_bar": ("native_price_per_bar", "quadratic_window", "icm"),
+        "icm_z_capped": ("z_score", "quadratic_residual_scale", "icm"),
+        "icm_z_effective": ("z_score", "quadratic_residual_scale", "icm"),
+        "icm_z_raw": ("z_score", "quadratic_residual_scale", "icm"),
+    }
+)
+for _profile_distance in (
+    "distance_to_prior_poc_vol",
+    "distance_to_vah_vol",
+    "distance_to_val_vol",
+    "poc_migration_vol",
+    "value_area_width_vol",
+    "value_mid_migration_vol",
+):
+    _unit, _normalization, _source = _MEASUREMENT_VOCABULARY_V4[_profile_distance]
+    _MEASUREMENT_VOCABULARY_V4[_profile_distance] = (
+        "atr_units",
+        "atr_5m_24_arithmetic_true_range",
+        _source,
+    )
+for _iae_atr_field in ("iae_gap_width_atr", "iae_impulse_body_atr"):
+    _MEASUREMENT_VOCABULARY_V4[_iae_atr_field] = (
+        "atr_units",
+        "atr_5m_24_arithmetic_true_range",
+        "iae_l1",
+    )
+
+_MEASUREMENT_VOCABULARY_V2 = {
+    name: metadata
+    for name, metadata in _MEASUREMENT_VOCABULARY_V3.items()
+    if name
+    not in {
+        "imsi_covariance_condition_number",
+        "imsi_covariance_effective_sample_size",
+        "imsi_covariance_shrinkage_delta",
+    }
+}
+_MEASUREMENT_VOCABULARY_V2["imsi_dist_vwap_pct"] = (
+    "decimal_ratio",
+    "session_vwap",
+    "imsi",
+)
 
 _UNIMPLEMENTED_V2_NAMES = frozenset(
     {
@@ -251,7 +337,41 @@ _FEATURES_V2 = tuple(
             ),
             *(
                 _measurement_feature(name, metadata)
-                for name, metadata in _MEASUREMENT_VOCABULARY.items()
+                for name, metadata in _MEASUREMENT_VOCABULARY_V2.items()
+            ),
+        ),
+        key=lambda feature: feature.feature_name,
+    )
+)
+
+_FEATURES_V3 = tuple(
+    sorted(
+        (
+            *(
+                feature
+                for feature in _FEATURES_V1
+                if feature.feature_name in _UNIMPLEMENTED_V2_NAMES
+            ),
+            *(
+                _measurement_feature(name, metadata)
+                for name, metadata in _MEASUREMENT_VOCABULARY_V3.items()
+            ),
+        ),
+        key=lambda feature: feature.feature_name,
+    )
+)
+
+_FEATURES_V4 = tuple(
+    sorted(
+        (
+            *(
+                feature
+                for feature in _FEATURES_V1
+                if feature.feature_name in _UNIMPLEMENTED_V2_NAMES
+            ),
+            *(
+                _measurement_feature(name, metadata)
+                for name, metadata in _MEASUREMENT_VOCABULARY_V4.items()
             ),
         ),
         key=lambda feature: feature.feature_name,
@@ -313,7 +433,7 @@ def feature_semantics_v2() -> tuple[FeatureSemantic, ...]:
         for feature in _FEATURES_V2
         if feature.implementation_status is _RESEARCH_MEASUREMENT
     }
-    if measured != set(_MEASUREMENT_VOCABULARY):
+    if measured != set(_MEASUREMENT_VOCABULARY_V2):
         raise DataQualityError("Lift 2 measured vocabulary is incomplete")
     unimplemented = {
         feature.feature_name
@@ -327,8 +447,59 @@ def feature_semantics_v2() -> tuple[FeatureSemantic, ...]:
     return _FEATURES_V2
 
 
+def feature_semantics_v3() -> tuple[FeatureSemantic, ...]:
+    """Return the IMSI-v2 Lift 2 registry without mutating versions 1 or 2.
+
+    Units and normalization are declared per entry. Time semantics: IMSI covariance
+    diagnostics are prior-only and VWAP displacement is expressed in percentage
+    points. Missingness: unavailable values are withheld. Raises: ``DataQualityError``
+    for duplicate, missing, or incorrectly classified vocabulary.
+    """
+
+    names = tuple(feature.feature_name for feature in _FEATURES_V3)
+    if names != tuple(sorted(set(names))):
+        raise DataQualityError("Lift 2 feature semantics v3 must be sorted and unique")
+    measured = {
+        feature.feature_name
+        for feature in _FEATURES_V3
+        if feature.implementation_status is _RESEARCH_MEASUREMENT
+    }
+    if measured != set(_MEASUREMENT_VOCABULARY_V3):
+        raise DataQualityError("Lift 2 measured vocabulary v3 is incomplete")
+    unimplemented = {
+        feature.feature_name
+        for feature in _FEATURES_V3
+        if feature.implementation_status is _NOT_IMPLEMENTED
+    }
+    if unimplemented != set(_UNIMPLEMENTED_V2_NAMES):
+        raise DataQualityError("Lift 2 unimplemented vocabulary v3 changed")
+    for feature in _FEATURES_V3:
+        validate_feature_semantic(feature)
+    return _FEATURES_V3
+
+
+def feature_semantics_v4() -> tuple[FeatureSemantic, ...]:
+    """Return the mathematically reconciled Lift 2 measurement registry."""
+
+    names = tuple(feature.feature_name for feature in _FEATURES_V4)
+    if names != tuple(sorted(set(names))):
+        raise DataQualityError("Lift 2 feature semantics v4 must be sorted and unique")
+    measured = {
+        feature.feature_name
+        for feature in _FEATURES_V4
+        if feature.implementation_status is _RESEARCH_MEASUREMENT
+    }
+    if measured != set(_MEASUREMENT_VOCABULARY_V4):
+        raise DataQualityError("Lift 2 measured vocabulary v4 is incomplete")
+    for feature in _FEATURES_V4:
+        validate_feature_semantic(feature)
+    return _FEATURES_V4
+
+
 __all__ = (
     "feature_semantics_v1",
     "feature_semantics_v2",
+    "feature_semantics_v3",
+    "feature_semantics_v4",
     "validate_feature_semantics_registry",
 )

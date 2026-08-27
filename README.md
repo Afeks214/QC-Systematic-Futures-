@@ -17,9 +17,9 @@ predictive model, portfolio/risk allocation, order, or execution logic.
   contiguous 70% Value Area.
 - Primitive Auction features and transition-once exit, re-entry, and POC-migration
   events.
-- Prior-only VW-RSI/TOD/VWAP/Mahalanobis IMSI state.
-- Causal scaled-quadratic ICM price geometry with explicit residual scales.
-- Symmetric completed-bar IAE-L1 gaps and first-retest geometry.
+- Prior-only VW-RSI/TOD/bar-VWAP/EWMA-shrunk Mahalanobis IMSI StateCore.
+- Causal pseudoinverse quadratic ICM geometry with per-bar derivatives and guards.
+- Symmetric completed-bar IAE-L1 formation, retest, and guarded proxy score.
 - As-of snapshot alignment, deterministic event IDs, and aggregate coverage.
 - One thin parameterized QC algorithm for deep ES/ZN/6E and all-eight smoke replays.
 
@@ -31,12 +31,13 @@ portfolio construction, risk, execution, L2 order-book inference, or trading act
 | Area | Responsibility | Runtime dependency |
 |---|---|---|
 | `domain/`, `data/`, `ledger/` | Standard-library identity, clocks, sessions, rolls, lineage, and immutable contracts | Python standard library |
-| `config/` | Eight-market registry, frozen measurement policy, feature semantics v1/v2 | Python standard library |
+| `config/` | Eight-market registry, frozen measurement policy, feature semantics v1-v4 | Python standard library |
 | `measurement/types.py` / `models.py` | Public facade / QC-safe implementation for frozen Lift 2 observations and snapshots | Python standard library |
-| `measurement/profile.py` / `volume_profile.py` | Public facade / QC-safe implementation for tick bins, POC/Value Area, rolling profiles, local scale, and Auction primitives | Python standard library |
-| `measurement/imsi.py` | Prior-only IMSI state and eigen-floor covariance | NumPy 1.26.4 |
-| `measurement/icm.py` | Scaled quadratic ICM geometry via `numpy.linalg.lstsq` | NumPy 1.26.4 |
-| `measurement/iae.py` | Symmetric IAE-L1 gap/retest geometry | Python standard library |
+| `measurement/profile.py` / `volume_profile.py` | Public facade / QC-safe implementation for tick bins, POC/Value Area, rolling profiles, and Auction primitives | Python standard library |
+| `measurement/volatility.py` | Shared arithmetic 24-true-range five-minute ATR measurement | Python standard library |
+| `measurement/imsi.py` | Prior-only IMSI StateCore, EWMA diagonal shrinkage, and neighbor embargo | NumPy 1.26.4 |
+| `measurement/icm.py` | Scaled quadratic ICM geometry via a frozen `numpy.linalg.pinv` | NumPy 1.26.4 |
+| `measurement/iae.py` | Symmetric IAE-L1 gap lifecycle and guarded absorption-proxy score | Python standard library |
 | `measurement/events.py` | Transitions, as-of alignment, immutable events, aggregate coverage | Python standard library |
 | `measurement/stream.py` | Session-anchored causal coordination and bounded state | Python standard library |
 | `qc_adapters/lift2_runtime.py` | Verified QC mapping, actual-contract tick, and evidence boundary | QuantConnect runtime |

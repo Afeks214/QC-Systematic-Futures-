@@ -20,6 +20,7 @@ from systematic_futures.domain.errors import (
 from systematic_futures.domain.serialization import sha256_hex
 from systematic_futures.measurement.models import (
     AuctionStateSnapshot,
+    AuctionTransitionMetrics,
     CandidateEventObservation,
     IAEStateSnapshot,
     ICMStateSnapshot,
@@ -28,9 +29,10 @@ from systematic_futures.measurement.models import (
     VolumeProfileSnapshot,
 )
 
-_FEATURE_VERSION = "feature_semantics_v2"
+_FEATURE_VERSION = "feature_semantics_math_v4"
 _SYNERGY_VERSION = "indicator_alignment_v1"
 _MAX_ALIGNMENT_HISTORY = 512
+_AUCTION_TRANSITION_VERSION = "auction_transition_metrics_v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +92,7 @@ class AuctionTransitionEngine:
         self._migration_emitted = False
         self._reentry_count = 0
         self._consecutive_outside_bars = 0
+        self._as_of_utc: datetime | None = None
 
     @property
     def active_excursion_id(self) -> str | None:
@@ -108,6 +111,22 @@ class AuctionTransitionEngine:
         """Return consecutive completed five-minute bars outside value in minutes."""
 
         return self._consecutive_outside_bars * 5
+
+    @property
+    def metrics(self) -> AuctionTransitionMetrics:
+        """Return typed counters derived from the latest completed transition."""
+
+        if self._session_id is None or self._as_of_utc is None:
+            raise DataQualityError("Auction transition metrics are unavailable before advance")
+        return AuctionTransitionMetrics(
+            root=self.root,
+            contract_symbol=self.contract_symbol,
+            session_id=self._session_id,
+            as_of_utc=self._as_of_utc,
+            reentry_count=self._reentry_count,
+            consecutive_outside_bars=self._consecutive_outside_bars,
+            version=_AUCTION_TRANSITION_VERSION,
+        )
 
     def advance(
         self,
@@ -129,8 +148,21 @@ class AuctionTransitionEngine:
 
         if event_time_utc > available_at_utc:
             raise DataTimingInvariantError("Auction event time must not exceed availability")
+        if self._as_of_utc is not None and event_time_utc <= self._as_of_utc:
+            raise DataTimingInvariantError("Auction transition times must strictly increase")
         if not session_id.strip():
             raise DataQualityError("session_id must be non-blank")
+        if prior_profile is not None:
+            if (
+                prior_profile.root != self.root
+                or prior_profile.contract_symbol != self.contract_symbol
+            ):
+                raise ContractBoundaryError("Auction prior Profile identity differs")
+            if prior_profile.as_of_utc >= event_time_utc:
+                raise DataTimingInvariantError("Auction prior Profile must precede event")
+            if prior_profile.available_at_utc > available_at_utc:
+                raise DataTimingInvariantError("Auction prior Profile is unavailable at event")
+        self._as_of_utc = event_time_utc
         if session_id != self._session_id:
             self._session_id = session_id
             self._location = location

@@ -18,7 +18,8 @@ if not (PROJECT_ROOT / "systematic_futures").is_dir():
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from systematic_futures.config.feature_semantics import (  # noqa: E402
-    feature_semantics_v2,
+    feature_semantics_v3,
+    feature_semantics_v4,
 )
 from systematic_futures.config.markets import all_market_definitions  # noqa: E402
 from systematic_futures.config.research import (  # noqa: E402 - repository script entrypoint
@@ -62,6 +63,17 @@ VERIFIED_SOURCE_DOCUMENT_HASHES = {
     ),
     "Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx": (
         "bdebaf3e0ec38c3cb13d605b1fdc289db0a6316218756d0264ed23856f3195b2"
+    ),
+}
+INDICATOR_SPECIFICATION_HASHES = {
+    "IAE-Full-Research-Specification.docx": (
+        "b62e43a2195215475c2431e0840a5b1fa59ee0a8501d473b0ed50e7d34d61f91"
+    ),
+    "ICM-Full-Research-Specification.docx": (
+        "487ffd40cd2c15c66bd2c003d36a72f99587cf3176fe0ec44bf011bbbb18ec26"
+    ),
+    "IMSI_Research_Notebook_Specification.docx": (
+        "1adb0dd434e8c830e42e8c9a0f60e224f28200c5de03fec9fcf3fcc1efbcfa59"
     ),
 }
 DEPENDENCY_FILES = (
@@ -182,7 +194,9 @@ def lift2_source_contract() -> dict[str, object]:
     from systematic_futures.measurement.profile import DEFAULT_PROFILE_DEFINITION
 
     return {
-        "feature_semantics_v2_hash": sha256_hex(feature_semantics_v2()),
+        "feature_semantics_v3_hash": sha256_hex(feature_semantics_v3()),
+        "feature_semantics_v4_hash": sha256_hex(feature_semantics_v4()),
+        "indicator_specification_hashes": INDICATOR_SPECIFICATION_HASHES,
         "market_registry_hash": sha256_hex(all_market_definitions()),
         "measurement_policy_hash": sha256_hex(lift_2_measurement_configuration()),
         "numpy_version": np.__version__,
@@ -236,7 +250,9 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     coverage = _read_and_validate_content_hash(LIFT2_COVERAGE_EVIDENCE)
     _read_and_validate_content_hash(LIFT2_EVIDENCE_INDEX)
     for field_name in (
-        "feature_semantics_v2_hash",
+        "feature_semantics_v3_hash",
+        "feature_semantics_v4_hash",
+        "indicator_specification_hashes",
         "market_registry_hash",
         "measurement_policy_hash",
         "numpy_version",

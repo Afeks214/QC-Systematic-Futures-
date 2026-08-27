@@ -26,8 +26,9 @@ from systematic_futures.measurement.events import (
 )
 from systematic_futures.measurement.iae import IAEEngine, IAERetestObservation
 from systematic_futures.measurement.icm import ICMEngine
-from systematic_futures.measurement.imsi import IMSIEngine
+from systematic_futures.measurement.imsi import IMSIStateCore
 from systematic_futures.measurement.models import (
+    ATRMeasurement,
     AuctionStateSnapshot,
     CandidateEventObservation,
     CompletedTradeBar,
@@ -38,15 +39,15 @@ from systematic_futures.measurement.models import (
     TradeObservation,
     VolumeProfileSnapshot,
 )
+from systematic_futures.measurement.volatility import ATR5m24
 from systematic_futures.measurement.volume_profile import (
     DEFAULT_PROFILE_DEFINITION,
     VolumeProfileEngine,
     auction_features,
     auction_location,
-    local_price_scale,
 )
 
-_FEATURE_VERSION = "feature_semantics_v2"
+_FEATURE_VERSION = "feature_semantics_math_v4"
 
 
 @dataclass(slots=True)
@@ -160,9 +161,10 @@ class MeasurementStream:
         self._sessions = session_engine
         self._five = _TradeBarAggregator(root, contract_symbol, 5)
         self._thirty = _TradeBarAggregator(root, contract_symbol, 30)
-        self._imsi = IMSIEngine(root, contract_symbol)
+        self._imsi = IMSIStateCore(root, contract_symbol)
         self._icm = ICMEngine(root, contract_symbol)
         self._iae = IAEEngine(root, contract_symbol, minimum_tick)
+        self._atr = ATR5m24(root, contract_symbol)
         self._transition = AuctionTransitionEngine(root, contract_symbol)
         self._aligner = SnapshotAligner()
         self._generator = CandidateEventGenerator()
@@ -174,6 +176,7 @@ class MeasurementStream:
         self._last_trade_time: datetime | None = None
         self._last_roll_state: RollState | None = None
         self.profile_snapshots: list[VolumeProfileSnapshot] = []
+        self.completed_bars: list[CompletedTradeBar] = []
         self.auction_snapshots: list[AuctionStateSnapshot] = []
         self.imsi_snapshots: list[IMSIStateSnapshot] = []
         self.icm_snapshots: list[ICMStateSnapshot] = []
@@ -240,7 +243,6 @@ class MeasurementStream:
         if not admitted:
             self.quality_counts["late_trade"] += 1
             return self._generator.events[before:]
-        self._imsi.observe_trade(trade)
         five_admitted = self._five.ingest(trade, session_start, session_end)
         thirty_admitted = self._thirty.ingest(trade, session_start, session_end)
         if not five_admitted:
@@ -286,6 +288,7 @@ class MeasurementStream:
             {
                 "auction_snapshot_ids": tuple(item.snapshot_id for item in self.auction_snapshots),
                 "candidate_event_ids": tuple(item.event_id for item in self.candidate_events),
+                "completed_bar_hashes": tuple(sha256_hex(item) for item in self.completed_bars),
                 "counts": dict(sorted(self.counts.items())),
                 "icm_snapshot_ids": tuple(item.snapshot_id for item in self.icm_snapshots),
                 "iae_snapshot_ids": tuple(item.snapshot_id for item in self.iae_snapshots),
@@ -300,20 +303,23 @@ class MeasurementStream:
             return
         grouped: dict[datetime, list[CompletedTradeBar]] = defaultdict(list)
         for bar in bars:
+            self.completed_bars.append(bar)
             grouped[bar.end_utc].append(bar)
         for boundary in sorted(grouped):
             boundary_bars = grouped[boundary]
             retests: list[IAERetestObservation] = []
+            atr_by_end: dict[datetime, ATRMeasurement] = {}
             five_bars = [bar for bar in boundary_bars if bar.period_minutes == 5]
             thirty_bars = [bar for bar in boundary_bars if bar.period_minutes == 30]
             for bar in five_bars:
                 self._five_bars.append(bar)
-                scale = local_price_scale(self._five_bars)
+                atr = self._atr.on_bar(bar)
+                atr_by_end[bar.end_utc] = atr
                 session_type = self._sessions.classify(self.root, bar.start_utc)
                 session_start, _ = self._sessions.session_bounds(self.root, bar.start_utc)
                 iae_snapshot, bar_retests = self._iae.on_bar(
                     bar,
-                    scale,
+                    atr,
                     session_type,
                     session_start,
                 )
@@ -337,7 +343,10 @@ class MeasurementStream:
                     self.icm_snapshots.append(icm)
                     self._aligner.add_icm(icm)
                     self.counts["icm_snapshots"] += 1
-                    self.counts["icm_ready"] += 1
+                    if icm.z_effective is not None:
+                        self.counts["icm_ready"] += 1
+                    for flag in icm.quality_flags:
+                        self.quality_counts[flag] += 1
                 else:
                     for flag in self._icm.last_quality_flags:
                         self.quality_counts[flag] += 1
@@ -346,12 +355,13 @@ class MeasurementStream:
             if profile is not None:
                 profile.finalize_minutes_through(boundary)
             for bar in five_bars:
-                self._publish_auction(bar, retests)
+                self._publish_auction(bar, retests, atr_by_end[bar.end_utc])
 
     def _publish_auction(
         self,
         bar: CompletedTradeBar,
         retests: list[IAERetestObservation],
+        atr: ATRMeasurement,
     ) -> None:
         profile = self._require_profile()
         developing = profile.snapshot(
@@ -382,14 +392,12 @@ class MeasurementStream:
             event_time_utc=bar.end_utc,
             available_at_utc=bar.available_at_utc,
         )
-        scale = local_price_scale(self._five_bars)
         features, feature_flags = auction_features(
             developing,
             self._prior_profile,
-            scale,
+            atr,
             tuple(item for item in self._five_bars if item.session_id == bar.session_id),
-            self._transition.reentry_count,
-            self._transition.consecutive_minutes_outside,
+            self._transition.metrics,
         )
         flags = set(feature_flags)
         if self._prior_profile is None:

@@ -360,6 +360,55 @@ distances; the condition number and warmup flags remain observable.
 Reopen condition: Lift 3 may register a true shrinkage estimator as an explicit
 research variant without mutating this version.
 
+## 2026-08-27 — Version descriptive IMSI to the active RSD covariance contract
+
+Date: 2026-08-27
+Decision: Replace the engine's v1 empirical eigen-floor path with the active user
+RSD's prior-only EWMA mean/covariance and bounded off-diagonal shrinkage formula;
+retain `stabilized_covariance` only as a backward-compatible numerical helper. Require
+30 prior sessions for TOD adjustment and exclude the latest seven completed 30m bars
+from nearest-state summaries.
+Alternatives considered: preserve v1 unchanged; copy the RSD's supervised MES and
+forward returns into the measurement engine; label the supplied heuristic as formal
+Ledoit-Wolf shrinkage.
+Reason: the first alternative would ignore the active task, while the other two would
+violate either the Lift 2 no-outcomes boundary or truthful estimator provenance.
+Specification support: user-supplied `IMSI Unified Synergy Architecture — Research
+Notebook Specification` v1, attachment SHA-256
+`967208cf420a12419e8eac1277370635720bab43ee4b1b2766603882ae4300e1`.
+Consequences: snapshot version is
+`imsi_state_v2|ewma_diagonal_shrinkage_v1|neighbor_embargo_7_v1`; shrinkage intensity,
+effective sample size, and scale-invariant shrunk-correlation condition are observable.
+No MES, probability, label, return, position, or order is emitted.
+Reopen condition: a separately authorized lift may register and ablate a formal
+Ledoit-Wolf estimator or predictive model against this descriptive version.
+
+## 2026-08-27 — Supersede provisional Lift 2 indicator mathematics
+
+Date: 2026-08-27
+Decision: Reconcile Profile/Auction, IMSI, ICM, and IAE against the three supplied
+research specifications before resuming QC. Delete the IMSI eigen-floor helper;
+rename the bounded estimator `EWMA_DIAGONAL_SHRINKAGE_SPEC_V1`; use completed-bar
+VWAP; precompute the ICM pseudoinverse and expose per-bar derivatives plus guarded Z;
+and implement exact IAE formation gates, lifecycle, full-bracket decay, and symmetric
+proxy score on the shared 24-true-range ATR.
+Alternatives considered: retain compatibility formulas; let the QC replay choose
+between formulas; silently repair only failing examples.
+Reason: those alternatives leave multiple mathematical meanings or make integration
+behavior the oracle. The supplied specifications and stop directive require one
+auditable definition plus independent analytic, differential, metamorphic, causal,
+and stress verification.
+Specification support: IMSI hash
+`1adb0dd434e8c830e42e8c9a0f60e224f28200c5de03fec9fcf3fcc1efbcfa59`, ICM hash
+`487ffd40cd2c15c66bd2c003d36a72f99587cf3176fe0ec44bf011bbbb18ec26`, and IAE hash
+`b62e43a2195215475c2431e0840a5b1fa59ee0a8501d473b0ed50e7d34d61f91`.
+Consequences: the prior eigen-floor and trade-tick VWAP decisions are superseded;
+feature semantics v1-v3 remain immutable history and v4 carries reconciled units.
+The L1 score remains a geometric proxy, not observed OFI, a probability, Alpha, or a
+trading instruction.
+Reopen condition: any formula change requires a new discrepancy row and complete
+mathematical recertification before QC replay.
+
 ## 2026-08-27 — Share semantic session shapes by futures family
 
 Date: 2026-08-27

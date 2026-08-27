@@ -9,6 +9,13 @@ dependencies = ["numpy==1.26.4"]
 addopts = "--strict-config --strict-markers"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "analytic_math: hand-calculated mathematical oracle",
+    "differential_math: independent implementation comparison",
+    "metamorphic_math: invariant-preserving input transformation",
+    "causality_math: prefix and prior-only equivalence",
+    "stress_math: degenerate, boundary, or numerical stress case",
+]
 
 [tool.ruff]
 target-version = "py311"

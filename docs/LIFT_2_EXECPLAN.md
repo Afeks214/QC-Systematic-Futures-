@@ -1,6 +1,6 @@
 # Lift 2 ExecPlan
 
-Status: `IN_PROGRESS_QC_PENDING`
+Status: `MATH_READY_FOR_LIFT_2_RUNTIME`
 Started: 2026-08-27
 Base commit: `3520c50f1eba674b074deabd7ca8b47320962b62`
 Scope: causal market measurement and candidate-event observations only.
@@ -32,7 +32,7 @@ portfolio, risk, execution, order, or L2 behavior.
 ### 2. Measurement contracts and feature vocabulary
 
 - Purpose: define immutable point-in-time inputs, snapshots, event records, and
-  Profile/Auction/IMSI/ICM/IAE feature semantics v2.
+  Profile/Auction/IMSI/ICM/IAE feature semantics v4, while preserving v1-v3.
 - Existing files reused: `domain/enums.py`, `domain/research_contracts.py`,
   `config/feature_semantics.py`, `config/research.py`.
 - Files changed: those existing files.
@@ -44,7 +44,7 @@ portfolio, risk, execution, order, or L2 behavior.
 - QC evidence: serialized schema/version hashes included in runtime evidence.
 - Completion state: `COMPLETE_LOCAL`.
 
-### 3. Causal stream, bars, and local scale
+### 3. Causal stream, bars, and shared ATR
 
 - Purpose: ingest actual-contract trades, finalize session-anchored 5m/30m bars, and
   publish snapshots in causal boundary order.
@@ -53,8 +53,10 @@ portfolio, risk, execution, order, or L2 behavior.
 - Files changed: `data/sessions.py` only if `session_bounds` is required.
 - Files added: `measurement/stream.py`.
 - Invariants: no bar crosses contract/session/closure; late availability is never
-  backdated; local scale uses only 12-24 prior completed 5m bars of one contract.
-- Tests: bucket anchoring, future-tick isolation, boundary errors, scale warmup/reset.
+  backdated; `ATR_5M_24` is the arithmetic mean of exactly 24 true ranges and is
+  withheld before full warmup.
+- Tests: independent OHLCV aggregation, bucket anchoring, future-tick isolation,
+  boundary errors, exact true range, 23/24 warmup, and contract reset.
 - QC evidence: bar counts, boundary incidents, roll resets, bounded-state counters.
 - Completion state: `COMPLETE_LOCAL`.
 
@@ -82,43 +84,52 @@ an observed, version-recorded platform constraint rather than a second formula p
 
 ### 5. IMSI descriptive measurement
 
-- Purpose: forward-only VW-RSI, prior-session TOD adjustment, session VWAP distance,
-  eigen-floor Mahalanobis state distance, nearest-state support, and rarity.
+- Purpose: forward-only zero-seeded VW-RSI, 30-prior-session TOD adjustment,
+  completed-bar session VWAP percentage distance, prior-only EWMA diagonal-shrinkage
+  Mahalanobis state distance, embargoed nearest-state support, and rarity.
 - Existing files reused: completed bars, session identity, deterministic snapshots.
 - Files changed: none outside the measurement package.
 - Files added: `measurement/imsi.py`.
-- Invariants: no outcomes; current session excluded from TOD baseline; memories bounded
-  to 30 sessions/300 states; 30-state covariance/rarity warmup.
-- Tests: forward-only behavior, TOD leakage, VWAP reset, degeneracy, finite distance,
-  prior-only rarity, prohibited-source terms.
+- Invariants: no outcomes; current session excluded from the full 30-session TOD
+  baseline; memories bounded to 30 sessions/300 states; covariance inputs prior-only;
+  seven completed 30m bars embargoed from neighbor summaries; degenerate covariance
+  and invalid covariance geometry fail closed.
+- Tests: exact VW-RSI recurrence, TOD boundary/leakage, bar-VWAP reset and units, exact
+  EWMA shrinkage arithmetic, collinearity/degeneracy, exact neighbor embargo boundary,
+  prior-only rarity, online/batch parity, and prohibited-source terms.
 - QC evidence: snapshot/warmup/support/quality counts and state hashes.
 - Completion state: `COMPLETE_LOCAL`.
 
 ### 6. ICM descriptive measurement
 
-- Purpose: compute scalar quadratic fair value, raw Z geometry, slope, curvature,
-  robust residual scales, and regime ratio from completed 30m actual-contract bars.
+- Purpose: compute scalar quadratic fair value, raw/capped/effective Z geometry,
+  per-bar slope/curvature, robust residual scales, and regime ratio from completed
+  30m actual-contract bars.
 - Existing files reused: market registry and measurement-policy configuration.
 - Files changed: `config/research.py`.
 - Files added: `measurement/icm.py`.
-- Invariants: fixed market windows; scaled time index; `numpy.linalg.lstsq`; no
-  repainting/winsorization/capping; reset on contract change; degenerate scale explicit.
-- Tests: exact quadratic, scalar fair value, translation invariance, causal history,
-  contract reset, degeneracy, prohibited behavior scan.
+- Invariants: fixed market windows; normalized time index; production solver is a
+  precomputed `numpy.linalg.pinv`; `lstsq` is an independent test oracle; Z cap is
+  4.5; flat and `R > 1.5` guards preserve raw state; contract reset is mandatory.
+- Tests: exact quadratic, pinv/lstsq differential parity at every warmed observation,
+  scalar fair value, chain-rule units, translation/scaling invariance, cap/guards,
+  causal history, contract boundary, and degeneracy.
 - QC evidence: snapshot/warmup/degeneracy counts and hashes.
 - Completion state: `COMPLETE_LOCAL`.
 
 ### 7. IAE-L1 descriptive measurement
 
-- Purpose: symmetric bullish/bearish three-bar gaps, exact geometry, bounded lifetime,
-  close-based invalidation, first-retest events, and prior-session TOD volume Z.
-- Existing files reused: 5m bars, local scale, event contracts.
+- Purpose: symmetric bullish/bearish three-bar gaps, exact formation gates/quality,
+  bounded lifecycle, close-based invalidation, first-test events, prior-session TOD
+  volume Z, exponential decay, and the specified guarded L1 proxy score.
+- Existing files reused: 5m bars, shared ATR, event contracts.
 - Files changed: none outside the measurement package.
 - Files added: `measurement/iae.py`.
-- Invariants: L1 only; no absorption claim; no thresholds/composite score; 48-bar
-  expiry; first retest only; TOD history prior-session only.
-- Tests: bullish/bearish symmetry, retest deduplication, wick/close invalidation,
-  TOD leakage, gap-parent identity.
+- Invariants: L1 proxy only; no observed OFI/institutional fact; gates are strict
+  `Zdisp > 1.5`, `Edisp > 0.6`, `Zgap > 0.3`; score threshold 2.1; 48-bar expiry;
+  first event only; TOD history prior-session only.
+- Tests: exact formation/score vectors, full-bracket decay, price-reflection symmetry,
+  zero-range/body stress, state transitions, TOD leakage, and gap-parent identity.
 - QC evidence: gaps/retests/expiries/invalidations and quality counts.
 - Completion state: `COMPLETE_LOCAL`.
 
@@ -193,6 +204,18 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   coverage, QC adapter, and Notebook 02 completed with the authorized minimal module
   footprint. Full local sequence passed twice: 67 tests, strict Pyright, Ruff,
   notebook validation, and deterministic source rebuild check.
+- 2026-08-27 — User-supplied IMSI RSD v1 reconciled into descriptive IMSI v2: the
+  explicit forward-only EWMA diagonal-shrinkage formula, 30-session TOD baseline,
+  seven-bar neighbor embargo, causal trade-clock guards, and snapshot diagnostics were
+  added. Predictive MES, labels, calibration, Alpha, FSM, and execution remain outside
+  Lift 2. The later full mathematical reconciliation below supersedes its provisional
+  trade-tick VWAP and compatibility-helper decisions.
+- 2026-08-27 — Stop-and-reconcile directive completed against the three supplied
+  indicator specifications. The single reconciliation matrix is complete; 23 marked
+  math tests cover 14 analytic, 9 differential, 11 metamorphic, 9 causality, and 15
+  stress memberships; the complete Python 3.11 gate passes 87 tests. Whole-engine
+  hashes match at 100/250/500/1000/1500 observations of the frozen 2,000-observation
+  stream. Result: `MATH_READY_FOR_LIFT_2_RUNTIME`.
 
 ## Source acceptance matrix
 
@@ -201,6 +224,6 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
 | Identity/time | `SessionEngine`, `RollManager`, UTC/PIT errors, canonical hashes | one `session_bounds` method | second calendar, inferred clocks |
 | Market data | existing eight-root registry and continuous mapping | verified actual-contract tick subscription | continuous price measurement, quote volume |
 | Measurement | existing immutable-domain conventions | eight authorized `measurement/` files | factories, service/repository layers, notebook formulas |
-| Numerical | existing Python 3.11 contract | NumPy 1.26.4 only | Pandas/SciPy/sklearn and heuristic shrinkage claims |
+| Numerical | existing Python 3.11 contract | NumPy 1.26.4 and disclosed EWMA diagonal shrinkage | Pandas/SciPy/sklearn and false formal Ledoit-Wolf claims |
 | Research events | existing lineage/hash discipline | causal references, immutable descriptive events, aggregate coverage | outcomes, confluence filter, repeated-bar pseudo-events |
 | Runtime | existing registration/QC boundary | one parameterized `Lift2Runtime` | second source tree, per-market algorithms, trading APIs |

@@ -42,6 +42,23 @@ Reviewed: **2026-08-27**
   forecast or signal logic.
 - Empirical live mapping timing and CFTC revision history are not claimed.
 
+## IMSI RSD v1 boundary — 2026-08-27
+
+- `IMPLEMENTED_DESCRIPTIVE`: zero-seeded online VW-RSI; 30-prior-session time-of-day
+  median; completed-bar session VWAP percentage distance; prior-only EWMA covariance;
+  bounded off-diagonal shrinkage; Mahalanobis geometry; seven-bar neighbor embargo;
+  bounded state; covariance diagnostics; and trade-clock fail-closed guards.
+- `BLOCKED_LIFT_2`: neighbor forward returns, tanh MES, calibration, triple-barrier
+  labels, IC/Sharpe tests, winsorized predictive features, confluence thresholds,
+  portfolio FSM, risk allocation, execution, and orders.
+- `BLOCKED_INPUT_CONTRACT`: macro-event and roll hard-neutral rules, empirical
+  five-year percentile gates, and session exclusion after missing bars require
+  separately certified calendars, roll/data-quality inputs, and versioned interfaces.
+- The supplied IMSI formula is implemented and named
+  `EWMA_DIAGONAL_SHRINKAGE_SPEC_V1`; it is not represented as formal Ledoit-Wolf.
+- Regime-conditioned 63-trading-day IMSI limits remain
+  `SPEC_DEPENDENCY_NOT_READY`; no unconditional substitute is applied.
+
 ## Deferred beyond Lift 1
 
 Market Profile, Auction State, IMSI, ICM, IAE, L2, candidate events, labels, returns,

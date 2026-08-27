@@ -82,7 +82,8 @@ class IAEGapDirection(str, Enum):
 
 class IAEGapState(str, Enum):
     OPEN = "open"
-    RETESTED = "retested"
+    TESTED = "tested"
+    ABSORBED = "absorbed"
     INVALIDATED = "invalidated"
     EXPIRED = "expired"
 

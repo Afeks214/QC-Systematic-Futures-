@@ -17,7 +17,9 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.serialization import sha256_hex
 from systematic_futures.measurement.models import (
+    ATRMeasurement,
     AuctionFeatureVector,
+    AuctionTransitionMetrics,
     CompletedTradeBar,
     ProfileDefinition,
     TradeObservation,
@@ -29,10 +31,9 @@ DEFAULT_PROFILE_DEFINITION = ProfileDefinition(
     value_area_fraction=0.70,
     snapshot_interval_minutes=5,
     rolling_windows_minutes=(30, 60, 120),
-    version="volume_profile_v1",
+    version="volume_profile_math_v2",
 )
-LOCAL_PRICE_SCALE_VERSION = "local_range_5m_24_v1"
-_PRICE_TOLERANCE = 1e-8
+ATR_NORMALIZATION_VERSION = "atr_5m_24_arithmetic_tr_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,8 +59,13 @@ def price_to_tick(price: float, minimum_tick: float) -> int:
         raise DataQualityError("minimum_tick must be finite and positive")
     tick = round(price / minimum_tick)
     reconstructed = tick * minimum_tick
-    tolerance = max(abs(price), abs(reconstructed), 1.0) * _PRICE_TOLERANCE
-    if not math.isclose(reconstructed, price, rel_tol=_PRICE_TOLERANCE, abs_tol=tolerance):
+    tolerance = max(
+        8.0 * math.ulp(price),
+        8.0 * math.ulp(reconstructed),
+        8.0 * abs(tick) * math.ulp(minimum_tick),
+        minimum_tick * 1e-12,
+    )
+    if abs(reconstructed - price) > tolerance:
         raise DataQualityError("trade price does not reconstruct from the minimum tick")
     return int(tick)
 
@@ -129,39 +135,6 @@ def select_value_area(
     return lower, upper
 
 
-def local_price_scale(completed_five_minute_bars: Sequence[CompletedTradeBar]) -> float | None:
-    """Return mean True Range over up to 24 completed 5m same-contract bars.
-
-    Units: native price. Time semantics: input order must be chronological and only
-    the final 24 completed bars are read; the first bar needs a prior completed close,
-    so at least 13 bars yield 12 ranges. Missingness: fewer than 12 ranges returns
-    ``None``. Raises: boundary or timing errors for mixed/unsorted inputs.
-    """
-
-    bars = tuple(completed_five_minute_bars)[-25:]
-    if len(bars) < 13:
-        return None
-    contracts = {bar.contract_symbol for bar in bars}
-    if len(contracts) != 1:
-        raise ContractBoundaryError("local price scale cannot cross contracts")
-    if any(bar.period_minutes != 5 for bar in bars):
-        raise DataQualityError("local price scale requires completed 5m bars")
-    if any(current.end_utc >= following.end_utc for current, following in pairwise(bars)):
-        raise DataTimingInvariantError("local price scale bars must be chronological")
-    ranges = [
-        max(
-            bar.high - bar.low,
-            abs(bar.high - previous.close),
-            abs(bar.low - previous.close),
-        )
-        for previous, bar in pairwise(bars)
-    ][-24:]
-    if len(ranges) < 12:
-        return None
-    scale = sum(ranges) / len(ranges)
-    return scale if scale > 0 else None
-
-
 class VolumeProfileEngine:
     """Bounded actual-contract Profile accumulator for one semantic session."""
 
@@ -186,7 +159,7 @@ class VolumeProfileEngine:
         if not math.isfinite(tick_size) or tick_size <= 0:
             raise DataQualityError("tick_size must be finite and positive")
         if definition != DEFAULT_PROFILE_DEFINITION:
-            raise DataQualityError("Lift 2 requires the frozen volume_profile_v1 definition")
+            raise DataQualityError("Lift 2 requires the frozen mathematical Profile definition")
         self.root = root
         self.contract_symbol = contract_symbol
         self.session_id = session_id
@@ -202,6 +175,7 @@ class VolumeProfileEngine:
         self._last_finalized_minute_end: datetime | None = None
         self._final_snapshot: VolumeProfileSnapshot | None = None
         self._quality_flags: set[str] = set()
+        self._admitted_volume = 0.0
         self.late_trade_count = 0
 
     @property
@@ -248,6 +222,7 @@ class VolumeProfileEngine:
             )
         self._session_histogram[tick] += trade.quantity
         self._minute_histogram[tick] += trade.quantity
+        self._admitted_volume += trade.quantity
         self._last_trade_time_utc = trade.exchange_time_utc
         self._last_available_at_utc = trade.available_at_utc
         self._last_price_tick = tick
@@ -310,9 +285,10 @@ class VolumeProfileEngine:
             return self._final_snapshot
         if profile_kind in {ProfileKind.DEVELOPING_SESSION, ProfileKind.FINAL_SESSION}:
             histogram = dict(self._session_histogram)
+            expected_total_volume = self._admitted_volume
         else:
             minutes = _rolling_minutes(profile_kind)
-            histogram = self._rolling_histogram(minutes, as_of_utc)
+            histogram, expected_total_volume = self._rolling_histogram(minutes, as_of_utc)
         snapshot = build_profile_snapshot(
             root=self.root,
             contract_symbol=self.contract_symbol,
@@ -324,20 +300,27 @@ class VolumeProfileEngine:
             tick_size=self.tick_size,
             current_price_tick=self._last_price_tick,
             volume_by_tick=histogram,
+            expected_total_volume=expected_total_volume,
             quality_flags=tuple(sorted(self._quality_flags)),
         )
         if profile_kind is ProfileKind.FINAL_SESSION:
             self._final_snapshot = snapshot
         return snapshot
 
-    def _rolling_histogram(self, minutes: int, as_of_utc: datetime) -> dict[int, float]:
+    def _rolling_histogram(
+        self,
+        minutes: int,
+        as_of_utc: datetime,
+    ) -> tuple[dict[int, float], float]:
         start = as_of_utc - timedelta(minutes=minutes)
         histogram: dict[int, float] = defaultdict(float)
+        admitted_volume = 0.0
         for bucket in self._minute_buckets:
             if start < bucket.minute_end_utc <= as_of_utc:
+                admitted_volume += bucket.total_volume
                 for tick, volume in bucket.volume_by_tick:
                     histogram[tick] += volume
-        return dict(histogram)
+        return dict(histogram), admitted_volume
 
     def _validate_trade_identity(self, trade: TradeObservation) -> None:
         if trade.root != self.root:
@@ -362,6 +345,7 @@ def build_profile_snapshot(
     tick_size: float,
     current_price_tick: int,
     volume_by_tick: Mapping[int, float],
+    expected_total_volume: float,
     quality_flags: tuple[str, ...] = (),
 ) -> VolumeProfileSnapshot:
     """Create a validated immutable Profile and content-derived identifier.
@@ -372,10 +356,21 @@ def build_profile_snapshot(
     """
 
     histogram = _validated_histogram(volume_by_tick)
+    histogram_total = sum(histogram.values())
+    if not math.isfinite(expected_total_volume) or expected_total_volume <= 0:
+        raise DataQualityError("expected_total_volume must be finite and positive")
+    if not math.isclose(
+        histogram_total,
+        expected_total_volume,
+        rel_tol=1e-12,
+        abs_tol=1e-12,
+    ):
+        raise DataQualityError("Profile admitted volume does not equal histogram volume")
     poc = select_poc(histogram)
     val, vah = select_value_area(histogram, poc, definition.value_area_fraction)
     pairs = tuple(sorted(histogram.items()))
     identity = {
+        "as_of_utc": as_of_utc,
         "available_at_utc": available_at_utc,
         "contract_symbol": contract_symbol,
         "current_price_tick": current_price_tick,
@@ -397,7 +392,7 @@ def build_profile_snapshot(
         available_at_utc=available_at_utc,
         definition_version=definition.version,
         tick_size=tick_size,
-        total_volume=sum(histogram.values()),
+        total_volume=histogram_total,
         occupied_bins=len(histogram),
         poc_tick=poc,
         vah_tick=vah,
@@ -433,10 +428,9 @@ def auction_location(
 def auction_features(
     current: VolumeProfileSnapshot,
     prior: VolumeProfileSnapshot | None,
-    scale: float | None,
+    atr: ATRMeasurement,
     completed_five_minute_bars: Sequence[CompletedTradeBar],
-    reentry_count: int,
-    consecutive_minutes_outside: int,
+    transitions: AuctionTransitionMetrics,
 ) -> tuple[AuctionFeatureVector, tuple[str, ...]]:
     """Compute primitive Profile/Auction measurements without a composite score.
 
@@ -446,10 +440,36 @@ def auction_features(
     errors for incompatible snapshots.
     """
 
-    if prior is not None and prior.root != current.root:
-        raise ContractBoundaryError("prior Profile root differs from current Profile root")
-    if scale is not None and (not math.isfinite(scale) or scale <= 0):
-        raise DataQualityError("local price scale must be positive when present")
+    if prior is not None:
+        if prior.root != current.root or prior.contract_symbol != current.contract_symbol:
+            raise ContractBoundaryError("prior Profile identity differs from current Profile")
+        if not math.isclose(prior.tick_size, current.tick_size, rel_tol=0, abs_tol=1e-15):
+            raise DataQualityError("prior Profile tick size differs from current Profile")
+        if prior.as_of_utc >= current.as_of_utc:
+            raise DataTimingInvariantError("prior Profile must precede current Profile")
+    if atr.root != current.root or atr.contract_symbol != current.contract_symbol:
+        raise ContractBoundaryError("ATR identity differs from current Profile")
+    if atr.as_of_utc != current.as_of_utc or atr.available_at_utc > current.available_at_utc:
+        raise DataTimingInvariantError("ATR clock is not aligned with current Profile")
+    if transitions.root != current.root or transitions.contract_symbol != current.contract_symbol:
+        raise ContractBoundaryError("Auction transition identity differs from current Profile")
+    if transitions.session_id != current.session_id:
+        raise SessionBoundaryError("Auction transition session differs from current Profile")
+    if transitions.as_of_utc != current.as_of_utc:
+        raise DataTimingInvariantError("Auction transition clock is not aligned")
+    bars = tuple(completed_five_minute_bars)
+    for bar in bars:
+        if bar.root != current.root or bar.contract_symbol != current.contract_symbol:
+            raise ContractBoundaryError("Auction bars cannot cross actual-contract identity")
+        if bar.session_id != current.session_id:
+            raise SessionBoundaryError("Auction bars cannot cross semantic sessions")
+        if bar.period_minutes != 5:
+            raise DataQualityError("Auction features require completed five-minute bars")
+        if bar.end_utc > current.as_of_utc or bar.available_at_utc > current.available_at_utc:
+            raise DataTimingInvariantError("Auction bar is unavailable at current Profile time")
+    if any(left.end_utc >= right.end_utc for left, right in pairwise(bars)):
+        raise DataTimingInvariantError("Auction bars must be strictly chronological")
+    scale = atr.value if atr.warmup_complete else None
     histogram = dict(current.volume_by_tick)
     total = current.total_volume
     above = sum(volume for tick, volume in histogram.items() if tick > current.poc_tick) / total
@@ -495,7 +515,7 @@ def auction_features(
             )
             / total
         )
-        eligible = tuple(bar for bar in completed_five_minute_bars if bar.period_minutes == 5)
+        eligible = bars
         time_outside = (
             sum(
                 price_to_tick(bar.close, current.tick_size) < prior.val_tick
@@ -526,10 +546,10 @@ def auction_features(
         profile_skew=skew,
         profile_kurtosis=kurtosis,
         profile_overlap_ratio=overlap,
-        reentry_count=reentry_count,
-        consecutive_minutes_outside=consecutive_minutes_outside,
-        local_price_scale=scale,
-        normalization_version=LOCAL_PRICE_SCALE_VERSION,
+        reentry_count=transitions.reentry_count,
+        consecutive_minutes_outside=transitions.consecutive_minutes_outside,
+        atr_5m_24=scale,
+        normalization_version=ATR_NORMALIZATION_VERSION,
     )
     return vector, moment_flags
 
@@ -595,14 +615,13 @@ def _profile_moments(
 
 
 __all__ = (
+    "ATR_NORMALIZATION_VERSION",
     "DEFAULT_PROFILE_DEFINITION",
-    "LOCAL_PRICE_SCALE_VERSION",
     "MinuteVolumeBucket",
     "VolumeProfileEngine",
     "auction_features",
     "auction_location",
     "build_profile_snapshot",
-    "local_price_scale",
     "price_to_tick",
     "select_poc",
     "select_value_area",

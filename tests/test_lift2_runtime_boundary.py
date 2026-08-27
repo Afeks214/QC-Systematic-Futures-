@@ -9,6 +9,8 @@ from types import SimpleNamespace
 from systematic_futures.config.feature_semantics import (
     feature_semantics_v1,
     feature_semantics_v2,
+    feature_semantics_v3,
+    feature_semantics_v4,
 )
 from systematic_futures.data.sessions import SessionEngine, reference_session_policies
 from systematic_futures.domain.research_contracts import FeatureImplementationStatus
@@ -123,6 +125,33 @@ def test_feature_v1_is_preserved_and_v2_marks_only_measurements() -> None:
         if feature.implementation_status is FeatureImplementationStatus.RESEARCH_MEASUREMENT
     }
     assert len(measured) == 40
+    v2_by_name = {feature.feature_name: feature for feature in v2}
+    assert v2_by_name["imsi_dist_vwap_pct"].unit == "decimal_ratio"
+    assert "imsi_covariance_shrinkage_delta" not in v2_by_name
+    v3 = feature_semantics_v3()
+    measured_v3 = {
+        feature.feature_name
+        for feature in v3
+        if feature.implementation_status is FeatureImplementationStatus.RESEARCH_MEASUREMENT
+    }
+    assert len(measured_v3) == 43
+    v3_by_name = {feature.feature_name: feature for feature in v3}
+    assert v3_by_name["imsi_dist_vwap_pct"].unit == "percentage_points"
+    assert (
+        v3_by_name["imsi_covariance_shrinkage_delta"].normalization_family
+        == "prior_state_ewma_shrinkage"
+    )
+    v4 = feature_semantics_v4()
+    measured_v4 = {
+        feature.feature_name
+        for feature in v4
+        if feature.implementation_status is FeatureImplementationStatus.RESEARCH_MEASUREMENT
+    }
+    assert len(measured_v4) == 53
+    v4_by_name = {feature.feature_name: feature for feature in v4}
+    assert v4_by_name["atr_5m_24"].normalization_family == "atr_5m_24_arithmetic_true_range"
+    assert v4_by_name["icm_slope_per_bar"].unit == "native_price_per_bar"
+    assert "icm_z_score" not in v4_by_name
 
 
 def test_required_types_are_frozen_slotted_dataclasses() -> None:

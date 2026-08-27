@@ -247,7 +247,7 @@ class AuctionFeatureVector:
     profile_overlap_ratio: float | None
     reentry_count: int
     consecutive_minutes_outside: int
-    local_price_scale: float | None
+    atr_5m_24: float | None
     normalization_version: str
 
     def __post_init__(self) -> None:
@@ -269,7 +269,7 @@ class AuctionFeatureVector:
             ("profile_skew", self.profile_skew),
             ("profile_kurtosis", self.profile_kurtosis),
             ("profile_overlap_ratio", self.profile_overlap_ratio),
-            ("local_price_scale", self.local_price_scale),
+            ("atr_5m_24", self.atr_5m_24),
         ):
             _require_optional_finite(value, field_name)
         for field_name, value in (
@@ -284,9 +284,70 @@ class AuctionFeatureVector:
             raise DataQualityError("profile_entropy must be in [0, 1]")
         if self.reentry_count < 0 or self.consecutive_minutes_outside < 0:
             raise DataQualityError("Auction counts must be non-negative")
-        if self.local_price_scale is not None and self.local_price_scale <= 0:
-            raise DataQualityError("local_price_scale must be positive when present")
+        if self.atr_5m_24 is not None and self.atr_5m_24 <= 0:
+            raise DataQualityError("atr_5m_24 must be positive when present")
         _require_text(self.normalization_version, "normalization_version")
+
+
+@dataclass(frozen=True, slots=True)
+class AuctionTransitionMetrics:
+    """State-machine-derived Auction counters for one completed five-minute bar."""
+
+    root: str
+    contract_symbol: str
+    session_id: str
+    as_of_utc: datetime
+    reentry_count: int
+    consecutive_outside_bars: int
+    version: str
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("root", self.root),
+            ("contract_symbol", self.contract_symbol),
+            ("session_id", self.session_id),
+            ("version", self.version),
+        ):
+            _require_text(value, field_name)
+        _require_utc(self.as_of_utc, "as_of_utc")
+        if self.reentry_count < 0 or self.consecutive_outside_bars < 0:
+            raise DataQualityError("Auction transition counters must be non-negative")
+
+    @property
+    def consecutive_minutes_outside(self) -> int:
+        """Return exact elapsed minutes from completed five-minute bars."""
+
+        return self.consecutive_outside_bars * 5
+
+
+@dataclass(frozen=True, slots=True)
+class ATRMeasurement:
+    """Contract-local arithmetic mean of the last 24 completed five-minute true ranges."""
+
+    root: str
+    contract_symbol: str
+    as_of_utc: datetime
+    available_at_utc: datetime
+    value: float | None
+    observation_count: int
+    warmup_complete: bool
+    version: str
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("root", self.root),
+            ("contract_symbol", self.contract_symbol),
+            ("version", self.version),
+        ):
+            _require_text(value, field_name)
+        _require_snapshot_clock(self.as_of_utc, self.available_at_utc)
+        _require_optional_finite(self.value, "value")
+        if self.value is not None and self.value <= 0:
+            raise DataQualityError("ATR value must be positive when present")
+        if not 0 <= self.observation_count <= 24:
+            raise DataQualityError("ATR observation_count must be in [0, 24]")
+        if self.warmup_complete != (self.observation_count == 24 and self.value is not None):
+            raise DataQualityError("ATR warmup state disagrees with count/value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,6 +408,8 @@ class IMSIStateSnapshot:
     neighbor_distance_mean: float | None
     neighbor_distance_p90: float | None
     neighbor_support: int
+    covariance_shrinkage_delta: float | None
+    covariance_effective_sample_size: float | None
     covariance_condition_number: float | None
     warmup_complete: bool
     quality_flags: tuple[str, ...]
@@ -365,11 +428,43 @@ class IMSIStateSnapshot:
             ("state_rarity_percentile", self.state_rarity_percentile),
             ("neighbor_distance_mean", self.neighbor_distance_mean),
             ("neighbor_distance_p90", self.neighbor_distance_p90),
+            ("covariance_shrinkage_delta", self.covariance_shrinkage_delta),
+            ("covariance_effective_sample_size", self.covariance_effective_sample_size),
             ("covariance_condition_number", self.covariance_condition_number),
         ):
             _require_optional_finite(value, field_name)
         if self.state_rarity_percentile is not None and not 0 <= self.state_rarity_percentile <= 1:
             raise DataQualityError("state_rarity_percentile must be in [0, 1]")
+        if (
+            self.covariance_shrinkage_delta is not None
+            and not 0 <= self.covariance_shrinkage_delta <= 1
+        ):
+            raise DataQualityError("covariance_shrinkage_delta must be in [0, 1]")
+        if (
+            self.covariance_effective_sample_size is not None
+            and self.covariance_effective_sample_size <= 0
+        ):
+            raise DataQualityError("covariance_effective_sample_size must be positive")
+        covariance_diagnostics = (
+            self.covariance_shrinkage_delta,
+            self.covariance_effective_sample_size,
+            self.covariance_condition_number,
+        )
+        if any(value is None for value in covariance_diagnostics) and not all(
+            value is None for value in covariance_diagnostics
+        ):
+            raise DataQualityError("IMSI covariance diagnostics must be jointly present or absent")
+        neighbor_metrics = (self.neighbor_distance_mean, self.neighbor_distance_p90)
+        if (self.neighbor_support == 0) != all(value is None for value in neighbor_metrics):
+            raise DataQualityError("IMSI neighbor metrics must agree with neighbor_support")
+        if self.mahalanobis_distance is not None and all(
+            value is None for value in covariance_diagnostics
+        ):
+            raise DataQualityError("IMSI distance requires covariance diagnostics")
+        if self.warmup_complete != (
+            self.mahalanobis_distance is not None and self.state_rarity_percentile is not None
+        ):
+            raise DataQualityError("IMSI warmup_complete disagrees with distance and rarity")
         if not 0 <= self.neighbor_support <= 15:
             raise DataQualityError("neighbor_support must be in [0, 15]")
         _require_flags(self.quality_flags)
@@ -385,11 +480,13 @@ class ICMStateSnapshot:
     as_of_utc: datetime
     available_at_utc: datetime
     fair_value: float
-    z_score: float
-    slope_raw: float
-    slope_norm: float
-    curvature_raw: float
-    curvature_norm: float
+    z_raw: float | None
+    z_capped: float | None
+    z_effective: float | None
+    slope_per_bar: float
+    slope_normalized: float | None
+    curvature_per_bar2: float
+    curvature_normalized: float | None
     sigma_ols: float
     sigma_mad: float
     sigma_blend: float
@@ -403,19 +500,33 @@ class ICMStateSnapshot:
         _validate_indicator_identity(self)
         for field_name, value in (
             ("fair_value", self.fair_value),
-            ("z_score", self.z_score),
-            ("slope_raw", self.slope_raw),
-            ("slope_norm", self.slope_norm),
-            ("curvature_raw", self.curvature_raw),
-            ("curvature_norm", self.curvature_norm),
+            ("slope_per_bar", self.slope_per_bar),
+            ("curvature_per_bar2", self.curvature_per_bar2),
             ("sigma_ols", self.sigma_ols),
             ("sigma_mad", self.sigma_mad),
             ("sigma_blend", self.sigma_blend),
             ("r_ratio", self.r_ratio),
         ):
             _require_finite(value, field_name)
-        if self.sigma_ols < 0 or self.sigma_mad < 0 or self.sigma_blend <= 0:
-            raise DataQualityError("ICM residual scales must be non-negative and blend positive")
+        for field_name, value in (
+            ("z_raw", self.z_raw),
+            ("z_capped", self.z_capped),
+            ("z_effective", self.z_effective),
+            ("slope_normalized", self.slope_normalized),
+            ("curvature_normalized", self.curvature_normalized),
+        ):
+            _require_optional_finite(value, field_name)
+        if self.sigma_ols < 0 or self.sigma_mad < 0 or self.sigma_blend < 0:
+            raise DataQualityError("ICM residual scales must be non-negative")
+        if (self.z_raw is None) != (self.z_capped is None):
+            raise DataQualityError("ICM raw and capped Z must be jointly present or absent")
+        if self.z_capped is not None and not -4.5 <= self.z_capped <= 4.5:
+            raise DataQualityError("ICM capped Z must be in [-4.5, 4.5]")
+        if self.z_effective is not None and self.z_capped != self.z_effective:
+            raise DataQualityError("ICM effective Z must equal capped Z when unguarded")
+        normalized = (self.slope_normalized, self.curvature_normalized)
+        if (self.sigma_blend > 0) != all(value is not None for value in normalized):
+            raise DataQualityError("ICM normalized geometry disagrees with residual scale")
         if self.window_size <= 3:
             raise DataQualityError("window_size must exceed three")
         _require_flags(self.quality_flags)
@@ -436,11 +547,16 @@ class IAEStateSnapshot:
     gap_width_atr: float | None
     impulse_body_atr: float | None
     displacement_efficiency: float | None
+    formation_quality: float | None
     gap_age_bars: int | None
+    time_decay: float | None
     retest_depth_ratio: float | None
     wick_absorption_ratio: float | None
     close_position_ratio: float | None
     tod_volume_z: float | None
+    score_raw: float | None
+    score_effective: float | None
+    absorption_confirmed: bool
     active_gap_count: int
     quality_flags: tuple[str, ...]
     version: str
@@ -455,16 +571,26 @@ class IAEStateSnapshot:
             ("gap_width_atr", self.gap_width_atr),
             ("impulse_body_atr", self.impulse_body_atr),
             ("displacement_efficiency", self.displacement_efficiency),
+            ("formation_quality", self.formation_quality),
+            ("time_decay", self.time_decay),
             ("retest_depth_ratio", self.retest_depth_ratio),
             ("wick_absorption_ratio", self.wick_absorption_ratio),
             ("close_position_ratio", self.close_position_ratio),
             ("tod_volume_z", self.tod_volume_z),
+            ("score_raw", self.score_raw),
+            ("score_effective", self.score_effective),
         ):
             _require_optional_finite(value, field_name)
         if self.gap_age_bars is not None and self.gap_age_bars < 0:
             raise DataQualityError("gap_age_bars must be non-negative")
         if self.active_gap_count < 0:
             raise DataQualityError("active_gap_count must be non-negative")
+        if self.time_decay is not None and not 0 < self.time_decay <= 1:
+            raise DataQualityError("time_decay must be in (0, 1]")
+        if self.score_effective is not None and self.score_raw != self.score_effective:
+            raise DataQualityError("effective IAE score must equal raw score when unguarded")
+        if self.absorption_confirmed != (self.gap_state is IAEGapState.ABSORBED):
+            raise DataQualityError("IAE absorption flag disagrees with gap state")
         _require_flags(self.quality_flags)
 
 
@@ -580,8 +706,10 @@ def _validate_indicator_identity(snapshot: _IndicatorIdentity) -> None:
 
 
 __all__ = (
+    "ATRMeasurement",
     "AuctionFeatureVector",
     "AuctionStateSnapshot",
+    "AuctionTransitionMetrics",
     "CandidateEventObservation",
     "CompletedTradeBar",
     "IAEStateSnapshot",

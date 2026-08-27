@@ -44,6 +44,7 @@ def _profile(timestamp: datetime):  # type: ignore[no-untyped-def]
         tick_size=1.0,
         current_price_tick=100,
         volume_by_tick={99: 20.0, 100: 60.0, 101: 20.0},
+        expected_total_volume=100.0,
     )
 
 
@@ -65,8 +66,8 @@ def _features() -> AuctionFeatureVector:
         profile_overlap_ratio=1,
         reentry_count=0,
         consecutive_minutes_outside=0,
-        local_price_scale=None,
-        normalization_version="local_range_5m_24_v1",
+        atr_5m_24=None,
+        normalization_version="atr_5m_24_arithmetic_tr_v1",
     )
 
 
@@ -84,7 +85,7 @@ def _auction(timestamp: datetime) -> AuctionStateSnapshot:
         features=_features(),
         active_excursion_id=None,
         quality_flags=(),
-        feature_version="feature_semantics_v2",
+        feature_version="feature_semantics_math_v4",
     )
 
 
@@ -104,6 +105,8 @@ def _imsi(timestamp: datetime, suffix: str) -> IMSIStateSnapshot:
         neighbor_distance_mean=1,
         neighbor_distance_p90=2,
         neighbor_support=15,
+        covariance_shrinkage_delta=0.5,
+        covariance_effective_sample_size=20,
         covariance_condition_number=2,
         warmup_complete=True,
         quality_flags=(),
@@ -119,11 +122,13 @@ def _icm(timestamp: datetime) -> ICMStateSnapshot:
         as_of_utc=timestamp,
         available_at_utc=timestamp,
         fair_value=100,
-        z_score=1,
-        slope_raw=1,
-        slope_norm=1,
-        curvature_raw=0,
-        curvature_norm=0,
+        z_raw=1,
+        z_capped=1,
+        z_effective=1,
+        slope_per_bar=1,
+        slope_normalized=1,
+        curvature_per_bar2=0,
+        curvature_normalized=0,
         sigma_ols=1,
         sigma_mad=1,
         sigma_blend=1,
@@ -148,11 +153,16 @@ def _iae(timestamp: datetime) -> IAEStateSnapshot:
         gap_width_atr=None,
         impulse_body_atr=None,
         displacement_efficiency=None,
+        formation_quality=None,
         gap_age_bars=None,
+        time_decay=None,
         retest_depth_ratio=None,
         wick_absorption_ratio=None,
         close_position_ratio=None,
         tod_volume_z=None,
+        score_raw=None,
+        score_effective=None,
+        absorption_confirmed=False,
         active_gap_count=0,
         quality_flags=(),
         version="iae-v1",
@@ -161,7 +171,7 @@ def _iae(timestamp: datetime) -> IAEStateSnapshot:
 
 def test_auction_transitions_emit_once_with_exact_parent_and_poc_migration() -> None:
     start = datetime(2024, 3, 4, 10, tzinfo=UTC)
-    prior = _profile(start)
+    prior = _profile(start - timedelta(days=1))
     engine = AuctionTransitionEngine("ES", "ESH24")
     assert (
         engine.advance(
