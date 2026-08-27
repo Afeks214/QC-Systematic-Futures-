@@ -170,7 +170,7 @@ def test_auction_features_require_exact_bar_atr_and_transition_identity() -> Non
         value=0.5,
         observation_count=24,
         warmup_complete=True,
-        version="atr_5m_24_arithmetic_tr_v1",
+        version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
     )
     transitions = AuctionTransitionMetrics(
         root="ES",

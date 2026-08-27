@@ -162,7 +162,7 @@ an observed, version-recorded platform constraint rather than a second formula p
   root, notebook business-logic guard.
 - QC evidence: source/build/backtest IDs, versions, per-market counts, hashes, zero
   actions, and bounded samples.
-- Completion state: `SOURCE_COMPLETE_QC_PENDING`.
+- Completion state: `SOURCE_RECERTIFIED_QC_REPLAY_PENDING`.
 
 ### 10. Certification, manifest, and handoff
 
@@ -229,6 +229,20 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   one semantic session. The exact three-consecutive-bar IAE predicate remains frozen;
   the state engine now resets formation/active-gap state and records
   `IAE_BAR_GAP_RESET`. The complete local suite was recertified before replay.
+- 2026-08-27 — Corrected source build `7de0cd-7f0de9` completed the bounded ES
+  smoke run (`cd7b3f083a248def2d4720ae38613f5a`) over 16,673,720 delivered points,
+  including 1,223,512 admitted mapped-contract trades, required bar/profile/indicator
+  outputs, 65 unique candidates, and zero orders, Insights, or PortfolioTargets. The
+  full ES deep run from build `a5f1b8-7f0de9` is in progress; remaining deep and
+  all-eight rows stay explicitly uncertified until their result records complete.
+- 2026-08-27 — The pre-floor ES deep run completed, but ZN deep backtest
+  `0f2c86d773425e9db2b6f81ad3f0a90b` then exposed a valid locked/flat bar with
+  zero true range. Reinspection of authoritative IAE Cell 02 found the explicit
+  `atr.clip(lower=1e-6)` locked-market clause. Zero TR observations are now retained;
+  after 24 ranges the arithmetic ATR is floored at `1e-6` native price units. The
+  shared version is `atr_5m_24_arithmetic_tr_floor_1e-6_v2`; all 89 tests and the five
+  independent math classes pass. All pre-floor QC runs are superseded for final
+  certification, and the required matrix will restart from the recertified source.
 
 ## Source acceptance matrix
 

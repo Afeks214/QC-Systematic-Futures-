@@ -454,7 +454,12 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+Runtime evidence: corrected ES smoke backtest
+`cd7b3f083a248def2d4720ae38613f5a` observed one mapped actual contract and
+1,223,512 admitted trade ticks.
+
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; full matrix certification remains
+separate.
 
 ### Python package initialization in QC Cloud
 
@@ -494,7 +499,30 @@ stateful IAE boundary clears its formation window and active gaps on a same-sess
 bar discontinuity, emits `IAE_BAR_GAP_RESET`, and restarts only from subsequently
 completed bars. No synthetic or zero-volume bar is created.
 
-Status: `LOCAL_RECERTIFIED_QC_REPLAY_PENDING`.
+Correction evidence: ES smoke backtest `cd7b3f083a248def2d4720ae38613f5a`
+completed with three recorded `IAE_BAR_GAP_RESET` incidents and no altered formula,
+runtime error, or synthetic bar.
+
+Status: `RESOLVED_AND_EXECUTED_QC_CLOUD_ES`.
+
+### Locked-market zero true range
+
+Requirement: preserve valid flat/locked bars while applying the authoritative IAE ATR
+denominator floor only after the full 24-range warmup.
+
+Observed behavior: ZN deep backtest `0f2c86d773425e9db2b6f81ad3f0a90b`
+reached 2024-02-16 02:11:40 UTC and failed because a valid zero true range was
+incorrectly rejected.
+
+Resolution: authoritative IAE specification Cell 02 computes the rolling arithmetic
+ATR and applies `clip(lower=1e-6)` specifically as a locked-market floor. The corrected
+shared engine retains each zero TR observation, withholds ATR until 24 ranges exist,
+then emits `max(mean(TR), 1e-6)` in native price units. The shared version, math
+reference vector, prefix certificate, measurement-policy hash, and local tests were
+recertified. No bar is fabricated or dropped.
+
+Status: `LOCAL_MATH_RECERTIFIED_QC_REPLAY_PENDING`; all pre-floor successful runs are
+superseded for final runtime parity.
 
 ### Python project filename compatibility
 
@@ -512,8 +540,9 @@ implementations live in `measurement/models.py` and
 Runtime evidence: failed backtest `Sleepy Red Koala`; failed build signature
 `f68193`; LEAN `2.5.0.0.18036`.
 
-Status: `VERIFIED_RUNTIME_CONSTRAINT`; the corrected source still requires a new
-successful build and replay before certification.
+Status: `VERIFIED_RUNTIME_CONSTRAINT_RESOLVED`; corrected build
+`7de0cd-7f0de9` and ES backtest `cd7b3f083a248def2d4720ae38613f5a`
+completed from the independently byte-audited 34-file deployment.
 
 ### Tick collection and trade filtering
 
@@ -532,7 +561,10 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`; no queue, cancellation, replenishment,
+Runtime evidence: ES smoke backtest `cd7b3f083a248def2d4720ae38613f5a`
+admitted 1,223,512 trade ticks and explicitly ignored 15,404,411 quote ticks.
+
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; no queue, cancellation, replenishment,
 MLOFI, or native exchange-sequence claim is authorized.
 
 ### Tick EndTime at the UTC algorithm boundary
@@ -557,7 +589,8 @@ UTC algorithm frontier and correctly tripped `DataTimingInvariantError`.
 Resolution: interpret naive delivered tick `EndTime` under the configured UTC
 algorithm timezone. Do not clip, backdate, or silently coerce the time.
 
-Status: `VERIFIED_SOURCE_AND_FAILURE_EVIDENCE`; corrected runtime replay pending.
+Status: `VERIFIED_SOURCE_FAILURE_AND_CORRECTED_ES_REPLAY`; corrected ES backtest
+`cd7b3f083a248def2d4720ae38613f5a` completed without a time-frontier violation.
 
 ### Contract metadata
 
@@ -573,7 +606,8 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; the completed ES run created its
+positive native tick lattice from the actual-contract security metadata.
 
 ### Runtime parameter and version reporting
 

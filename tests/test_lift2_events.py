@@ -67,7 +67,7 @@ def _features() -> AuctionFeatureVector:
         reentry_count=0,
         consecutive_minutes_outside=0,
         atr_5m_24=None,
-        normalization_version="atr_5m_24_arithmetic_tr_v1",
+        normalization_version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
     )
 
 

@@ -73,8 +73,15 @@ trading, and live trading remain unimplemented.
   processed. Direct inspection found `data/policies.py` bytes at the cloud
   `domain/enums.py` path. All 34 deployed files were subsequently synchronized and
   independently reopened/read as byte-identical; build `4dabc4-360f32` initialized.
-- `QC_REPLAY_PENDING`: fresh build `4dabc4-360f32` passed initialization. ES smoke
-  backtest `69edd3f1bd02d166f9170c6223349be6` then found a missing same-session
-  five-minute bucket. The state boundary now resets with `IAE_BAR_GAP_RESET`; the
-  exact three-bar formula is unchanged and all 89 local tests pass. Fresh QC replay
-  remains required.
+- `SUPERSEDED_PRE_FLOOR_QC_EVIDENCE`: the failed ES smoke
+  `69edd3f1bd02d166f9170c6223349be6` found a missing same-session five-minute
+  bucket. The state boundary now resets with `IAE_BAR_GAP_RESET`; the exact three-bar
+  formula is unchanged and all 89 local tests pass. Corrected build
+  `7de0cd-7f0de9` then completed ES smoke backtest
+  `cd7b3f083a248def2d4720ae38613f5a` with required measurements and zero actions.
+  A later ES deep run also completed, but ZN backtest
+  `0f2c86d773425e9db2b6f81ad3f0a90b` exposed the specification's locked-market
+  edge: zero true ranges are valid and the warmed ATR must be floored at `1e-6`.
+  The corrected source and all math classes are recertified. Every pre-floor run is
+  integration evidence only; ES/ZN/6E deep and all-eight smoke must be replayed from
+  the new source before Lift 2 or Lift 3 readiness can be claimed.

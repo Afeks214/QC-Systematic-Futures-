@@ -53,6 +53,7 @@ LIFT2_MANIFEST = PROJECT_ROOT / "artifacts/manifests/lift_2_manifest.json"
 LIFT2_RUNTIME_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_runtime_measurement.json"
 LIFT2_COVERAGE_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_candidate_coverage.json"
 LIFT2_EVIDENCE_INDEX = PROJECT_ROOT / "artifacts/certification/lift_2_evidence_index.json"
+LIFT2_MATH_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_math_certification.json"
 SOURCE_DOCUMENTS = (
     PROJECT_ROOT / "upload/Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
     PROJECT_ROOT / "upload/Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx",
@@ -242,6 +243,7 @@ def build_lift2_rebuild_check() -> dict[str, object]:
         LIFT2_RUNTIME_EVIDENCE,
         LIFT2_COVERAGE_EVIDENCE,
         LIFT2_EVIDENCE_INDEX,
+        LIFT2_MATH_EVIDENCE,
     )
     present = tuple(path.is_file() for path in required)
     if any(present) and not all(present):
@@ -269,7 +271,11 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     manifest = _read_and_validate_content_hash(LIFT2_MANIFEST)
     runtime = _read_and_validate_content_hash(LIFT2_RUNTIME_EVIDENCE)
     coverage = _read_and_validate_content_hash(LIFT2_COVERAGE_EVIDENCE)
-    _read_and_validate_content_hash(LIFT2_EVIDENCE_INDEX)
+    evidence_index = _read_and_validate_content_hash(LIFT2_EVIDENCE_INDEX)
+    math = _read_and_validate_content_hash(LIFT2_MATH_EVIDENCE)
+    _validate_lift2_runtime_evidence(runtime)
+    _validate_lift2_coverage_evidence(coverage, runtime)
+    _validate_lift2_math_evidence(math)
     for field_name in (
         "feature_semantics_v3_hash",
         "feature_semantics_v4_hash",
@@ -288,6 +294,18 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
         raise RuntimeError("Lift 2 runtime measurement hash mismatch")
     if manifest.get("candidate_coverage_hash") != coverage["content_hash"]:
         raise RuntimeError("Lift 2 candidate coverage hash mismatch")
+    if manifest.get("math_certification_hash") != math["content_hash"]:
+        raise RuntimeError("Lift 2 math certification hash mismatch")
+    if manifest.get("source_git_sha") != math["source_git_sha"]:
+        raise RuntimeError("Lift 2 math certification source SHA mismatch")
+    indexed_hashes = evidence_index.get("artifact_hashes")
+    expected_hashes = {
+        "lift2_candidate_coverage.json": coverage["content_hash"],
+        "lift2_math_certification.json": math["content_hash"],
+        "lift2_runtime_measurement.json": runtime["content_hash"],
+    }
+    if indexed_hashes != expected_hashes:
+        raise RuntimeError("Lift 2 evidence index artifact hashes mismatch")
     for field_name in (
         "source_git_sha",
         "evidence_git_sha",
@@ -300,6 +318,227 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     ):
         if not manifest.get(field_name):
             raise RuntimeError(f"Lift 2 manifest field is missing: {field_name}")
+
+
+def _validate_lift2_runtime_evidence(document: dict[str, object]) -> None:
+    expected_runs = {
+        *(("deep", root) for root in ("ES", "ZN", "6E")),
+        *(("smoke", root) for root in ("ES", "NQ", "RTY", "ZT", "ZN", "6E", "6J", "6B")),
+    }
+    raw_runs = document.get("runs")
+    if not isinstance(raw_runs, list):
+        raise RuntimeError("Lift 2 runtime evidence runs must be a list")
+    runs = cast(list[object], raw_runs)
+    if len(runs) != len(expected_runs):
+        raise RuntimeError("Lift 2 runtime evidence must contain 3 deep and 8 smoke runs")
+    observed_runs: set[tuple[str, str]] = set()
+    build_ids: set[str] = set()
+    backtest_ids: set[str] = set()
+    for raw_run in runs:
+        if not isinstance(raw_run, dict):
+            raise RuntimeError("Lift 2 runtime run must be an object")
+        run = cast(dict[str, object], raw_run)
+        mode = run.get("mode")
+        root = run.get("root")
+        if not isinstance(mode, str) or not isinstance(root, str):
+            raise RuntimeError("Lift 2 runtime run requires text mode and root")
+        observed_runs.add((mode, root))
+        if run.get("status") != "COMPLETED":
+            raise RuntimeError(f"Lift 2 runtime run did not complete: {mode}/{root}")
+        for field_name in ("build_id", "backtest_id", "backtest_name"):
+            value = run.get(field_name)
+            if not isinstance(value, str) or not value:
+                raise RuntimeError(f"Lift 2 runtime field is missing: {mode}/{root}/{field_name}")
+        build_ids.add(cast(str, run["build_id"]))
+        backtest_id = cast(str, run["backtest_id"])
+        if backtest_id in backtest_ids:
+            raise RuntimeError(f"Lift 2 runtime backtest ID is duplicated: {backtest_id}")
+        backtest_ids.add(backtest_id)
+        expected_period = (
+            {"start": "2024-02-15", "end": "2024-03-25"}
+            if mode == "deep"
+            else {"start": "2024-03-04", "end": "2024-03-06"}
+        )
+        if run.get("period") != expected_period:
+            raise RuntimeError(f"Lift 2 runtime period mismatch: {mode}/{root}")
+        for field_name in ("contract_count", "chain_observations"):
+            _require_positive_count(run, field_name, mode, root)
+        contracts = run.get("contracts")
+        if not isinstance(contracts, list):
+            raise RuntimeError(f"Lift 2 runtime contracts are missing: {mode}/{root}")
+        contract_names = cast(list[object], contracts)
+        if any(not isinstance(item, str) or not item for item in contract_names):
+            raise RuntimeError(f"Lift 2 runtime contracts are invalid: {mode}/{root}")
+        validated_contract_names = cast(list[str], contract_names)
+        if len(validated_contract_names) != run["contract_count"] or (
+            validated_contract_names != sorted(set(validated_contract_names))
+        ):
+            raise RuntimeError(f"Lift 2 runtime contracts are invalid: {mode}/{root}")
+        counts = run.get("counts")
+        if not isinstance(counts, dict):
+            raise RuntimeError(f"Lift 2 runtime counts are missing: {mode}/{root}")
+        count_map = cast(dict[str, object], counts)
+        for field_name in (
+            "trade_ticks",
+            "five_minute_bars",
+            "thirty_minute_bars",
+            "developing_profiles",
+            "auction_snapshots",
+            "iae_snapshots",
+            "unique_sessions",
+        ):
+            _require_positive_count(count_map, field_name, mode, root)
+        if mode == "deep":
+            for field_name in (
+                "final_profiles",
+                "imsi_snapshots",
+                "icm_snapshots",
+                "icm_ready",
+                "candidate_events",
+            ):
+                _require_positive_count(count_map, field_name, mode, root)
+        zero_actions = run.get("zero_actions")
+        if zero_actions != {"insights": 0, "orders": 0, "portfolio_targets": 0}:
+            raise RuntimeError(f"Lift 2 zero-action invariant failed: {mode}/{root}")
+        for field_name in ("measurement_hash", "coverage_hash"):
+            value = run.get(field_name)
+            if not isinstance(value, str) or not _is_lower_hex(value, 64):
+                raise RuntimeError(f"Lift 2 runtime hash is invalid: {mode}/{root}/{field_name}")
+    if observed_runs != expected_runs:
+        raise RuntimeError("Lift 2 runtime evidence run matrix mismatch")
+    if document.get("qc_build_ids") != sorted(build_ids):
+        raise RuntimeError("Lift 2 runtime build ID summary mismatch")
+    if document.get("qc_backtest_ids") != sorted(backtest_ids):
+        raise RuntimeError("Lift 2 runtime backtest ID summary mismatch")
+
+
+def _validate_lift2_coverage_evidence(
+    document: dict[str, object],
+    runtime: dict[str, object],
+) -> None:
+    if _contains_forbidden_economic_key(document):
+        raise RuntimeError("Lift 2 coverage evidence contains an economic outcome field")
+    raw_runs = document.get("runs")
+    raw_runtime_runs = runtime.get("runs")
+    if not isinstance(raw_runs, list) or not isinstance(raw_runtime_runs, list):
+        raise RuntimeError("Lift 2 coverage/runtime run lists are missing")
+    runs = cast(list[object], raw_runs)
+    runtime_runs = cast(list[object], raw_runtime_runs)
+    runtime_hashes: dict[tuple[object, object, object], object] = {}
+    for raw_runtime_run in runtime_runs:
+        if not isinstance(raw_runtime_run, dict):
+            raise RuntimeError("Lift 2 runtime run must be an object")
+        runtime_run = cast(dict[str, object], raw_runtime_run)
+        runtime_key = (
+            runtime_run.get("mode"),
+            runtime_run.get("root"),
+            runtime_run.get("backtest_id"),
+        )
+        runtime_hashes[runtime_key] = runtime_run.get("coverage_hash")
+    observed_hashes: dict[tuple[object, object, object], object] = {}
+    for raw_run in runs:
+        if not isinstance(raw_run, dict):
+            raise RuntimeError("Lift 2 coverage run must be an object")
+        run = cast(dict[str, object], raw_run)
+        key = (run.get("mode"), run.get("root"), run.get("backtest_id"))
+        observed_hashes[key] = run.get("coverage_hash")
+        raw_coverage = run.get("coverage")
+        if not isinstance(raw_coverage, dict):
+            raise RuntimeError(f"Lift 2 coverage payload is missing: {key}")
+        coverage = cast(dict[str, object], raw_coverage)
+        raw_count = coverage.get("raw_event_count")
+        unique_count = coverage.get("unique_event_count")
+        if raw_count != unique_count:
+            raise RuntimeError(f"Lift 2 candidate events are not unique: {key}")
+        if coverage.get("quality_blocked_events") != 0:
+            raise RuntimeError(f"Lift 2 coverage contains blocked candidate events: {key}")
+    if observed_hashes != runtime_hashes:
+        raise RuntimeError("Lift 2 coverage hashes do not reconcile to runtime evidence")
+
+
+def _require_positive_count(
+    values: dict[str, object],
+    field_name: str,
+    mode: str,
+    root: str,
+) -> None:
+    value = values.get(field_name)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise RuntimeError(f"Lift 2 runtime count must be positive: {mode}/{root}/{field_name}")
+
+
+def _contains_forbidden_economic_key(value: object) -> bool:
+    forbidden = {"pnl", "profit", "return", "returns", "sharpe"}
+    if isinstance(value, dict):
+        mapping = cast(dict[object, object], value)
+        return any(
+            str(key).lower() in forbidden or _contains_forbidden_economic_key(item)
+            for key, item in mapping.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_forbidden_economic_key(item) for item in cast(list[object], value))
+    return False
+
+
+def _validate_lift2_math_evidence(document: dict[str, object]) -> None:
+    required_fields = {
+        "source_git_sha",
+        "specification_hashes",
+        "profile_definition_version",
+        "IMSI_math_version",
+        "ICM_math_version",
+        "IAE_math_version",
+        "analytic_test_count",
+        "differential_test_count",
+        "metamorphic_test_count",
+        "causality_test_count",
+        "stress_test_count",
+        "all_passed",
+        "reference_vector_hash",
+        "prefix_equivalence_hash",
+        "qc_parity_hash",
+        "content_hash",
+    }
+    if set(document) != required_fields:
+        raise RuntimeError("Lift 2 math certification fields do not match the directive")
+    if document.get("specification_hashes") != INDICATOR_SPECIFICATION_HASHES:
+        raise RuntimeError("Lift 2 math certification specification hashes mismatch")
+    if document.get("all_passed") is not True:
+        raise RuntimeError("Lift 2 math certification is not passing")
+    expected_counts = {
+        "analytic_test_count": 14,
+        "differential_test_count": 9,
+        "metamorphic_test_count": 11,
+        "causality_test_count": 10,
+        "stress_test_count": 16,
+    }
+    for field_name, expected in expected_counts.items():
+        if document.get(field_name) != expected:
+            raise RuntimeError(f"Lift 2 math certification count mismatch: {field_name}")
+    source_git_sha = document.get("source_git_sha")
+    if not isinstance(source_git_sha, str) or not _is_lower_hex(source_git_sha, 40):
+        raise RuntimeError("Lift 2 math certification source_git_sha is invalid")
+    for field_name in (
+        "profile_definition_version",
+        "IMSI_math_version",
+        "ICM_math_version",
+        "IAE_math_version",
+    ):
+        value = document.get(field_name)
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"Lift 2 math certification field is missing: {field_name}")
+    for field_name in (
+        "reference_vector_hash",
+        "prefix_equivalence_hash",
+        "qc_parity_hash",
+    ):
+        value = document.get(field_name)
+        if not isinstance(value, str) or not _is_lower_hex(value, 64):
+            raise RuntimeError(f"Lift 2 math certification hash is invalid: {field_name}")
+
+
+def _is_lower_hex(value: str, length: int) -> bool:
+    return len(value) == length and all(character in "0123456789abcdef" for character in value)
 
 
 def _read_and_validate_content_hash(path: Path) -> dict[str, object]:

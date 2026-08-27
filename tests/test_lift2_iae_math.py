@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from systematic_futures.domain.enums import IAEGapDirection, IAEGapState, SessionType
-from systematic_futures.domain.errors import DataQualityError, DataTimingInvariantError
+from systematic_futures.domain.errors import DataTimingInvariantError
 from systematic_futures.measurement.iae import (
     IAEEngine,
     absorption_score,
@@ -55,7 +55,7 @@ def _atr(bar: CompletedTradeBar, value: float = 1.0) -> ATRMeasurement:
         value=value,
         observation_count=24,
         warmup_complete=True,
-        version="atr_5m_24_arithmetic_tr_v1",
+        version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
     )
 
 
@@ -120,10 +120,10 @@ def test_shared_atr_true_range_analytic_warmup_scaling_and_stress() -> None:
     assert true_range(scaled_second, scaled_first.close) == pytest.approx(4.0)
     locked = ATR5m24("ES", "ESH24")
     locked.on_bar(first)
-    with pytest.raises(DataQualityError, match="positive"):
-        locked.on_bar(
+    for index in range(1, 25):
+        locked_state = locked.on_bar(
             _bar(
-                1,
+                index,
                 base=base,
                 open_price=100.0,
                 high=100.0,
@@ -131,6 +131,9 @@ def test_shared_atr_true_range_analytic_warmup_scaling_and_stress() -> None:
                 close=100.0,
             )
         )
+    assert locked_state.observation_count == 24
+    assert locked_state.warmup_complete
+    assert locked_state.value == pytest.approx(1e-6)
 
 
 @pytest.mark.analytic_math

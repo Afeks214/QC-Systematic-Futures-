@@ -58,7 +58,7 @@ def lift_2_measurement_configuration() -> Mapping[str, object]:
         "deep_end_date": LIFT2_DEEP_END_DATE,
         "deep_start_date": LIFT2_DEEP_START_DATE,
         "feature_version": "feature_semantics_math_v4",
-        "atr_5m_24_version": "atr_5m_24_arithmetic_tr_v1",
+        "atr_5m_24_version": "atr_5m_24_arithmetic_tr_floor_1e-6_v2",
         "iae_max_gap_age_bars": 48,
         "iae_min_displacement_efficiency": 0.6,
         "iae_min_wick_absorption": 0.5,

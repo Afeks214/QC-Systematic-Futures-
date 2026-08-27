@@ -11,16 +11,18 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.measurement.models import ATRMeasurement, CompletedTradeBar
 
-ATR_5M_24_VERSION = "atr_5m_24_arithmetic_tr_v1"
+ATR_5M_24_VERSION = "atr_5m_24_arithmetic_tr_floor_1e-6_v2"
 _WINDOW = 24
+_ATR_FLOOR = 1e-6
 
 
 def true_range(bar: CompletedTradeBar, previous_close: float) -> float:
     """Return one five-minute true range in native price units.
 
     Time semantics: ``previous_close`` must be the immediately preceding completed
-    same-contract bar close, established by the caller. Missingness: no fallback is
-    permitted. Raises: ``DataQualityError`` for a non-five-minute bar or invalid close.
+    same-contract bar close, established by the caller. Missingness: a locked/flat bar
+    has a valid zero true range; no observation is dropped. Raises: ``DataQualityError``
+    for a non-five-minute bar or invalid close.
     """
 
     if bar.period_minutes != 5:
@@ -38,7 +40,7 @@ def true_range(bar: CompletedTradeBar, previous_close: float) -> float:
 
 
 class ATR5m24:
-    """Causal contract-local arithmetic mean of the last 24 five-minute true ranges."""
+    """Causal 24-range arithmetic ATR with the specification's 1e-6 locked-market floor."""
 
     def __init__(self, root: str, contract_symbol: str) -> None:
         """Create empty state for one actual contract.
@@ -60,8 +62,9 @@ class ATR5m24:
         """Advance with one completed bar and return the point-in-time ATR state.
 
         The exposed value is withheld until exactly 24 prior-defined true ranges are
-        available. Contract/session gaps are retained as true range by definition;
-        actual-contract changes require a new instance.
+        available, then floored at 1e-6 native price units. Zero ranges from locked or
+        flat bars remain valid observations. Contract/session gaps are retained as true
+        range by definition; actual-contract changes require a new instance.
         """
 
         if bar.root != self.root or bar.contract_symbol != self.contract_symbol:
@@ -71,15 +74,12 @@ class ATR5m24:
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("ATR bars must arrive in increasing end-time order")
         if self._previous_close is not None:
-            value = true_range(bar, self._previous_close)
-            if value <= 0:
-                raise DataQualityError("ATR true range must be positive")
-            self._ranges.append(value)
+            self._ranges.append(true_range(bar, self._previous_close))
         self._previous_close = bar.close
         self._last_bar_end = bar.end_utc
         observation_count = len(self._ranges)
         ready = observation_count == _WINDOW
-        atr = sum(self._ranges) / _WINDOW if ready else None
+        atr = max(sum(self._ranges) / _WINDOW, _ATR_FLOOR) if ready else None
         return ATRMeasurement(
             root=self.root,
             contract_symbol=self.contract_symbol,

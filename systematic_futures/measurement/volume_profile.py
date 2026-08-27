@@ -25,6 +25,7 @@ from systematic_futures.measurement.models import (
     TradeObservation,
     VolumeProfileSnapshot,
 )
+from systematic_futures.measurement.volatility import ATR_5M_24_VERSION
 
 DEFAULT_PROFILE_DEFINITION = ProfileDefinition(
     price_bin_ticks=1,
@@ -33,7 +34,7 @@ DEFAULT_PROFILE_DEFINITION = ProfileDefinition(
     rolling_windows_minutes=(30, 60, 120),
     version="volume_profile_math_v2",
 )
-ATR_NORMALIZATION_VERSION = "atr_5m_24_arithmetic_tr_v1"
+ATR_NORMALIZATION_VERSION = ATR_5M_24_VERSION
 
 
 @dataclass(frozen=True, slots=True)
