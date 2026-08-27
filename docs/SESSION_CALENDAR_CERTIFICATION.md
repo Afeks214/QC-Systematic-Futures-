@@ -5,7 +5,7 @@ Semantic policy: `lift1-semantic-v1`
 LEAN source commit: `07fb0182bfe229edd9445cf675ac6509d0069539`
 Market-hours database SHA-256:
 `d93f0b417cc9df618da4548f78157fd2b49515e0999f16e83ffddcffd54eef41`
-Verified: **2026-08-26**
+Verified: **2026-08-27**
 
 ## Scope
 
@@ -31,7 +31,7 @@ also proves that session classification cannot make a future mapping effective e
 ## Runtime boundary
 
 This certification establishes the semantic engine against the pinned current LEAN
-calendar file. It does not claim that all future calendars are permanently certified,
-and it does not claim that the fixed-window QC cloud probe ran. A credentialed probe
-must still record the actual exchange-hours object and roll-adjacent observations for
-runtime evidence.
+calendar file. The fixed-window QC cloud probe subsequently observed 111 ES, 110 ZN,
+and 113 6E semantic session IDs and roll-adjacent states under LEAN 2.5.0.0.18036 in
+backtest `b22d565d649c5b31650fd033cdc89cf3`. It does not claim that all future calendars
+are permanently certified or that every exchange-hours object was separately audited.

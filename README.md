@@ -5,7 +5,8 @@
 This repository establishes deterministic data contracts, point-in-time availability,
 contract/session/roll identity, experiment pre-registration, lineage, and audit
 artifacts for futures research. Its reference data probe inspects ES, ZN, and 6E in
-QuantConnect/LEAN when an authorized runtime and data access are available.
+QuantConnect/LEAN. Lift 1 certification used authenticated QC Cloud and retains only
+small lineage-bearing summaries, never raw market data.
 
 Lift 1 creates a trustworthy research environment. It does **not** test a strategy,
 produce trades, estimate returns, calculate P&L, or claim Alpha.
@@ -13,7 +14,8 @@ produce trades, estimate returns, calculate P&L, or claim Alpha.
 ## Lift 1 scope
 
 - Eight explicit candidate-market definitions; only ES, ZN, and 6E are probe enabled.
-- Five under-review dataset policies and a synthetic CFTC Tuesday/Friday timing proof.
+- Conservative dataset-use policies plus real CFTC ordinary and holiday-delayed
+  delivery certification for research context.
 - Immutable UTC domain records, deterministic IDs, canonical JSON, and SHA-256 lineage.
 - Point-in-time normalization followed by a heap-backed availability gate.
 - Versioned ordinary-day semantic sessions, explicit contract snapshots, and causal
@@ -28,11 +30,11 @@ produce trades, estimate returns, calculate P&L, or claim Alpha.
 
 ## Closure status
 
-Local Lift 1 work is qualified under CPython 3.11.15 and LEAN CLI 1.0.228. The only
-external closure dependency is an authenticated QuantConnect account/session with the
-required cloud and dataset entitlements. No QC cloud backtest, QC Research notebook,
-Python.NET runtime probe, or real CFTC delivery audit is claimed. See
-`docs/LIFT_1_CLOSURE_REPORT.md` and the evidence index for the exact final status.
+`READY_FOR_LIFT_2`. The complete local gate passes under CPython 3.11.16. Certified QC
+Cloud source ran under CPython 3.11.14 and LEAN 2.5.0.0.18036, observing real ES, ZN,
+6E, Python.NET, and CFTC evidence with zero trading actions. Notebook 01 is classified
+`THIN_CLIENT_RUNTIME_PARITY_VERIFIED`; interactive execution is not claimed. See
+`docs/LIFT_1_CLOSURE_REPORT.md` and the evidence index for exact scope and limitations.
 
 ## Non-goals
 
@@ -106,7 +108,7 @@ No additional production layer is authorized in Lift 1.
 
 ## Environment setup
 
-Target runtime: Python 3.11.11 / Python 3.11.
+Target runtime: Python 3.11.
 
 ```bash
 python3.11 -m venv .venv

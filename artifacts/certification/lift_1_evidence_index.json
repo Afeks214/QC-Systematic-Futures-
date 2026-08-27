@@ -1,10 +1,11 @@
 {
-  "schema_version": "lift1-evidence-index-v2",
-  "generated_at_utc": "2026-08-26T20:51:24Z",
-  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "schema_version": "lift1-evidence-index-v3",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
   "lean_cli_version": "1.0.228",
-  "qc_runtime_version": null,
-  "final_readiness_decision": "EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED",
+  "qc_runtime_version": "2.5.0.0.18036",
+  "qc_project_id": "35697180",
+  "final_readiness_decision": "READY_FOR_LIFT_2",
   "source_documents": [
     {
       "name": "Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
@@ -17,41 +18,69 @@
   ],
   "claims": [
     {
-      "claim": "Complete project quality suite passes under CPython 3.11.15",
+      "claim": "Complete supported quality suite passes under Python 3.11",
       "result": "PASS",
       "evidence": [
         {
           "path": "artifacts/certification/python311_quality_gate.json",
-          "sha256": "3e6d676f2f893917f9d042e47070b982a1a9deb219c96636ae75c0486f4be986"
+          "sha256": "a56bbce8b9d287a64f0540b760e71aa52dcbf843766a75d90c7f93f9d7813647"
         }
       ]
     },
     {
-      "claim": "Current QC APIs and exact reference constants are source-resolved",
-      "result": "PASS_STATIC_NOT_RUNTIME",
+      "claim": "Real QC futures data, mappings, Open Interest, metadata, rolls, and Python.NET clocks were observed for ES, ZN, and 6E",
+      "result": "PASS_CONTEXT",
       "evidence": [
         {
-          "path": "docs/QC_API_RESOLUTION.md",
-          "sha256": "a8c4276306913df9728d8889eb6971a75e9bf4daf9c737354ceb40f23478889a"
+          "path": "artifacts/certification/qc_futures_runtime_probe.json",
+          "sha256": "6effe6a65e17c4d3eac3b94bfa2c7fc8b2251573ade8fa7621cafef405a0ae1b"
         }
       ]
     },
     {
-      "claim": "Reference semantic sessions are certified against the pinned LEAN calendar",
+      "claim": "Real QC CFTC ordinary and holiday-delayed delivery is gated no earlier than the official release clock",
+      "result": "CERTIFIED_CONTEXT",
+      "evidence": [
+        {
+          "path": "artifacts/certification/cftc_release_delivery_audit.json",
+          "sha256": "5d84a05354197f1bd390c02e19af3136ddb09b0cb0b2b1b4436c8147e2109ef4"
+        },
+        {
+          "path": "docs/CFTC_POINT_IN_TIME_CERTIFICATION.md",
+          "sha256": "84647661b95b6c55ccc00962a9c59954ceb801cf650d93f77bbb317c778f3783"
+        }
+      ]
+    },
+    {
+      "claim": "Reference semantic sessions are certified against the pinned official LEAN calendar and observed in the cloud probe",
       "result": "PASS_PINNED_VERSION",
       "evidence": [
         {
           "path": "artifacts/certification/reference_market_session_matrix.json",
-          "sha256": "f1faad9abdc357393c7aa861d56e469c1a10a34d1f8f2ddafbd57488733ce952"
+          "sha256": "4d3ade7afef9613e3903e3bdf2f5422d62f646847265eeffd69c0837e6357d82"
         },
         {
           "path": "docs/SESSION_CALENDAR_CERTIFICATION.md",
-          "sha256": "10b47a93870664f58fd4bafb639b0d6c084ec67a1486b45a185e4bd69715cb7e"
+          "sha256": "b79599cb862e3525397a658867d1af9b05e7f26038ae92f04f91d2c567a94bbb"
         }
       ]
     },
     {
-      "claim": "Point-in-time, ledger, feature, ForecastPacket, cost, and safety contracts pass",
+      "claim": "Dataset permissions and limitations are explicit and evidence-specific",
+      "result": "PASS",
+      "evidence": [
+        {
+          "path": "artifacts/certification/lift1_dataset_certification_matrix.json",
+          "sha256": "6a40a517af7a777a53d26c7f5b22f7d2529e8e2f97b6fc49a2b0a45296112380"
+        },
+        {
+          "path": "docs/DATA_CERTIFICATION_MATRIX.md",
+          "sha256": "0b8e18950c483dae6e570e2e97c8263723261090ae12063c26fbbe66038f64db"
+        }
+      ]
+    },
+    {
+      "claim": "Point-in-time, ledger, feature, ForecastPacket, cost, and safety contracts pass without Lift 2 behavior",
       "result": "PASS_STATIC_CONTRACTS",
       "evidence": [
         {
@@ -65,73 +94,29 @@
       ]
     },
     {
-      "claim": "Dataset and macro use classifications are explicit and conservative",
-      "result": "PASS_UNDER_REVIEW",
+      "claim": "Notebook 01 is a validated thin client with runtime parity and no unique business logic",
+      "result": "THIN_CLIENT_RUNTIME_PARITY_VERIFIED",
       "evidence": [
         {
-          "path": "artifacts/certification/lift1_dataset_certification_matrix.json",
-          "sha256": "5a04ddddb91cc412a279e6477c97bb683b29d6d343d7fe8b288956dd401f78cb"
+          "path": "artifacts/manifests/lift_1_closure_manifest.json",
+          "sha256": "8f6e0579c2fff62fa726250936548a067369e81b8c82943d18b4adfac73d0812"
+        }
+      ]
+    },
+    {
+      "claim": "Final closure decision is qualified, evidence-linked, and contains zero trading actions",
+      "result": "READY_FOR_LIFT_2",
+      "evidence": [
+        {
+          "path": "artifacts/manifests/lift_1_closure_manifest.json",
+          "sha256": "8f6e0579c2fff62fa726250936548a067369e81b8c82943d18b4adfac73d0812"
         },
         {
-          "path": "docs/MACRO_DATA_POLICY_MATRIX.md",
-          "sha256": "cbe516c913cdb989f5bda0bd9b4a0e0889e0f25b6048a2cf93a26149e5f87e7e"
+          "path": "docs/LIFT_1_CLOSURE_REPORT.md",
+          "sha256": "88b1799da2c705cbbb55c1b8d985c4647c923ca7dd71d2a315534eef3dfa6f04"
         }
       ]
-    },
-    {
-      "claim": "Official CFTC 2026 release-side clock is versioned and synthetic gating passes",
-      "result": "PASS_OFFICIAL_CLOCK_NO_QC_DELIVERY",
-      "evidence": [
-        {
-          "path": "artifacts/certification/cftc_release_schedule_2026_reference.json",
-          "sha256": "3b9733d3b83b709762f1813d8c4c408ade0e35eb1fa7213aa64894e9d6c4498b"
-        },
-        {
-          "path": "docs/CFTC_POINT_IN_TIME_CERTIFICATION.md",
-          "sha256": "d010bf35332787bb107b3cf99aa98fc394a6c1cc69bd0c9dd683c20577779666"
-        }
-      ]
-    },
-    {
-      "claim": "Historical Lift 1 manifest remains immutable",
-      "result": "PASS",
-      "evidence": [
-        {
-          "path": "artifacts/manifests/lift_1_manifest.json",
-          "sha256": "a07a32362e741cd21d33b4027b987992826e221ef68b2dfda6b68b64a773505c"
-        }
-      ]
-    },
-    {
-      "claim": "Authenticated QC futures runtime evidence",
-      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
-      "evidence": [],
-      "missing_required_artifact": "artifacts/certification/qc_futures_runtime_probe.json"
-    },
-    {
-      "claim": "Authenticated QC CFTC delivery evidence",
-      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
-      "evidence": [],
-      "missing_required_artifact": "artifacts/certification/cftc_release_delivery_audit.json"
-    },
-    {
-      "claim": "Authenticated QC Python.NET datetime evidence",
-      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
-      "evidence": [],
-      "missing_required_artifact": "artifacts/certification/pythonnet_datetime_probe.json"
-    },
-    {
-      "claim": "Executed Notebook 01 output",
-      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
-      "evidence": [],
-      "missing_required_artifact": "artifacts/data_probes/reference_markets_summary.json"
-    },
-    {
-      "claim": "Qualified closure manifest",
-      "result": "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT",
-      "evidence": [],
-      "missing_required_artifact": "artifacts/manifests/lift_1_closure_manifest.json"
     }
   ],
-  "content_hash": "1f66a80c2e00be7442cfd6fbf2e522a06759d3829457704225366fadcf9b27a6"
+  "content_hash": "bb85729494e306de70b73951a1614750ef6bdf316178fc2d72c6159ca666fb51"
 }

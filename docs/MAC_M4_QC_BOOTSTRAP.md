@@ -200,9 +200,9 @@ tokens, copied notebook API variables, or cloud logs containing secrets. If a
 credential appears in repository output, stop, revoke it through the official
 provider workflow, and remove it from history before continuing.
 
-## Local prerequisite status for this task
+## Closure environment status
 
-The Codex workspace used to build Lift 1 had Python 3.12 rather than Python 3.11,
-and it did not expose LEAN CLI, a verified LEAN image, QC credentials, or futures
-data. Core checks may be executed locally, but QC runtime checks remain
-`NOT_EXECUTED` until the steps above are completed in an authorized environment.
+The final local gate ran on Apple Silicon under CPython 3.11.16, and LEAN CLI 1.0.228
+was available. Runtime certification used authenticated QC Cloud instead of Docker or
+local data downloads, under LEAN 2.5.0.0.18036. No paid data was purchased. The setup
+steps above remain the reproducible manual bootstrap for a fresh machine.

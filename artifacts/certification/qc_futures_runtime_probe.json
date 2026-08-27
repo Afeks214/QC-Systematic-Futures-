@@ -1,0 +1,161 @@
+{
+  "schema_version": "lift1-qc-futures-runtime-probe-v2",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "certified_source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
+  "source_configuration_sha256": "b1bd4251ca919da983ee7cbbe593975610fca77bf4bb9a616ecc3a9bdfff60eb",
+  "qc_project_id": "35697180",
+  "qc_project_url": "https://www.quantconnect.com/project/35697180",
+  "qc_cloud_build_id": "67d2fc-f0a27f",
+  "qc_cloud_backtest_id": "b22d565d649c5b31650fd033cdc89cf3",
+  "backtest_name": "Swimming Asparagus Falcon",
+  "lean_runtime_version": "2.5.0.0.18036",
+  "python_runtime": "CPython 3.11.14",
+  "runtime_machine": "x86_64",
+  "runtime_platform": "Linux-6.8.0-52-generic-x86_64-with-glibc2.35",
+  "configured_window": {
+    "start_date": "2024-02-15",
+    "end_date": "2024-03-25",
+    "algorithm_timezone": "UTC"
+  },
+  "execution": {
+    "status": "COMPLETED",
+    "engine_completion_time": "2024-03-26T05:00:00Z",
+    "elapsed_seconds": 18.48,
+    "processed_data_points": 1531695,
+    "orders_created": 0,
+    "insights_created": 0,
+    "portfolio_targets_created": 0,
+    "holdings_value": 0.0,
+    "fees": 0.0
+  },
+  "subscription_configuration": {
+    "resolution": "MINUTE",
+    "extended_market_hours": true,
+    "mapping_mode": "OPEN_INTEREST",
+    "normalization_mode": "BACKWARDS_RATIO",
+    "contract_depth_offset": 0,
+    "filter_days_to_expiry": 182
+  },
+  "markets": [
+    {
+      "root": "ES",
+      "continuous_symbol": "/ES",
+      "exchange_timezone": "America/New_York",
+      "session_policy_id": "es_reference_sessions_v1",
+      "session_id_count": 111,
+      "first_data_time_utc": "2024-02-15T00:00:00.000000Z",
+      "last_data_time_utc": "2024-03-26T00:00:00.000000Z",
+      "rows_received": 38461,
+      "mapped_contracts_seen": ["ES YGT6HGVF2SQP", "ES YJHOAMPYKQGX"],
+      "mapping_event_count": 1,
+      "mapping_event_time_utc": "2024-03-13T04:00:00.000000Z",
+      "open_interest_observations": 65,
+      "open_interest_non_null_observations": 65,
+      "minimum_tick_observed": 0.25,
+      "multiplier_observed": 50.0,
+      "contract_expiries_seen": [
+        "2024-03-15T17:30:00.000000Z",
+        "2024-06-21T17:30:00.000000Z",
+        "2024-09-20T17:30:00.000000Z"
+      ],
+      "missing_intervals_detected": 28,
+      "roll_states_seen": ["normal", "post_roll", "roll_transition"],
+      "quality_flags": ["UNADJUDICATED_MINUTE_GAP"]
+    },
+    {
+      "root": "ZN",
+      "continuous_symbol": "/ZN",
+      "exchange_timezone": "America/Chicago",
+      "session_policy_id": "zn_reference_sessions_v1",
+      "session_id_count": 110,
+      "first_data_time_utc": "2024-02-15T00:00:00.000000Z",
+      "last_data_time_utc": "2024-03-26T00:00:00.000000Z",
+      "rows_received": 37321,
+      "mapped_contracts_seen": ["ZN YGX49UC3DS85", "ZN YJEPYCMGCFTX"],
+      "mapping_event_count": 1,
+      "mapping_event_time_utc": "2024-02-26T06:00:00.000000Z",
+      "open_interest_observations": 70,
+      "open_interest_non_null_observations": 70,
+      "minimum_tick_observed": 0.015625,
+      "multiplier_observed": 1000.0,
+      "contract_expiries_seen": [
+        "2024-03-19T05:00:00.000000Z",
+        "2024-06-18T17:01:00.000000Z",
+        "2024-09-19T17:01:00.000000Z"
+      ],
+      "missing_intervals_detected": 28,
+      "roll_states_seen": ["normal", "post_roll", "roll_transition"],
+      "quality_flags": ["UNADJUDICATED_MINUTE_GAP"]
+    },
+    {
+      "root": "6E",
+      "continuous_symbol": "/6E",
+      "exchange_timezone": "America/Chicago",
+      "session_policy_id": "6e_reference_sessions_v1",
+      "session_id_count": 113,
+      "first_data_time_utc": "2024-02-15T00:00:00.000000Z",
+      "last_data_time_utc": "2024-03-26T00:00:00.000000Z",
+      "rows_received": 38701,
+      "mapped_contracts_seen": ["6E YGW4TQYXB281", "6E YHNPCD7NG6PT"],
+      "mapping_event_count": 1,
+      "mapping_event_time_utc": "2024-03-18T05:00:00.000000Z",
+      "open_interest_observations": 173,
+      "open_interest_non_null_observations": 173,
+      "minimum_tick_observed": 0.00005,
+      "multiplier_observed": 125000.0,
+      "contract_expiries_seen": [
+        "2024-02-16T20:16:00.000000Z",
+        "2024-03-18T19:16:00.000000Z",
+        "2024-04-15T19:16:00.000000Z",
+        "2024-05-13T19:16:00.000000Z",
+        "2024-06-17T19:16:00.000000Z",
+        "2024-07-15T19:16:00.000000Z",
+        "2024-09-16T19:16:00.000000Z"
+      ],
+      "missing_intervals_detected": 28,
+      "roll_states_seen": ["normal", "post_roll", "roll_transition"],
+      "quality_flags": ["UNADJUDICATED_MINUTE_GAP"]
+    }
+  ],
+  "pythonnet_datetime_boundaries": {
+    "slice_time": {
+      "python_type": "clr_datetime.datetime",
+      "repr": "datetime.datetime(2024, 2, 15, 0, 0)",
+      "source_timezone": "UTC",
+      "converted_utc": "2024-02-15T00:00:00.000000Z"
+    },
+    "trade_bar_time": {
+      "python_type": "clr_datetime.datetime",
+      "repr": "datetime.datetime(2024, 2, 14, 18, 59)",
+      "source_timezone": "America/New_York",
+      "converted_utc": "2024-02-14T23:59:00.000000Z"
+    },
+    "trade_bar_end_time": {
+      "python_type": "clr_datetime.datetime",
+      "repr": "datetime.datetime(2024, 2, 14, 19, 0)",
+      "source_timezone": "America/New_York",
+      "converted_utc": "2024-02-15T00:00:00.000000Z"
+    },
+    "symbol_changed_event_time": {
+      "python_type": "clr_datetime.datetime",
+      "repr": "datetime.datetime(2024, 3, 13, 0, 0)",
+      "source_timezone": null,
+      "converted_utc": null,
+      "conversion_status": "WITHHELD_UNVERIFIED_SOURCE_TIMEZONE"
+    },
+    "contract_expiry": {
+      "python_type": "clr_datetime.datetime",
+      "repr": "datetime.datetime(2024, 3, 15, 13, 30)",
+      "source_timezone": "America/New_York",
+      "converted_utc": "2024-03-15T17:30:00.000000Z"
+    }
+  },
+  "probe_hash": "6e400e06a985429117669a56af4e8c42ae997ece048147a99ffea9888536b741",
+  "certification_scope": "ENGINEERING_AND_DATA_OBSERVABILITY_ONLY",
+  "non_claims": [
+    "No alpha, profitability, execution, fill, or investment-suitability claim.",
+    "Backwards Ratio remains prohibited for fills, realized P&L, and contract-price bins.",
+    "The 28 gaps per market are unadjudicated maintenance/session gaps, not silently filled data."
+  ],
+  "content_hash": "b75da596f78f4f91720a2e8c6d9af18855f5b371d0aa947f6185aca6d9af0647"
+}

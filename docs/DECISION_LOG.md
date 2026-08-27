@@ -312,3 +312,33 @@ Consequences: the certified source tree is public at revision
 `3f1bb4294d26acbe7f4977f65b7a69483a6f124a`; final evidence is published as its
 fast-forward child.
 Reopen condition: remote `main` changes before the final fast-forward update.
+
+## 2026-08-27 — Certify the immutable source in authenticated QC Cloud
+
+Date: 2026-08-27
+Decision: Use the authenticated official QC web environment and free B-MICRO node to
+build and run the read-only futures and CFTC parameter modes from source revision
+`cbfee265cbf5e94c7768667d469e2773f62e3080`.
+Alternatives considered: remain externally blocked; download local data; require
+Docker; create a second cloud project or source tree.
+Reason: the authorized cloud session was available, required data was entitled, and
+the existing parameterized composition root was the shortest no-purchase path.
+Consequences: project `35697180`, build `67d2fc-f0a27f`, and final backtests
+`b22d565d649c5b31650fd033cdc89cf3` / `a7ba4f84937fb19bc3f6f63bc773e3c3`
+provide real runtime evidence with zero trading actions.
+Reopen condition: a source-code change after the certified revision or a material QC
+runtime/dataset change requires a new probe.
+
+## 2026-08-27 — Gate early historical CFTC clocks with the official release
+
+Date: 2026-08-27
+Decision: Preserve QC's 2026-01-02 Slice/EndTime for the holiday-delayed 2026-01-05
+release and make the official 2026-01-05 20:30 UTC timestamp the earliest usable time.
+Alternatives considered: relabel raw QC data; treat the historical timestamp as public
+availability; discard the observation.
+Reason: the CFTC schedule is the external publication clock and the max-time
+AvailabilityGate exists specifically to prevent early use without corrupting lineage.
+Consequences: the ordinary and delayed examples are `CERTIFIED_CONTEXT`; CFTC remains
+prohibited from signal use and its missing post-2026-05-29 tail stays explicit.
+Reopen condition: official schedule corrections or new empirical delivery semantics
+require a versioned audit update.

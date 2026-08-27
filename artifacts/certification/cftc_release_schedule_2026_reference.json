@@ -1,17 +1,27 @@
 {
-  "generated_at_utc": "2026-08-26T20:51:24Z",
-  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
-  "lean_version": "lean-cli-1.0.228; qc-runtime-not-executed",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
+  "lean_version": "qc-runtime-2.5.0.0.18036; lean-cli-1.0.228",
   "holiday_delayed_release_dates": [
     "2026-01-05",
     "2026-06-22",
     "2026-07-06"
   ],
-  "normalized_fixture_sha256": "02cd5fe9dbd83845a0473cb0591b197b0b1ea1af954e622f1d2c1aa0772fbb3b",
+  "normalized_fixture_sha256": "8105758ef016a1ff17943efc9af8db0bd91dafa8324b314c3cdb44bb265da15f",
   "official_release_local_time": "15:30:00",
   "official_timezone": "America/New_York",
-  "qc_delivery_audit_status": "NOT_EXECUTED",
-  "qc_delivery_observations": [],
+  "qc_delivery_audit_status": "CERTIFIED_CONTEXT",
+  "qc_delivery_observations": [
+    {
+      "artifact": "artifacts/certification/cftc_release_delivery_audit.json",
+      "artifact_content_hash": "fb1456ab3d3e34b815a0ed5f2bd171c9528909dc1ba035e5e8fb83bb4ae8a4d6",
+      "qc_project_id": "35697180",
+      "qc_cloud_backtest_id": "a7ba4f84937fb19bc3f6f63bc773e3c3",
+      "holiday_delayed_official_release_utc": "2026-01-05T20:30:00Z",
+      "holiday_delayed_qc_delivery_utc": "2026-01-02T20:30:00Z",
+      "ordinary_official_and_qc_delivery_utc": "2026-01-09T20:30:00Z"
+    }
+  ],
   "release_dates": {
     "2026-01": ["05", "09", "16", "23", "30"],
     "2026-02": ["06", "13", "20", "27"],
@@ -23,7 +33,7 @@
     "2026-08": ["07", "14", "21"]
   },
   "release_semantics": "usually Friday; usually previous Tuesday; federal holidays may delay one or two days",
-  "retrieved_date": "2026-08-26",
+  "retrieved_date": "2026-08-27",
   "source_url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ReleaseSchedule/index.htm",
   "window_end": "2026-08-25"
 }

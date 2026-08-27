@@ -1,0 +1,68 @@
+{
+  "schema_version": "lift1-qualified-closure-manifest-v2",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "readiness_decision": "READY_FOR_LIFT_2",
+  "certified_source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
+  "commit_binding": "The certified runtime source revision is immutable; the later evidence-only closure commit is verified against remote main at handoff because a tracked manifest cannot contain its own commit SHA.",
+  "runtime_identity": {
+    "local_python": "CPython 3.11.16",
+    "local_architecture": "arm64",
+    "qc_python": "CPython 3.11.14",
+    "qc_runtime_architecture": "x86_64",
+    "qc_runtime_platform": "Linux-6.8.0-52-generic-x86_64-with-glibc2.35",
+    "lean_runtime_version": "2.5.0.0.18036",
+    "lean_cli_version": "1.0.228"
+  },
+  "quantconnect": {
+    "project_id": "35697180",
+    "project_url": "https://www.quantconnect.com/project/35697180",
+    "cloud_build_id": "67d2fc-f0a27f",
+    "futures_backtest_id": "b22d565d649c5b31650fd033cdc89cf3",
+    "cftc_backtest_id": "a7ba4f84937fb19bc3f6f63bc773e3c3"
+  },
+  "reference_markets": ["ES", "ZN", "6E"],
+  "market_registry_hash": "b4ea99cbdbed87b7d799e0f0107fb4cd776f1fa8cc996f0849e320621c89ece0",
+  "source_document_hashes": {
+    "Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx": "ef19e4242a48747ef13b235e38f9c9fa0c09a7ed07085b5bb689be39a8786747",
+    "Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx": "bdebaf3e0ec38c3cb13d605b1fdc289db0a6316218756d0264ed23856f3195b2"
+  },
+  "dependency_files": {
+    "pyproject.toml": "82a5b01f6cc1b1d40d59f819bb71d1f8b3702f58ca39b18ff15c0a4775a90854",
+    "requirements.txt": "55911a89989cdc1f5ff5b404ac7a9465baf8c58759b99765d7283428173eda96"
+  },
+  "dependency_hash": "e171af1e86e67223a579377f21e7d2094efb8803376d9465009d5f4460bbb31b",
+  "configuration_hash": "fdf0783500498d7edb3fe7c1d0b97bf126b9377023c6b0aec58d6841deca8a67",
+  "qc_source_configuration_hash": "b1bd4251ca919da983ee7cbbe593975610fca77bf4bb9a616ecc3a9bdfff60eb",
+  "evidence_hashes": {
+    "futures_probe_hash": "6e400e06a985429117669a56af4e8c42ae997ece048147a99ffea9888536b741",
+    "futures_artifact_content_hash": "b75da596f78f4f91720a2e8c6d9af18855f5b371d0aa947f6185aca6d9af0647",
+    "cftc_probe_hash": "908cb750ec8e5133a01710ac0b8fc74c16e82e0a36ccd8b9ed429e3be6f63fd7",
+    "cftc_certification_content_hash": "fb1456ab3d3e34b815a0ed5f2bd171c9528909dc1ba035e5e8fb83bb4ae8a4d6",
+    "session_certification_content_hash": "8dc2c16997609d8b9cc2bed2f79fefa4d74f2d6b7989451bf4f65aca4a5dcb2b",
+    "notebook_01_result_hash": "6ba16f7d0d49a18e08fc099dbe6437aa09bf5e50e86448e0ec3f14f840d901f3"
+  },
+  "notebook_01_parity": {
+    "classification": "THIN_CLIENT_RUNTIME_PARITY_VERIFIED",
+    "notebook_path": "research_notebooks/01_data_state_research.ipynb",
+    "notebook_sha256": "3e70674b8dce4ed64983fb93352833ed5fe84362ba11fb4bdfbb2465d230ee6a",
+    "shared_registration_path": "systematic_futures/qc_adapters/futures_registration.py",
+    "shared_registration_sha256": "f9a9b8af53f2f360d7aa381efc6022960fcc1d9eaa1e66d3ce8b4bc810214f8d",
+    "cloud_probe_source_path": "main.py",
+    "cloud_probe_source_sha256": "d61f2293dd15ac9e9f9fa8deb005972b7a7729a465a2ead33104923d1c4d0912",
+    "cloud_futures_probe_content_hash": "b75da596f78f4f91720a2e8c6d9af18855f5b371d0aa947f6185aca6d9af0647",
+    "notebook_validation": "PASS_4_NOTEBOOKS_NO_UNIQUE_BUSINESS_LOGIC"
+  },
+  "trading_action_counts": {
+    "orders": 0,
+    "insights": 0,
+    "portfolio_targets": 0
+  },
+  "qualification": {
+    "python311_quality_gate": "PASS",
+    "qc_futures_runtime": "COMPLETED",
+    "qc_cftc_runtime": "COMPLETED_CERTIFIED_CONTEXT",
+    "source_boundary": "PASS_LIFT_1_ONLY",
+    "unresolved_foundational_blockers": 0
+  },
+  "content_hash": "022be41a0d23ebba4ede651b1303208fbe8bf69f8eb2c9cc8e020f7b53cd65ef"
+}

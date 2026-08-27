@@ -1,0 +1,172 @@
+{
+  "schema_version": "lift1-cftc-release-delivery-audit-v2",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "certified_source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
+  "source_configuration_sha256": "b1bd4251ca919da983ee7cbbe593975610fca77bf4bb9a616ecc3a9bdfff60eb",
+  "qc_project_id": "35697180",
+  "qc_project_url": "https://www.quantconnect.com/project/35697180",
+  "qc_cloud_build_id": "67d2fc-f0a27f",
+  "qc_cloud_backtest_id": "a7ba4f84937fb19bc3f6f63bc773e3c3",
+  "backtest_name": "Dancing Fluorescent Yellow Salmon",
+  "lean_runtime_version": "2.5.0.0.18036",
+  "python_runtime": "CPython 3.11.14",
+  "runtime_machine": "x86_64",
+  "runtime_platform": "Linux-6.8.0-52-generic-x86_64-with-glibc2.35",
+  "official_schedule": {
+    "source_url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/ReleaseSchedule/index.htm",
+    "retrieved_date": "2026-08-27",
+    "timezone": "America/New_York",
+    "release_local_time": "15:30:00",
+    "pre_runtime_reference_fixture_sha256": "02cd5fe9dbd83845a0473cb0591b197b0b1ea1af954e622f1d2c1aa0772fbb3b"
+  },
+  "configured_window": {
+    "start_date": "2026-01-01",
+    "end_date": "2026-08-25",
+    "algorithm_timezone": "UTC"
+  },
+  "actual_qc_coverage": {
+    "first_delivery_utc": "2026-01-02T20:30:00.000000Z",
+    "last_delivery_utc": "2026-05-29T19:30:00.000000Z",
+    "configured_tail_not_delivered_through": "2026-08-25",
+    "processed_data_points": 788,
+    "rows_per_market": 22,
+    "non_null_field_observations_per_market": 330,
+    "nullable_field_names_seen": []
+  },
+  "market_summaries": [
+    {
+      "root": "ES",
+      "dataset_symbol": "13874A.CFTCFinancialFutures",
+      "rows_received": 22,
+      "first_delivery_utc": "2026-01-02T20:30:00.000000Z",
+      "last_delivery_utc": "2026-05-29T19:30:00.000000Z",
+      "non_null_field_observations": 330,
+      "nullable_field_names": [],
+      "quality_flags": []
+    },
+    {
+      "root": "ZN",
+      "dataset_symbol": "043602.CFTCFinancialFutures",
+      "rows_received": 22,
+      "first_delivery_utc": "2026-01-02T20:30:00.000000Z",
+      "last_delivery_utc": "2026-05-29T19:30:00.000000Z",
+      "non_null_field_observations": 330,
+      "nullable_field_names": [],
+      "quality_flags": []
+    },
+    {
+      "root": "6E",
+      "dataset_symbol": "099741.CFTCFinancialFutures",
+      "rows_received": 22,
+      "first_delivery_utc": "2026-01-02T20:30:00.000000Z",
+      "last_delivery_utc": "2026-05-29T19:30:00.000000Z",
+      "non_null_field_observations": 330,
+      "nullable_field_names": [],
+      "quality_flags": []
+    }
+  ],
+  "release_audits": [
+    {
+      "release_class": "HOLIDAY_DELAYED",
+      "official_release_time_utc": "2026-01-05T20:30:00.000000Z",
+      "qc_delivery_key_date": "2026-01-02",
+      "qc_delivery_precedes_official_release": true,
+      "usable_from_utc": "2026-01-05T20:30:00.000000Z",
+      "deliveries": [
+        {
+          "root": "ES",
+          "dataset_symbol": "13874A.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-02T20:30:00.000000Z",
+          "data_time_utc": "2025-12-28T04:30:00.000000Z",
+          "data_end_time_utc": "2026-01-02T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "558bff7dbe39dd146fd4f0387fc70c3b0967b65d4d341c30c74771ab7b90624b"
+        },
+        {
+          "root": "ZN",
+          "dataset_symbol": "043602.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-02T20:30:00.000000Z",
+          "data_time_utc": "2025-12-28T04:30:00.000000Z",
+          "data_end_time_utc": "2026-01-02T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "f75a5904c3d1c23c269449d9af9b94b276ce49e98105bcbdae9c12c4da226fa8"
+        },
+        {
+          "root": "6E",
+          "dataset_symbol": "099741.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-02T20:30:00.000000Z",
+          "data_time_utc": "2025-12-28T04:30:00.000000Z",
+          "data_end_time_utc": "2026-01-02T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "92df58f539f0f8da5919bda3725cc2caae8d6110ed1400a31537c1fff373b13f"
+        }
+      ]
+    },
+    {
+      "release_class": "ORDINARY",
+      "official_release_time_utc": "2026-01-09T20:30:00.000000Z",
+      "qc_delivery_key_date": "2026-01-09",
+      "qc_delivery_precedes_official_release": false,
+      "usable_from_utc": "2026-01-09T20:30:00.000000Z",
+      "deliveries": [
+        {
+          "root": "ES",
+          "dataset_symbol": "13874A.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-09T20:30:00.000000Z",
+          "data_time_utc": "2026-01-04T11:30:00.000000Z",
+          "data_end_time_utc": "2026-01-09T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "3c48c54a0acfbaeaf9339be8530dde44fd836983b3b686b26bf83c673f342abd"
+        },
+        {
+          "root": "ZN",
+          "dataset_symbol": "043602.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-09T20:30:00.000000Z",
+          "data_time_utc": "2026-01-04T11:30:00.000000Z",
+          "data_end_time_utc": "2026-01-09T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "ed88b26316076224f89975586bb35dad46f6179ee0fd964b88531d21ed8d629a"
+        },
+        {
+          "root": "6E",
+          "dataset_symbol": "099741.CFTCFinancialFutures",
+          "qc_slice_time_utc": "2026-01-09T20:30:00.000000Z",
+          "data_time_utc": "2026-01-04T11:30:00.000000Z",
+          "data_end_time_utc": "2026-01-09T20:30:00.000000Z",
+          "non_null_field_count": 15,
+          "nullable_field_names": [],
+          "audit_hash": "e2de902b9adfd26d4f0a583b05e73a1aa0e22131fd799631057d243b585949b4"
+        }
+      ]
+    }
+  ],
+  "pythonnet_datetime_boundary": {
+    "python_type": "clr_datetime.datetime",
+    "slice_time_repr": "datetime.datetime(2026, 1, 2, 20, 30)",
+    "slice_time_converted_utc": "2026-01-02T20:30:00.000000Z",
+    "data_end_time_repr": "datetime.datetime(2026, 1, 2, 15, 30)",
+    "data_source_timezone": "America/New_York",
+    "data_end_time_converted_utc": "2026-01-02T20:30:00.000000Z"
+  },
+  "availability_rule": "usable_from_utc=max(official_release_time_utc,qc_slice_time_utc,documented_exception_time_utc_if_later)",
+  "probe_hash": "908cb750ec8e5133a01710ac0b8fc74c16e82e0a36ccd8b9ed429e3be6f63fd7",
+  "certification_status": "CERTIFIED_CONTEXT",
+  "execution": {
+    "status": "COMPLETED",
+    "engine_completion_time": "2026-05-29T20:00:00Z",
+    "orders_created": 0,
+    "insights_created": 0,
+    "portfolio_targets_created": 0
+  },
+  "limitations": [
+    "QC delivered no rows after 2026-05-29 inside the configured window ending 2026-08-25.",
+    "Historical QC data_time values are preserved and are not relabeled as CFTC Tuesday observation dates.",
+    "Certification is context-only; no COT signal, forecast, alpha, or trading claim is made."
+  ],
+  "content_hash": "fb1456ab3d3e34b815a0ed5f2bd171c9528909dc1ba035e5e8fb83bb4ae8a4d6"
+}

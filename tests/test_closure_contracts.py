@@ -130,7 +130,7 @@ def test_hard_safety_contract_remains_observe_only() -> None:
     assert set(policy.blocking_reasons) == set(SafetyBlockingReason)
 
 
-def test_dataset_uses_remain_under_review_and_backwards_ratio_is_non_executable() -> None:
+def test_dataset_use_policies_remain_conservative_after_runtime_certification() -> None:
     policies = dataset_use_policies()
     backwards_ratio = get_dataset_use_policy(CONTINUOUS_BACKWARDS_RATIO_ID)
 
@@ -152,6 +152,18 @@ def test_dataset_uses_remain_under_review_and_backwards_ratio_is_non_executable(
             PROJECT_ROOT / "artifacts/certification/lift1_dataset_certification_matrix.json"
         ).read_text(encoding="utf-8")
     )
-    rows = (*matrix["normalization_policies"], *matrix["use_policies"])
-    assert matrix["evidence_basis"] == "STATIC_POLICY_ONLY_NO_QC_RUNTIME"
-    assert all(row["certification_status"] == "under_review" for row in rows)
+    normalization = {row["dataset_id"]: row for row in matrix["normalization_policies"]}
+    assert matrix["evidence_basis"] == ("QC_CLOUD_EMPIRICAL_PLUS_CONSERVATIVE_USE_POLICY")
+    assert (
+        normalization["cftc_commitments_of_traders_synthetic_timing"]["certification_status"]
+        == "certified_context"
+    )
+    assert normalization["qc_futures_contract_mapping"]["certification_status"] == (
+        "certified_context"
+    )
+    assert normalization["qc_futures_open_interest"]["certification_status"] == (
+        "certified_context"
+    )
+    assert normalization["qc_futures_trade_data"]["certification_status"] == ("certified_context")
+    assert normalization["qc_futures_quote_data"]["certification_status"] == ("under_review")
+    assert all(row["certification_status"] == "under_review" for row in matrix["use_policies"])

@@ -119,7 +119,7 @@ def test_cftc_runtime_audit_preserves_early_qc_clock_against_official_delay() ->
     assert all(row["data_end_time_utc"] == "2026-01-02T20:30:00.000000Z" for row in audit_rows)
 
 
-def test_official_2026_schedule_fixture_is_versioned_but_has_no_qc_delivery_claim() -> None:
+def test_official_2026_schedule_fixture_links_the_certified_qc_delivery_audit() -> None:
     fixture = json.loads(
         (
             PROJECT_ROOT / "artifacts/certification/cftc_release_schedule_2026_reference.json"
@@ -133,5 +133,17 @@ def test_official_2026_schedule_fixture_is_versioned_but_has_no_qc_delivery_clai
         "2026-06-22",
         "2026-07-06",
     ]
-    assert fixture["qc_delivery_audit_status"] == "NOT_EXECUTED"
-    assert fixture["qc_delivery_observations"] == []
+    assert fixture["qc_delivery_audit_status"] == "CERTIFIED_CONTEXT"
+    assert fixture["qc_delivery_observations"] == [
+        {
+            "artifact": "artifacts/certification/cftc_release_delivery_audit.json",
+            "artifact_content_hash": (
+                "fb1456ab3d3e34b815a0ed5f2bd171c9528909dc1ba035e5e8fb83bb4ae8a4d6"
+            ),
+            "qc_project_id": "35697180",
+            "qc_cloud_backtest_id": "a7ba4f84937fb19bc3f6f63bc773e3c3",
+            "holiday_delayed_official_release_utc": "2026-01-05T20:30:00Z",
+            "holiday_delayed_qc_delivery_utc": "2026-01-02T20:30:00Z",
+            "ordinary_official_and_qc_delivery_utc": "2026-01-09T20:30:00Z",
+        }
+    ]

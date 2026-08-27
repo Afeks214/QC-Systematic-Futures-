@@ -60,7 +60,7 @@ def test_closure_evidence_index_resolves_every_claim_to_exact_files() -> None:
     content = {key: value for key, value in index.items() if key != "content_hash"}
     assert sha256_hex(content) == expected_content_hash
 
-    assert index["final_readiness_decision"] == "EXTERNAL_SECRET_OR_ENTITLEMENT_REQUIRED"
+    assert index["final_readiness_decision"] == "READY_FOR_LIFT_2"
     for source in index["source_documents"]:
         assert source["name"].strip()
         assert len(source["sha256"]) == 64
@@ -68,9 +68,7 @@ def test_closure_evidence_index_resolves_every_claim_to_exact_files() -> None:
     records = []
     for claim in index["claims"]:
         records.extend(claim["evidence"])
-        missing_path = claim.get("missing_required_artifact")
-        if missing_path is not None:
-            assert not (PROJECT_ROOT / missing_path).exists()
+        assert claim["result"] != "BLOCKED_EXTERNAL_SECRET_OR_ENTITLEMENT"
     for record in records:
         path = PROJECT_ROOT / record["path"]
         assert path.is_file(), record["path"]
@@ -82,8 +80,38 @@ def test_local_certification_artifacts_have_valid_content_hashes() -> None:
         "artifacts/certification/python311_quality_gate.json",
         "artifacts/certification/reference_market_session_matrix.json",
         "artifacts/certification/lift1_dataset_certification_matrix.json",
+        "artifacts/certification/qc_futures_runtime_probe.json",
+        "artifacts/certification/cftc_release_delivery_audit.json",
+        "artifacts/manifests/lift_1_closure_manifest.json",
     )
     for relative_path in paths:
         artifact = json.loads((PROJECT_ROOT / relative_path).read_text(encoding="utf-8"))
         expected = artifact.pop("content_hash")
         assert sha256_hex(artifact) == expected
+
+
+def test_qualified_closure_manifest_binds_real_zero_action_runtime_evidence() -> None:
+    manifest = json.loads(
+        (PROJECT_ROOT / "artifacts/manifests/lift_1_closure_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert manifest["readiness_decision"] == "READY_FOR_LIFT_2"
+    assert manifest["certified_source_git_revision"] == ("cbfee265cbf5e94c7768667d469e2773f62e3080")
+    assert manifest["quantconnect"] == {
+        "project_id": "35697180",
+        "project_url": "https://www.quantconnect.com/project/35697180",
+        "cloud_build_id": "67d2fc-f0a27f",
+        "futures_backtest_id": "b22d565d649c5b31650fd033cdc89cf3",
+        "cftc_backtest_id": "a7ba4f84937fb19bc3f6f63bc773e3c3",
+    }
+    assert manifest["notebook_01_parity"]["classification"] == (
+        "THIN_CLIENT_RUNTIME_PARITY_VERIFIED"
+    )
+    assert manifest["trading_action_counts"] == {
+        "orders": 0,
+        "insights": 0,
+        "portfolio_targets": 0,
+    }
+    assert manifest["qualification"]["unresolved_foundational_blockers"] == 0

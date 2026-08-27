@@ -1,12 +1,13 @@
 {
   "schema_version": "lift1-reference-market-session-matrix-v2",
-  "generated_at_utc": "2026-08-26T20:51:24Z",
-  "source_git_revision": "3f1bb4294d26acbe7f4977f65b7a69483a6f124a",
+  "generated_at_utc": "2026-08-27T08:03:33Z",
+  "source_git_revision": "cbfee265cbf5e94c7768667d469e2773f62e3080",
+  "lean_runtime_version": "2.5.0.0.18036",
   "lean_source_commit": "07fb0182bfe229edd9445cf675ac6509d0069539",
   "market_hours_database_sha256": "d93f0b417cc9df618da4548f78157fd2b49515e0999f16e83ffddcffd54eef41",
   "source_url": "https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Data/market-hours/market-hours-database.json",
   "session_configuration_hash": "93b911016dd93821f77bb6f8c4fe56984ec0924ab6ea21174fe1070d4b9cf92d",
-  "certification_scope": "Semantic UTC/local overlay and representative exceptions pinned to this LEAN calendar version; no claim covers every future calendar or an executed QC cloud object.",
+  "certification_scope": "Semantic UTC/local overlay and representative exceptions pinned to this LEAN calendar version; the QC cloud futures probe observed session IDs for ES, ZN, and 6E, but no claim covers every future calendar.",
   "markets": [
     {
       "root": "ES",
@@ -40,7 +41,7 @@
     }
   ],
   "roll_state_independence": "PASS",
-  "qc_cloud_calendar_execution": "NOT_EXECUTED_EXTERNAL_QC_ACCESS",
+  "qc_cloud_calendar_execution": "SESSION_OVERLAY_OBSERVED_IN_BACKTEST_b22d565d649c5b31650fd033cdc89cf3",
   "overall_result": "CERTIFIED_FOR_PINNED_LEAN_CALENDAR_VERSION",
-  "content_hash": "377707bf1138948eedbf36bb29d0beeb0180a537f0cc4f589a2153550f303ed8"
+  "content_hash": "8dc2c16997609d8b9cc2bed2f79fefa4d74f2d6b7989451bf4f65aca4a5dcb2b"
 }

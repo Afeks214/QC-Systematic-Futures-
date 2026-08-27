@@ -71,8 +71,9 @@ Required interface evidence:
 
 ## Entry gate for Lift 2
 
-Lift 2 may start only after Lift 1's QC probe is executed in a verified environment,
-reference history/mapping/metadata artifacts are reviewed, Python 3.11 checks pass,
-and the holiday/early-close/calendar blockers needed by the selected interface are
-resolved. This handoff contains no executable stubs, Profile logic, Alpha logic,
-labels, statistics, positions, risk, or orders.
+Lift 1's entry gate is satisfied: the real QC futures and CFTC probes completed,
+reference evidence was reviewed, Python 3.11 checks pass, and the session matrix is
+certified against its pinned official LEAN calendar version. Starting Lift 2 still
+requires a separate explicit authorization and must retain every dataset limitation
+recorded by the final certification matrix. This handoff contains no executable stubs,
+Profile logic, Alpha logic, labels, statistics, positions, risk, or orders.

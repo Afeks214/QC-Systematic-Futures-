@@ -1,10 +1,12 @@
 # QuantConnect API Resolution
 
 Resolution date: **2026-08-26**
+Runtime certification date: **2026-08-27**
 
-No QuantConnect Research, LEAN local backtest, or QuantConnect cloud backtest was
-executed during API resolution. `VERIFIED` means the name was located in current
-official material; it does not mean this repository executed it successfully.
+No runtime was executed during the initial API-resolution phase. The resolved source
+was subsequently executed in authenticated QC Cloud project `35697180`, build
+`67d2fc-f0a27f`. Runtime-qualified statuses below distinguish that later evidence from
+static name resolution.
 
 ## Pinned official-source baseline
 
@@ -26,8 +28,10 @@ official material; it does not mean this repository executed it successfully.
   runtime-independent project remains under the separate strict gate.
 - The stubs resolved callback parameter names (`slice`, `symbols_changed`),
   `set_summary_statistic`, `future_chains`, CFTC TFF classes/fields, and the exact
-  reference CFTC constants recorded below. This is API evidence, not QC data-delivery
-  evidence.
+  reference CFTC constants recorded below.
+- Final cloud backtests `b22d565d649c5b31650fd033cdc89cf3` (futures) and
+  `a7ba4f84937fb19bc3f6f63bc773e3c3` (CFTC) executed the same certified source commit
+  under LEAN `2.5.0.0.18036` and CPython `3.11.14`.
 
 ## Required resolutions
 
@@ -36,8 +40,8 @@ official material; it does not mean this repository executed it successfully.
 Requirement: Current Python version.
 
 Verified symbol/API: the pinned official foundation Dockerfiles declare Python
-3.11. The project quality environment is CPython `3.11.15`; the executing QC cloud
-Python version remains unobserved.
+3.11. The final project quality environment is CPython `3.11.16`; the executing QC
+cloud runtime reported CPython `3.11.14`.
 
 Official source: [DockerfileLeanFoundation](https://github.com/QuantConnect/Lean/blob/185c691b89f28bd68e48d53c02147415134975f0/DockerfileLeanFoundation), [ARM Dockerfile](https://github.com/QuantConnect/Lean/blob/185c691b89f28bd68e48d53c02147415134975f0/DockerfileLeanFoundationARM), [LEAN overview](https://www.quantconnect.com/docs/v2/lean-engine/getting-started).
 
@@ -45,9 +49,7 @@ Source version/date: LEAN `185c691`, 2026-08-25; docs verified 2026-08-26.
 
 Used in file: `pyproject.toml`, `docs/MAC_M4_QC_BOOTSTRAP.md`.
 
-Status: `VERIFIED_LOCAL_PYTHON_3_11`; QC runtime observation is `NOT_EXECUTED`
-because no authenticated QC session was available. Docker absence is not treated as
-a cloud blocker.
+Status: `VERIFIED_LOCAL_AND_QC_CLOUD_PYTHON_3_11`.
 
 ### QuantBook
 
@@ -333,7 +335,8 @@ Used in file: root `main.py` and the probe recorder. The recorder emits expiry,
 daily contract/open-interest coverage, session IDs, mapped identities, roll states,
 metadata, and raw datetime-boundary observations.
 
-Status: API names and static use `VERIFIED`; empirical values are `NOT_EXECUTED`.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD`; empirical values are retained in
+`artifacts/certification/qc_futures_runtime_probe.json`.
 
 Requirement: Compact deterministic custom statistics.
 
@@ -346,7 +349,8 @@ Source version/date: LEAN `185c691`; docs verified 2026-08-26.
 Used in file: root `main.py` for compact per-market rows, mappings, mapping events,
 open-interest, tick, multiplier, zero-action counts, and the probe hash.
 
-Status: `VERIFIED_API_USED_STATICALLY_NOT_EXECUTED`.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD`; the statistics carried compact evidence
+after the free-organization log quota was exhausted.
 
 Requirement: Official programmatic cloud-backtest result retrieval.
 
@@ -357,7 +361,8 @@ Official source: [lean-cli API modules](https://github.com/QuantConnect/lean-cli
 
 Source version/date: lean-cli `1.0.228`, 2026-08-12.
 
-Used in file: not used; no authenticated backtest ID exists.
+Used in file: not used. Authenticated result retrieval used the official QC web result
+surface; the listed CLI client methods remain an alternate verified path.
 
 Status: `VERIFIED_API_NOT_EXECUTED`.
 
@@ -377,8 +382,9 @@ Source version/date: stubs `18032`; living docs inspected 2026-08-26.
 Used in file: `systematic_futures/qc_adapters/futures_registration.py`, CFTC branch
 of the recorder, and parameterized read-only root probe.
 
-Status: `VERIFIED_API_USED_STATICALLY_NOT_EXECUTED`. Supported delivered rows and
-their actual timestamps remain empirical questions; no market is substituted.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD`; all three exact markets delivered real rows,
+and their clocks/nullable-field observations are in
+`artifacts/certification/cftc_release_delivery_audit.json`.
 
 Requirement: Select the read-only certification probe without a second source tree.
 
@@ -391,7 +397,7 @@ Source version/date: living docs inspected 2026-08-26.
 
 Used in file: root `main.py`.
 
-Status: `VERIFIED_API_USED_STATICALLY_NOT_EXECUTED`.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD` for both exact parameter modes.
 
 ## Exchange time-zone evidence
 
@@ -408,24 +414,20 @@ Used in file: `systematic_futures/config/markets.py`.
 
 Status: `VERIFIED`.
 
-## Explicitly unresolved
+## Explicitly limited
 
 - `quantconnect-stubs==18032` was verified and used in an isolated static-check
   environment. It is intentionally not a project dependency because it pulls Pandas,
   Matplotlib, and NumPy solely for editor support; the core remains standard-library
   only.
-- Programmatic retrieval of the exact executing LEAN engine build from Python was
-  not verified. Manifests store `lean_version=None` until runtime evidence exists.
 - Timezone-aware Python `datetime` passage through Python.NET history overloads is
   not verified. The research boundary uses explicit UTC validation and documented
   QuantBook time-zone interpretation instead.
 - Ordinary/DST/holiday/early-close mechanics for ES, ZN, and 6E are pinned to the
-  current official LEAN market-hours database and tested locally. Actual QC cloud
-  exchange objects remain unobserved.
-- Actual QuantConnect CFTC release/delivery semantics are not certified.
-- Python.NET runtime version and the type/`repr`/`tzinfo` behavior of actual QC
-  datetimes are not observed; the adapter test does not substitute for that evidence.
-- The root algorithm now emits the required compact statistics and evidence rows, but
-  none may be treated as empirical until an authenticated run produces them.
-- No code in this repository has been compiled or executed inside an authenticated
-  QuantConnect/LEAN runtime at the time this document was written.
+  current official LEAN market-hours database and tested locally. The cloud probe
+  observed semantic session IDs but did not separately serialize QC exchange objects.
+- Python.NET runtime datetime types, `repr` values, and verified conversions were
+  observed. The source timezone for `SymbolChangedEvent.time` was not established, so
+  that single conversion remains withheld.
+- CFTC is certified for context only. QC delivered no rows after 2026-05-29 inside the
+  configured window, and revision/live-delivery semantics are not claimed.

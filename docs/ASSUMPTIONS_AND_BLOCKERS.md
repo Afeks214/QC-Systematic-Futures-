@@ -1,78 +1,49 @@
 # Assumptions and Blockers
 
-This is the exhaustive current register. Documentation and synthetic fixtures never
-substitute for empirical QuantConnect delivery evidence.
+Status: **NO UNRESOLVED LIFT 1 FOUNDATIONAL BLOCKER**
+Reviewed: **2026-08-27**
 
-## VERIFIED
+## Verified
 
-- Both private specifications were reviewed from the authorized workspace. SHA-256:
-  Master `ef19e4242a48747ef13b235e38f9c9fa0c09a7ed07085b5bb689be39a8786747`;
-  Intraday Extension `bdebaf3e0ec38c3cb13d605b1fdc289db0a6316218756d0264ed23856f3195b2`.
-- CPython 3.11.15 is installed in the project environment. LEAN CLI 1.0.228 is
-  installed separately and executes.
-- The official `quantconnect-stubs==18032` surface was used for an explicit
-  stub-backed basic check of `main.py` and the QC adapters; the core has the separate
-  strict gate and no stub package is retained as a project dependency.
-- Current official LEAN source commit is
-  `07fb0182bfe229edd9445cf675ac6509d0069539`. Its market-hours database SHA-256 is
-  `d93f0b417cc9df618da4548f78157fd2b49515e0999f16e83ffddcffd54eef41`.
-- ES, ZN, and 6E ordinary/DST/cross-midnight/holiday/early-close fixtures are pinned to
-  that database and pass. This certifies the versioned semantic engine/fixture matrix,
-  not every future exchange calendar.
-- Exact CFTC TFF constants are `E_MINI_SP_500`, `UST_10_Y_NOTE`, and `EURO_FX` in the
-  current official stubs. The read-only probe can select futures or CFTC mode without a
-  second source tree.
-- The Master Definition-of-Ready contracts exist: point-in-time normalizer/gate,
-  ExperimentLedger, feature names/units marked unimplemented, ForecastPacket schema,
-  number-free BASE/STRESS/SEVERE cost contract, and OBSERVE_ONLY hard-safety contract.
-- The target GitHub repository was empty at task start. The connected GitHub integration
-  published the certified source tree to `main` at
-  `3f1bb4294d26acbe7f4977f65b7a69483a6f124a` without force-push. The private
-  specifications and all credentials, raw data, caches, and bulk outputs are excluded.
+- The controlling private specifications were reviewed and are represented by exact
+  SHA-256 digests; their bytes are not committed to the public repository.
+- CPython 3.11.16 runs the complete supported local gate. QC Cloud reported CPython
+  3.11.14, LEAN 2.5.0.0.18036, Linux x86_64.
+- The eight-market registry validates. The real QC futures probe observed ES, ZN, and
+  6E rows, mapped identities, mapping events, Open Interest, expiries, ticks,
+  multipliers, session IDs, roll states, and Python.NET boundary values.
+- The real QC CFTC probe observed ES, ZN, and 6E ordinary and official
+  holiday-delayed delivery cases. The official-clock max gate prevents early use.
+- Both cloud probe modes created zero orders, Insights, and PortfolioTargets.
+- Notebook 01 is a thin client with no unique business logic; its shared registration
+  path ran in the certified cloud probe. Direct interactive notebook execution is not
+  claimed.
 
-## ASSUMED_FOR_LOCAL_TEST_ONLY
+## Conservative assumptions retained
 
-- Synthetic timestamps, payloads, symbols, expiry values, ticks, and multipliers are
-  used only to test invariants and schemas. They are never certification evidence.
-- Event-instant roll semantics are conservative: a delivered mapping change is
-  `ROLL_TRANSITION` only at its observed/effective visibility instant and `POST_ROLL`
-  afterward. No pre-roll window or future-volume inference exists.
-- The 182-day contract filter is bounded inspection configuration, not an exchange or
+- `UNADJUDICATED_MINUTE_GAP` counts are retained as observed. No gap is filled or
+  presumed to be a defect or maintenance interval without separate adjudication.
+- A mapping event is a causal event-instant `ROLL_TRANSITION`, followed by
+  `POST_ROLL`; no pre-roll or blackout window is inferred.
+- The 182-day contract filter is inspection configuration, not an exchange or
   institutional threshold.
-- The random seed `20240826` is manifest metadata; Lift 1 performs no random research.
+- The source timezone of `SymbolChangedEvent.time` remains unverified, so its UTC
+  conversion is withheld.
+- Session certification is pinned to one official LEAN market-hours database version,
+  not all future calendars.
 
-## NOT_VERIFIED
+## Non-blocking limitations
 
-- QuantConnect account identity, organization tier, cloud-project access, futures/CFTC
-  entitlements, and whether any local data request would incur QCC.
-- Actual QC cloud Python/LEAN/Python.NET versions and runtime architecture.
-- Real ES/ZN/6E rows, mapped paths, mapping events, expiries, OI coverage, ticks,
-  multipliers, missing intervals, and QC exchange objects for the fixed 2024 window.
-- Actual CFTC TFF coverage, nullable fields, Slice/data clocks, ordinary releases, and
-  holiday-delayed releases in the 2026 audit window.
-- Notebook 01 execution in QC Research. Its structural thin-client parity is verified;
-  no execution claim is made.
-- Empirical live mapping delivery. Official QC documents the backtest/live timing
-  difference; the adapter changes identity only when its own environment delivers the
-  observation.
-- Backwards-Ratio values as executable or point-in-time signal prices. They are
-  deliberately restricted to continuous research/identity use.
+- CFTC data stopped on 2026-05-29 inside the configured window ending 2026-08-25.
+- Quote data was not separately certified by the minute TradeBar probe.
+- Continuous Backwards-Ratio data remains non-executable and prohibited for fills,
+  realized P&L, and actual-contract price bins.
+- BLS, Treasury, FRED, and Economic Events remain `UNDER_REVIEW` and unavailable to
+  forecast or signal logic.
+- Empirical live mapping timing and CFTC revision history are not claimed.
 
-## BLOCKED
+## Deferred beyond Lift 1
 
-- **Authenticated QuantConnect execution is the sole external blocker.** No authorized
-  QC environment variables or existing CLI session were present. `lean whoami` could
-  not use the protected default CLI home, and the authorized official browser login
-  route reached a secure authentication request that was declined. The request was not
-  retried and no credentials were searched for elsewhere.
-- Consequently no QC project/backtest ID, empirical futures artifact, empirical CFTC
-  delivery artifact, QC runtime datetime artifact, executed Notebook 01 output, or
-  qualified closure manifest can truthfully be produced. No other vendor or synthetic
-  data may close these gates.
-
-## DEFERRED_TO_LIFT_2
-
-- Volume/Market Profile, Auction State, IMSI, ICM, IAE, L2, candidate events, labels,
-  event studies, returns, P&L, forecasts, ML, portfolio/risk behavior, execution,
-  orders, paper trading, and live trading.
-- Numerical feature, forecast, cost, or safety behavior. Lift 1 contains contracts only.
+Market Profile, Auction State, IMSI, ICM, IAE, L2, candidate events, labels, returns,
+P&L, forecasts, ML, Alpha, portfolio construction, risk, execution, orders, paper
+trading, and live trading remain unimplemented.
