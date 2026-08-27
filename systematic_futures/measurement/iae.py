@@ -6,6 +6,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     CandidateEventType,
     IAEGapDirection,
@@ -54,6 +55,28 @@ class IAERetestObservation:
     event_time_utc: datetime
     available_at_utc: datetime
     session_id: str
+    iae_snapshot_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class IAEUpdate:
+    """One bar state plus exact per-gap snapshots for every first retest."""
+
+    bar_snapshot: IAEStateSnapshot | None
+    retests: tuple[IAERetestObservation, ...]
+    retest_snapshots: tuple[IAEStateSnapshot, ...]
+
+    def __post_init__(self) -> None:
+        by_id = {snapshot.snapshot_id: snapshot for snapshot in self.retest_snapshots}
+        if len(by_id) != len(self.retest_snapshots):
+            raise DataQualityError("IAE retest snapshot IDs must be unique")
+        referenced_ids = {retest.iae_snapshot_id for retest in self.retests}
+        if len(self.retests) != len(self.retest_snapshots) or referenced_ids != set(by_id):
+            raise DataQualityError("IAE first retests and exact snapshots must be one-to-one")
+        for retest in self.retests:
+            snapshot = by_id.get(retest.iae_snapshot_id)
+            if snapshot is None or snapshot.gap_id != retest.gap_id:
+                raise DataQualityError("IAE retest lineage does not resolve to its exact gap")
 
 
 @dataclass(slots=True)
@@ -77,7 +100,8 @@ class _Gap:
 class _RetestMetrics:
     depth: float
     wick: float | None
-    close_position: float
+    close_position_raw: float
+    close_position_score: float
     time_decay: float
     score_raw: float | None
     score_effective: float | None
@@ -122,7 +146,7 @@ class IAEEngine:
         atr: ATRMeasurement,
         session_type: SessionType,
         session_start_utc: datetime,
-    ) -> tuple[IAEStateSnapshot, tuple[IAERetestObservation, ...]]:
+    ) -> IAEUpdate:
         """Advance one completed five-minute bar using only prior baseline data.
 
         Formation requires the exact three-bar structural predicate, a fully warmed
@@ -142,7 +166,7 @@ class IAEEngine:
             self._gaps.clear()
             continuity_reset = True
         elapsed = bar.start_utc - session_start_utc
-        slot = int(elapsed.total_seconds() // (5 * 60))
+        slot = int(elapsed.total_seconds() // (MEASUREMENT_CLOCK_POLICY.fast_bar_minutes * 60))
         seasonal_key = (session_type, slot)
         prior_bucket = self._seasonal[seasonal_key]
         if any(session_id == bar.session_id for session_id, _ in prior_bucket):
@@ -158,6 +182,7 @@ class IAEEngine:
         if not atr.warmup_complete:
             flags.add("IAE_ATR_WARMUP")
         retests: list[IAERetestObservation] = []
+        retest_snapshots: list[IAEStateSnapshot] = []
         selected: _Gap | None = None
         selected_metrics: _RetestMetrics | None = None
 
@@ -183,8 +208,10 @@ class IAEEngine:
             gap.retest_count += 1
             gap.state = IAEGapState.TESTED
             metrics = retest_geometry(gap, bar, volume_z)
+            retest_flags = set(flags)
             if metrics.guard is not None:
                 flags.add(metrics.guard)
+                retest_flags.add(metrics.guard)
             directional_confirmation = (
                 gap.direction is IAEGapDirection.BULLISH and bar.close > bar.open
             ) or (gap.direction is IAEGapDirection.BEARISH and bar.close < bar.open)
@@ -199,6 +226,15 @@ class IAEEngine:
             selected = gap
             selected_metrics = metrics
             if gap.retest_count == 1:
+                retest_snapshot = self._snapshot(
+                    bar,
+                    gap,
+                    metrics,
+                    volume_z,
+                    retest_flags,
+                    normalization_ready=atr.warmup_complete,
+                )
+                retest_snapshots.append(retest_snapshot)
                 retests.append(
                     IAERetestObservation(
                         gap_id=gap.gap_id,
@@ -211,6 +247,7 @@ class IAEEngine:
                         event_time_utc=bar.end_utc,
                         available_at_utc=bar.available_at_utc,
                         session_id=bar.session_id,
+                        iae_snapshot_id=retest_snapshot.snapshot_id,
                     )
                 )
 
@@ -229,9 +266,17 @@ class IAEEngine:
         if selected is None and self._gaps:
             selected = self._gaps[-1]
         prior_bucket.append((bar.session_id, bar.volume))
-        return (
-            self._snapshot(bar, selected, selected_metrics, volume_z, flags),
-            tuple(retests),
+        return IAEUpdate(
+            bar_snapshot=self._snapshot(
+                bar,
+                selected,
+                selected_metrics,
+                volume_z,
+                flags,
+                normalization_ready=atr.warmup_complete,
+            ),
+            retests=tuple(retests),
+            retest_snapshots=tuple(retest_snapshots),
         )
 
     def _detect_gap(self, atr: ATRMeasurement) -> tuple[_Gap | None, str | None]:
@@ -289,7 +334,10 @@ class IAEEngine:
         metrics: _RetestMetrics | None,
         volume_z: float | None,
         flags: set[str],
+        *,
+        normalization_ready: bool,
     ) -> IAEStateSnapshot:
+        volume_score_input = max(volume_z, _VOLUME_Z_FLOOR) if volume_z is not None else None
         identity = {
             "as_of_utc": bar.end_utc,
             "contract_symbol": self.contract_symbol,
@@ -297,6 +345,7 @@ class IAEEngine:
             "gap_state": gap.state if gap is not None else None,
             "quality_flags": tuple(sorted(flags)),
             "root": self.root,
+            "session_id": bar.session_id,
             "score_effective": metrics.score_effective if metrics is not None else None,
             "version": _VERSION,
         }
@@ -304,6 +353,7 @@ class IAEEngine:
             snapshot_id=f"iae_{sha256_hex(identity)}",
             root=self.root,
             contract_symbol=self.contract_symbol,
+            session_id=bar.session_id,
             as_of_utc=bar.end_utc,
             available_at_utc=bar.available_at_utc,
             gap_id=gap.gap_id if gap is not None else None,
@@ -316,13 +366,16 @@ class IAEEngine:
             gap_age_bars=gap.age if gap is not None else None,
             time_decay=metrics.time_decay if metrics is not None else None,
             retest_depth_ratio=metrics.depth if metrics is not None else None,
-            wick_absorption_ratio=metrics.wick if metrics is not None else None,
-            close_position_ratio=metrics.close_position if metrics is not None else None,
-            tod_volume_z=volume_z,
+            wick_rejection_ratio=metrics.wick if metrics is not None else None,
+            close_position_raw=(metrics.close_position_raw if metrics is not None else None),
+            close_position_score=(metrics.close_position_score if metrics is not None else None),
+            tod_volume_z_raw=volume_z,
+            tod_volume_score_input=volume_score_input,
             score_raw=metrics.score_raw if metrics is not None else None,
             score_effective=metrics.score_effective if metrics is not None else None,
             absorption_confirmed=gap is not None and gap.state is IAEGapState.ABSORBED,
             active_gap_count=self.active_gap_count,
+            measurement_ready=gap is not None and normalization_ready,
             quality_flags=tuple(sorted(flags)),
             version=_VERSION,
         )
@@ -336,8 +389,8 @@ class IAEEngine:
     ) -> None:
         if bar.root != self.root or bar.contract_symbol != self.contract_symbol:
             raise ContractBoundaryError("IAE cannot cross actual-contract identity")
-        if bar.period_minutes != 5:
-            raise DataQualityError("IAE requires completed five-minute bars")
+        if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.fast_bar_minutes:
+            raise DataQualityError("IAE requires completed fast-clock bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("IAE bars must arrive in increasing end-time order")
         if atr.root != self.root or atr.contract_symbol != self.contract_symbol:
@@ -434,8 +487,11 @@ def detect_gap_geometry(
         raise ContractBoundaryError("gap geometry cannot cross actual contracts")
     if len({session for _, _, session in identities}) != 1:
         raise DataQualityError("gap geometry cannot cross semantic sessions")
-    if any(bar.period_minutes != 5 for bar in (first, impulse, current)):
-        raise DataQualityError("gap geometry requires completed five-minute bars")
+    if any(
+        bar.period_minutes != MEASUREMENT_CLOCK_POLICY.fast_bar_minutes
+        for bar in (first, impulse, current)
+    ):
+        raise DataQualityError("gap geometry requires completed fast-clock bars")
     if first.end_utc != impulse.start_utc or impulse.end_utc != current.start_utc:
         raise DataTimingInvariantError("gap geometry requires three consecutive bars")
     if not math.isfinite(minimum_tick) or minimum_tick <= 0:
@@ -471,26 +527,29 @@ def retest_geometry(
     decay = math.exp(-_TIME_DECAY * gap.age)
     if gap.direction is IAEGapDirection.BULLISH:
         wick_length = min(bar.open, bar.close) - bar.low
-        close_position = (bar.close - gap.gap_bot) / (width + _EPSILON)
+        close_position_raw = (bar.close - gap.gap_bot) / (width + _EPSILON)
     else:
         wick_length = bar.high - max(bar.open, bar.close)
-        close_position = (gap.gap_top - bar.close) / (width + _EPSILON)
+        close_position_raw = (gap.gap_top - bar.close) / (width + _EPSILON)
+    close_position_score = min(1.0, max(0.0, close_position_raw))
     if body <= 0:
         return _RetestMetrics(
             depth,
             None,
-            close_position,
+            close_position_raw,
+            close_position_score,
             decay,
             None,
             None,
-            "IAE_RETEST_ZERO_BODY",
+            "IAE_DEGENERATE_BODY",
         )
     wick = wick_length / (body + _EPSILON)
     if volume_z is None:
         return _RetestMetrics(
             depth,
             wick,
-            close_position,
+            close_position_raw,
+            close_position_score,
             decay,
             None,
             None,
@@ -500,10 +559,19 @@ def retest_geometry(
         gap.formation_quality,
         wick,
         volume_z,
-        close_position,
+        close_position_score,
         gap.age,
     )
-    return _RetestMetrics(depth, wick, close_position, decay, score, score, None)
+    return _RetestMetrics(
+        depth,
+        wick,
+        close_position_raw,
+        close_position_score,
+        decay,
+        score,
+        score,
+        None,
+    )
 
 
 def _is_retest(gap: _Gap, bar: CompletedTradeBar) -> bool:
@@ -515,6 +583,7 @@ def _is_retest(gap: _Gap, bar: CompletedTradeBar) -> bool:
 __all__ = (
     "IAEEngine",
     "IAERetestObservation",
+    "IAEUpdate",
     "absorption_score",
     "detect_gap_geometry",
     "formation_is_eligible",

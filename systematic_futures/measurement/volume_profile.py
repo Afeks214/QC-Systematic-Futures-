@@ -2,12 +2,13 @@ from __future__ import annotations
 
 # pyright: reportUnnecessaryIsInstance=false
 import math
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from itertools import pairwise
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import AuctionLocationState, ProfileKind
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -30,7 +31,7 @@ from systematic_futures.measurement.volatility import ATR_5M_24_VERSION
 DEFAULT_PROFILE_DEFINITION = ProfileDefinition(
     price_bin_ticks=1,
     value_area_fraction=0.70,
-    snapshot_interval_minutes=5,
+    snapshot_interval_minutes=MEASUREMENT_CLOCK_POLICY.profile_snapshot_minutes,
     rolling_windows_minutes=(30, 60, 120),
     version="volume_profile_math_v2",
 )
@@ -176,6 +177,10 @@ class VolumeProfileEngine:
         self._last_finalized_minute_end: datetime | None = None
         self._final_snapshot: VolumeProfileSnapshot | None = None
         self._quality_flags: set[str] = set()
+        self._last_rejection_flags: tuple[str, ...] = ()
+        self._seen_source_event_ids: set[str] = set()
+        self._seen_source_sequences: set[int] = set()
+        self.rejection_counts: Counter[str] = Counter()
         self._admitted_volume = 0.0
         self.late_trade_count = 0
 
@@ -184,6 +189,12 @@ class VolumeProfileEngine:
         """Return the bounded count of completed non-empty minute buckets."""
 
         return len(self._minute_buckets)
+
+    @property
+    def last_rejection_flags(self) -> tuple[str, ...]:
+        """Return the explicit reasons the immediately preceding trade was rejected."""
+
+        return self._last_rejection_flags
 
     def ingest_trade(self, trade: TradeObservation) -> bool:
         """Add one on-time actual-contract trade and return whether it was admitted.
@@ -195,25 +206,49 @@ class VolumeProfileEngine:
         """
 
         self._validate_trade_identity(trade)
+        self._last_rejection_flags = ()
+        source_flags = {f"DATA:{flag}" for flag in trade.source_quality_flags}
+        self._quality_flags.update(source_flags)
+        if "SOURCE_SUSPICIOUS" in trade.source_quality_flags:
+            return self._reject_trade("DATA:SOURCE_SUSPICIOUS")
+        if trade.price <= 0:
+            return self._reject_trade("DATA:NON_POSITIVE_PRICE")
+        if trade.quantity <= 0:
+            return self._reject_trade("DATA:NON_POSITIVE_QUANTITY")
+        if (
+            trade.source_event_id is not None
+            and trade.source_event_id in self._seen_source_event_ids
+        ):
+            return self._reject_trade("DATA:DUPLICATE_SOURCE_ID")
+        if (
+            trade.source_sequence is not None
+            and trade.source_sequence in self._seen_source_sequences
+        ):
+            return self._reject_trade("DATA:DUPLICATE_SOURCE_SEQUENCE")
+        if trade.source_event_id is None and trade.source_sequence is None:
+            self._quality_flags.add("DATA:DEDUPLICATION_UNVERIFIABLE")
         if self._final_snapshot is not None:
-            self._quality_flags.add("LATE_TRADE_AFTER_FINAL_PROFILE")
+            self._quality_flags.add("DATA:LATE_TRADE_AFTER_FINAL_PROFILE")
             self.late_trade_count += 1
-            return False
+            return self._reject_trade("DATA:LATE")
         if (
             self._last_finalized_minute_end is not None
             and trade.exchange_time_utc < self._last_finalized_minute_end
         ):
-            self._quality_flags.add("LATE_TRADE_IGNORED")
+            self._quality_flags.add("DATA:LATE_TRADE_IGNORED")
             self.late_trade_count += 1
-            return False
+            return self._reject_trade("DATA:LATE")
         if (
             self._last_trade_time_utc is not None
             and trade.exchange_time_utc < self._last_trade_time_utc
         ):
-            self._quality_flags.add("OUT_OF_ORDER_TRADE_IGNORED")
+            self._quality_flags.add("DATA:OUT_OF_ORDER_TRADE_IGNORED")
             self.late_trade_count += 1
-            return False
-        tick = price_to_tick(trade.price, trade.minimum_tick)
+            return self._reject_trade("DATA:OUT_OF_ORDER")
+        try:
+            tick = price_to_tick(trade.price, trade.minimum_tick)
+        except DataQualityError:
+            return self._reject_trade("DATA:OFF_TICK_GRID")
         minute_end = trade.exchange_time_utc.replace(second=0, microsecond=0) + timedelta(minutes=1)
         if self._minute_end_utc is None:
             self._minute_end_utc = minute_end
@@ -227,7 +262,18 @@ class VolumeProfileEngine:
         self._last_trade_time_utc = trade.exchange_time_utc
         self._last_available_at_utc = trade.available_at_utc
         self._last_price_tick = tick
+        if trade.source_event_id is not None:
+            self._seen_source_event_ids.add(trade.source_event_id)
+        if trade.source_sequence is not None:
+            self._seen_source_sequences.add(trade.source_sequence)
         return True
+
+    def _reject_trade(self, *flags: str) -> bool:
+        normalized = tuple(sorted(set(flags)))
+        self._last_rejection_flags = normalized
+        self._quality_flags.update(normalized)
+        self.rejection_counts.update(normalized)
+        return False
 
     def finalize_minutes_through(self, as_of_utc: datetime) -> tuple[MinuteVolumeBucket, ...]:
         """Finalize non-empty minute buckets whose end is no later than ``as_of_utc``.
@@ -464,13 +510,14 @@ def auction_features(
             raise ContractBoundaryError("Auction bars cannot cross actual-contract identity")
         if bar.session_id != current.session_id:
             raise SessionBoundaryError("Auction bars cannot cross semantic sessions")
-        if bar.period_minutes != 5:
-            raise DataQualityError("Auction features require completed five-minute bars")
+        if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.fast_bar_minutes:
+            raise DataQualityError("Auction features require completed fast-clock bars")
         if bar.end_utc > current.as_of_utc or bar.available_at_utc > current.available_at_utc:
             raise DataTimingInvariantError("Auction bar is unavailable at current Profile time")
     if any(left.end_utc >= right.end_utc for left, right in pairwise(bars)):
         raise DataTimingInvariantError("Auction bars must be strictly chronological")
     scale = atr.value if atr.warmup_complete else None
+    price_scale = atr.as_price_scale()
     histogram = dict(current.volume_by_tick)
     total = current.total_volume
     above = sum(volume for tick, volume in histogram.items() if tick > current.poc_tick) / total
@@ -478,6 +525,12 @@ def auction_features(
     prior_poc = _scaled_distance(
         current.current_price_tick,
         prior.poc_tick if prior is not None else None,
+        scale,
+        current.tick_size,
+    )
+    current_poc = _scaled_distance(
+        current.current_price_tick,
+        current.poc_tick,
         scale,
         current.tick_size,
     )
@@ -505,7 +558,7 @@ def auction_features(
         mid_migration = (current_mid - prior_mid) * current.tick_size / scale
     if prior is None:
         volume_outside = None
-        time_outside = None
+        bar_close_outside = None
         overlap = None
     else:
         volume_outside = (
@@ -517,7 +570,7 @@ def auction_features(
             / total
         )
         eligible = bars
-        time_outside = (
+        bar_close_outside = (
             sum(
                 price_to_tick(bar.close, current.tick_size) < prior.val_tick
                 or price_to_tick(bar.close, current.tick_size) > prior.vah_tick
@@ -534,6 +587,7 @@ def auction_features(
         overlap = intersection / union
     vector = AuctionFeatureVector(
         distance_to_current_poc_ticks=float(current.current_price_tick - current.poc_tick),
+        distance_to_current_poc_vol=current_poc,
         distance_to_prior_poc_vol=prior_poc,
         distance_to_vah_vol=distance_vah,
         distance_to_val_vol=distance_val,
@@ -542,15 +596,14 @@ def auction_features(
         value_mid_migration_vol=mid_migration,
         volume_above_poc_ratio=above,
         volume_outside_value_ratio=volume_outside,
-        time_outside_value_ratio=time_outside,
+        bar_close_outside_value_ratio=bar_close_outside,
         profile_entropy=entropy,
         profile_skew=skew,
         profile_kurtosis=kurtosis,
         profile_overlap_ratio=overlap,
         reentry_count=transitions.reentry_count,
         consecutive_minutes_outside=transitions.consecutive_minutes_outside,
-        atr_5m_24=scale,
-        normalization_version=ATR_NORMALIZATION_VERSION,
+        local_price_scale=price_scale,
     )
     return vector, moment_flags
 
@@ -609,6 +662,7 @@ def _profile_moments(
     skew = (
         sum(volume * ((tick - mean) / deviation) ** 3 for tick, volume in histogram.items()) / total
     )
+    # Weighted Pearson kurtosis: a Gaussian reference has value 3, not zero.
     kurtosis = (
         sum(volume * ((tick - mean) / deviation) ** 4 for tick, volume in histogram.items()) / total
     )

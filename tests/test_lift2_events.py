@@ -8,6 +8,8 @@ import pytest
 from systematic_futures.domain.enums import (
     AuctionLocationState,
     CandidateEventType,
+    IAEGapDirection,
+    IAEGapState,
     ProfileKind,
     SessionType,
 )
@@ -15,6 +17,7 @@ from systematic_futures.domain.errors import DuplicateIdentifierError
 from systematic_futures.measurement.events import (
     AuctionTransitionEngine,
     CandidateEventGenerator,
+    EventTrigger,
     SnapshotAligner,
     candidate_coverage,
 )
@@ -29,6 +32,8 @@ from systematic_futures.measurement.types import (
     IAEStateSnapshot,
     ICMStateSnapshot,
     IMSIStateSnapshot,
+    PriceScale,
+    ProfileReferenceSet,
 )
 
 
@@ -51,6 +56,7 @@ def _profile(timestamp: datetime):  # type: ignore[no-untyped-def]
 def _features() -> AuctionFeatureVector:
     return AuctionFeatureVector(
         distance_to_current_poc_ticks=0,
+        distance_to_current_poc_vol=None,
         distance_to_prior_poc_vol=None,
         distance_to_vah_vol=None,
         distance_to_val_vol=None,
@@ -59,15 +65,19 @@ def _features() -> AuctionFeatureVector:
         value_mid_migration_vol=None,
         volume_above_poc_ratio=0.2,
         volume_outside_value_ratio=None,
-        time_outside_value_ratio=None,
+        bar_close_outside_value_ratio=None,
         profile_entropy=0.5,
         profile_skew=0,
         profile_kurtosis=1,
         profile_overlap_ratio=1,
         reentry_count=0,
         consecutive_minutes_outside=0,
-        atr_5m_24=None,
-        normalization_version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
+        local_price_scale=PriceScale(
+            value=1,
+            observation_count=24,
+            warmup_complete=True,
+            version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
+        ),
     )
 
 
@@ -81,35 +91,53 @@ def _auction(timestamp: datetime) -> AuctionStateSnapshot:
         available_at_utc=timestamp,
         location_state=AuctionLocationState.INSIDE_VALUE,
         developing_profile_id="profile-current",
-        prior_profile_id="profile-prior",
+        references=ProfileReferenceSet(
+            prior_same_session_type_id="profile-prior",
+            prior_rth_id="profile-prior",
+            prior_eth_id=None,
+            rolling_30m_id=None,
+            rolling_60m_id=None,
+            rolling_120m_id=None,
+        ),
+        migration_reference_profile_id="profile-prior",
         features=_features(),
         active_excursion_id=None,
+        measurement_ready=True,
         quality_flags=(),
-        feature_version="feature_semantics_math_v4",
+        feature_version="feature_semantics_math_v5",
     )
 
 
-def _imsi(timestamp: datetime, suffix: str) -> IMSIStateSnapshot:
+def _imsi(
+    timestamp: datetime,
+    suffix: str,
+    *,
+    session_id: str = "session-a",
+    quality_flags: tuple[str, ...] = (),
+    measurement_ready: bool = True,
+) -> IMSIStateSnapshot:
     return IMSIStateSnapshot(
         snapshot_id=f"imsi-{suffix}",
         root="ES",
         contract_symbol="ESH24",
+        session_id=session_id,
         as_of_utc=timestamp,
         available_at_utc=timestamp,
         vwrsi_raw=50,
         vwrsi_tod_adjusted=0,
         session_vwap=100,
         dist_vwap_pct=0,
-        mahalanobis_distance=1,
-        state_rarity_percentile=0.5,
-        neighbor_distance_mean=1,
-        neighbor_distance_p90=2,
-        neighbor_support=15,
-        covariance_shrinkage_delta=0.5,
-        covariance_effective_sample_size=20,
-        covariance_condition_number=2,
-        warmup_complete=True,
-        quality_flags=(),
+        mahalanobis_distance=1 if measurement_ready else None,
+        state_rarity_percentile=0.5 if measurement_ready else None,
+        neighbor_distance_mean=1 if measurement_ready else None,
+        neighbor_distance_p90=2 if measurement_ready else None,
+        neighbor_support=15 if measurement_ready else 0,
+        covariance_shrinkage_delta=0.5 if measurement_ready else None,
+        covariance_effective_sample_size=20 if measurement_ready else None,
+        covariance_condition_number=2 if measurement_ready else None,
+        warmup_complete=measurement_ready,
+        measurement_ready=measurement_ready,
+        quality_flags=quality_flags,
         version="imsi-v1",
     )
 
@@ -119,6 +147,7 @@ def _icm(timestamp: datetime) -> ICMStateSnapshot:
         snapshot_id="icm-old",
         root="ES",
         contract_symbol="ESH24",
+        session_id="session-a",
         as_of_utc=timestamp,
         available_at_utc=timestamp,
         fair_value=100,
@@ -133,8 +162,11 @@ def _icm(timestamp: datetime) -> ICMStateSnapshot:
         sigma_mad=1,
         sigma_blend=1,
         r_ratio=1,
+        fair_value_distance_vol=0,
+        residual_autocorrelation=0,
         window_size=70,
         warmup_complete=True,
+        measurement_ready=True,
         quality_flags=(),
         version="icm-v1",
     )
@@ -145,25 +177,29 @@ def _iae(timestamp: datetime) -> IAEStateSnapshot:
         snapshot_id="iae-current",
         root="ES",
         contract_symbol="ESH24",
+        session_id="session-a",
         as_of_utc=timestamp,
         available_at_utc=timestamp,
-        gap_id=None,
-        direction=None,
-        gap_state=None,
-        gap_width_atr=None,
-        impulse_body_atr=None,
-        displacement_efficiency=None,
-        formation_quality=None,
-        gap_age_bars=None,
+        gap_id="gap-current",
+        direction=IAEGapDirection.BULLISH,
+        gap_state=IAEGapState.OPEN,
+        gap_width_atr=1,
+        impulse_body_atr=2,
+        displacement_efficiency=0.8,
+        formation_quality=1,
+        gap_age_bars=0,
         time_decay=None,
         retest_depth_ratio=None,
-        wick_absorption_ratio=None,
-        close_position_ratio=None,
-        tod_volume_z=None,
+        wick_rejection_ratio=None,
+        close_position_raw=None,
+        close_position_score=None,
+        tod_volume_z_raw=None,
+        tod_volume_score_input=None,
         score_raw=None,
         score_effective=None,
         absorption_confirmed=False,
-        active_gap_count=0,
+        active_gap_count=1,
+        measurement_ready=True,
         quality_flags=(),
         version="iae-v1",
     )
@@ -243,13 +279,17 @@ def test_alignment_is_asof_only_and_missing_components_are_retained() -> None:
     assert synergy.imsi_snapshot_id == "imsi-old"
     assert synergy.icm_snapshot_id == "icm-old"
     assert synergy.iae_snapshot_id == "iae-current"
-    assert synergy.all_required_inputs_available
+    assert synergy.all_required_inputs_present
+    assert synergy.all_required_inputs_fresh
+    assert synergy.all_required_inputs_ready
 
     missing = SnapshotAligner().align(_auction(at_1005), at_1005)
     assert missing.imsi_snapshot_id is None
     assert missing.icm_snapshot_id is None
     assert missing.iae_snapshot_id is None
-    assert not missing.all_required_inputs_available
+    assert not missing.all_required_inputs_present
+    assert not missing.all_required_inputs_fresh
+    assert not missing.all_required_inputs_ready
 
 
 def test_candidate_ids_deduplicate_and_coverage_contains_only_breadth() -> None:
@@ -288,6 +328,8 @@ def test_candidate_ids_deduplicate_and_coverage_contains_only_breadth() -> None:
     assert coverage["unique_event_count"] == 1
     assert coverage["by_root"] == {"ES": 1}
     assert coverage["events_with_all_three"] == 0
+    assert coverage["candidate_events_not_ready"] == 1
+    assert not event.research_ready
     assert not any(
         forbidden in key.lower()
         for key in coverage
@@ -311,3 +353,103 @@ def test_candidate_schema_cannot_contain_outcome_fields() -> None:
         "expected_return",
     }
     assert names.isdisjoint(forbidden)
+
+
+def test_alignment_never_leaks_a_previous_session_snapshot() -> None:
+    event_time = datetime(2024, 3, 4, 10, 5, tzinfo=UTC)
+    aligner = SnapshotAligner()
+    aligner.add_imsi(
+        _imsi(
+            event_time - timedelta(minutes=1),
+            "previous-session",
+            session_id="session-previous",
+        )
+    )
+    previous_only = aligner.align(_auction(event_time), event_time)
+    assert previous_only.imsi_snapshot_id is None
+    assert "IMSI:MISSING" in previous_only.blocking_quality_flags
+
+    aligner.add_imsi(_imsi(event_time - timedelta(minutes=1), "same-session"))
+    same_session = aligner.align(_auction(event_time), event_time)
+    assert same_session.imsi_snapshot_id == "imsi-same-session"
+
+
+def test_quality_provenance_preserves_information_and_blocks_unready_math() -> None:
+    event_time = datetime(2024, 3, 4, 10, 5, tzinfo=UTC)
+    informational = SnapshotAligner()
+    informational.add_imsi(
+        _imsi(
+            event_time,
+            "info",
+            quality_flags=("IMSI_FULL_MODEL_DEFERRED_LIFT3",),
+        )
+    )
+    informational.add_icm(_icm(event_time))
+    informational.add_iae(_iae(event_time))
+    ready = informational.align(_auction(event_time), event_time)
+    assert ready.all_required_inputs_ready
+    assert "IMSI:IMSI_FULL_MODEL_DEFERRED_LIFT3" in ready.component_quality_flags
+    assert ready.blocking_quality_flags == ()
+
+    blocked = SnapshotAligner()
+    blocked.add_imsi(
+        _imsi(
+            event_time,
+            "blocked",
+            quality_flags=("IMSI_COVARIANCE_UNSTABLE",),
+            measurement_ready=False,
+        )
+    )
+    blocked.add_icm(_icm(event_time))
+    blocked.add_iae(_iae(event_time))
+    not_ready = blocked.align(_auction(event_time), event_time)
+    assert not not_ready.all_required_inputs_ready
+    assert "IMSI:IMSI_COVARIANCE_UNSTABLE" in not_ready.component_quality_flags
+    assert "IMSI:MEASUREMENT_NOT_READY" in not_ready.blocking_quality_flags
+    event = CandidateEventGenerator().create(
+        EventTrigger(
+            event_type=CandidateEventType.IAE_RETEST_BULL,
+            event_time_utc=event_time,
+            available_at_utc=event_time,
+            session_id="session-a",
+            direction=1,
+            parent_event_id="gap-a",
+        ),
+        _auction(event_time),
+        not_ready,
+    )
+    assert not event.research_ready
+    assert event.quality_flags == not_ready.quality_flags
+
+
+def test_iae_override_binds_each_retest_to_its_exact_gap_snapshot() -> None:
+    event_time = datetime(2024, 3, 4, 10, 5, tzinfo=UTC)
+    aligner = SnapshotAligner()
+    aligner.add_imsi(_imsi(event_time, "ready"))
+    aligner.add_icm(_icm(event_time))
+    latest = _iae(event_time)
+    aligner.add_iae(latest)
+    gap_a = IAEStateSnapshot(
+        **{
+            field.name: getattr(latest, field.name)
+            for field in fields(IAEStateSnapshot)
+            if field.name not in {"snapshot_id", "gap_id"}
+        },
+        snapshot_id="iae-gap-a",
+        gap_id="gap-a",
+    )
+    gap_b = IAEStateSnapshot(
+        **{
+            field.name: getattr(latest, field.name)
+            for field in fields(IAEStateSnapshot)
+            if field.name not in {"snapshot_id", "gap_id"}
+        },
+        snapshot_id="iae-gap-b",
+        gap_id="gap-b",
+    )
+
+    synergy_a = aligner.align(_auction(event_time), event_time, iae_override=gap_a)
+    synergy_b = aligner.align(_auction(event_time), event_time, iae_override=gap_b)
+    assert synergy_a.iae_snapshot_id == "iae-gap-a"
+    assert synergy_b.iae_snapshot_id == "iae-gap-b"
+    assert synergy_a.snapshot_id != synergy_b.snapshot_id

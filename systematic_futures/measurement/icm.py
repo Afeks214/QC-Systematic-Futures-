@@ -8,7 +8,7 @@ from datetime import datetime
 import numpy as np
 import numpy.typing as npt
 
-from systematic_futures.config.research import ICM_WINDOWS
+from systematic_futures.config.research import ICM_WINDOWS, MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -16,9 +16,9 @@ from systematic_futures.domain.errors import (
     MarketConfigurationError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.models import CompletedTradeBar, ICMStateSnapshot
+from systematic_futures.measurement.models import CompletedTradeBar, ICMStateSnapshot, PriceScale
 
-_VERSION = "icm_quadratic_geometry_math_v2|pinv_solver_v1"
+_VERSION = "icm_quadratic_geometry_math_v3|pinv_solver_v1"
 _EPSILON = 1e-12
 _Z_CAP = 4.5
 _REGIME_RATIO_MAXIMUM = 1.5
@@ -54,7 +54,11 @@ class ICMEngine:
 
         return len(self._bars)
 
-    def on_bar(self, bar: CompletedTradeBar) -> ICMStateSnapshot | None:
+    def on_bar(
+        self,
+        bar: CompletedTradeBar,
+        local_price_scale: PriceScale | None = None,
+    ) -> ICMStateSnapshot | None:
         """Update one completed 30-minute bar and emit full-window geometry.
 
         Public derivatives are native price per bar and native price per bar squared.
@@ -83,12 +87,27 @@ class ICMEngine:
         slope_per_bar = beta1 / scale_factor
         curvature_per_bar2 = 2.0 * beta2 / (scale_factor**2)
 
+        coefficients = np.asarray((beta0, beta1, beta2), dtype=np.float64)
+        residuals = np.asarray(prices - self._design @ coefficients, dtype=np.float64)
+        residual_autocorrelation = _lag_one_autocorrelation(residuals)
         flags: set[str] = set()
+        blocking_guard = False
         if sigma_blend <= _EPSILON:
             flags.add("ICM_FLAT_SCALE_GUARD")
             self.degenerate_count += 1
+            blocking_guard = True
         if r_ratio > _REGIME_RATIO_MAXIMUM:
             flags.add("ICM_REGIME_GUARD")
+            blocking_guard = True
+        if residual_autocorrelation is None:
+            flags.add("ICM_RESIDUAL_AUTOCORRELATION_DEGENERATE")
+        if local_price_scale is None or not local_price_scale.warmup_complete:
+            fair_value_distance_vol = None
+            flags.add("ICM_LOCAL_SCALE_UNAVAILABLE")
+        else:
+            if local_price_scale.value is None:
+                raise DataQualityError("warmed ICM local price scale has no value")
+            fair_value_distance_vol = (float(prices[-1]) - fair_value) / local_price_scale.value
         if sigma_blend > 0.0:
             slope_normalized = slope_per_bar / sigma_blend
             curvature_normalized = curvature_per_bar2 / sigma_blend
@@ -101,7 +120,7 @@ class ICMEngine:
         else:
             z_raw = None
             z_capped = None
-        z_effective = z_capped if z_capped is not None and not flags else None
+        z_effective = z_capped if z_capped is not None and not blocking_guard else None
         self.last_quality_flags = tuple(sorted(flags))
         identity = {
             "as_of_utc": bar.end_utc,
@@ -110,6 +129,9 @@ class ICMEngine:
             "curvature_per_bar2": curvature_per_bar2,
             "quality_flags": self.last_quality_flags,
             "root": self.root,
+            "session_id": bar.session_id,
+            "fair_value_distance_vol": fair_value_distance_vol,
+            "residual_autocorrelation": residual_autocorrelation,
             "sigma_blend": sigma_blend,
             "slope_per_bar": slope_per_bar,
             "version": _VERSION,
@@ -122,6 +144,7 @@ class ICMEngine:
             snapshot_id=f"icm_{sha256_hex(identity)}",
             root=self.root,
             contract_symbol=self.contract_symbol,
+            session_id=bar.session_id,
             as_of_utc=bar.end_utc,
             available_at_utc=bar.available_at_utc,
             fair_value=fair_value,
@@ -136,8 +159,11 @@ class ICMEngine:
             sigma_mad=sigma_mad,
             sigma_blend=sigma_blend,
             r_ratio=r_ratio,
+            fair_value_distance_vol=fair_value_distance_vol,
+            residual_autocorrelation=residual_autocorrelation,
             window_size=self.window_size,
             warmup_complete=True,
+            measurement_ready=z_effective is not None,
             quality_flags=self.last_quality_flags,
             version=_VERSION,
         )
@@ -145,8 +171,8 @@ class ICMEngine:
     def _validate_bar(self, bar: CompletedTradeBar) -> None:
         if bar.root != self.root or bar.contract_symbol != self.contract_symbol:
             raise ContractBoundaryError("ICM cannot cross actual-contract identity")
-        if bar.period_minutes != 30:
-            raise DataQualityError("ICM requires completed 30-minute bars")
+        if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes:
+            raise DataQualityError("ICM requires completed medium-state bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("ICM bars must arrive in increasing end-time order")
 
@@ -196,6 +222,20 @@ def _fit_with_matrix(
         raise DataQualityError("ICM residual scale calculation produced invalid values")
     beta0, beta1, beta2 = (float(value) for value in coefficients)
     return beta0, beta1, beta2, sigma_ols, sigma_mad
+
+
+def _lag_one_autocorrelation(residuals: npt.NDArray[np.float64]) -> float | None:
+    """Return causal lag-one residual autocorrelation or ``None`` when degenerate."""
+
+    if residuals.ndim != 1 or len(residuals) < 2 or not np.isfinite(residuals).all():
+        raise DataQualityError("ICM residual autocorrelation requires a finite vector")
+    left = residuals[:-1] - float(np.mean(residuals[:-1]))
+    right = residuals[1:] - float(np.mean(residuals[1:]))
+    denominator = math.sqrt(float(np.sum(left**2)) * float(np.sum(right**2)))
+    if denominator <= _EPSILON:
+        return None
+    value = float(np.sum(left * right)) / denominator
+    return min(1.0, max(-1.0, value))
 
 
 __all__ = ("ICMEngine", "fit_quadratic_geometry", "quadratic_design")

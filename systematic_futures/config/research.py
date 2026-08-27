@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
+
+from systematic_futures.domain.errors import DataQualityError
 
 PROBE_START_DATE = "2024-02-15"
 PROBE_END_DATE = "2024-03-25"
@@ -22,6 +25,33 @@ ICM_WINDOWS: Mapping[str, int] = {
     "6J": 120,
     "6B": 110,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementClockPolicy:
+    """Frozen semantic clocks for the three Lift 2 measurement layers."""
+
+    fast_bar_minutes: int
+    medium_state_bar_minutes: int
+    profile_snapshot_minutes: int
+
+    def __post_init__(self) -> None:
+        values = (
+            self.fast_bar_minutes,
+            self.medium_state_bar_minutes,
+            self.profile_snapshot_minutes,
+        )
+        if any(type(value) is not int or value <= 0 for value in values):
+            raise DataQualityError("measurement clocks must be positive integer minutes")
+        if self.profile_snapshot_minutes != self.fast_bar_minutes:
+            raise DataQualityError("Lift 2 Auction snapshots must use the fast measurement clock")
+
+
+MEASUREMENT_CLOCK_POLICY = MeasurementClockPolicy(
+    fast_bar_minutes=5,
+    medium_state_bar_minutes=30,
+    profile_snapshot_minutes=5,
+)
 
 
 def lift_1_manifest_configuration() -> Mapping[str, object]:
@@ -55,9 +85,14 @@ def lift_2_measurement_configuration() -> Mapping[str, object]:
 
     return {
         "candidate_event_version": "candidate_event_v1",
+        "measurement_clock_policy": {
+            "fast_bar_minutes": MEASUREMENT_CLOCK_POLICY.fast_bar_minutes,
+            "medium_state_bar_minutes": MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes,
+            "profile_snapshot_minutes": MEASUREMENT_CLOCK_POLICY.profile_snapshot_minutes,
+        },
         "deep_end_date": LIFT2_DEEP_END_DATE,
         "deep_start_date": LIFT2_DEEP_START_DATE,
-        "feature_version": "feature_semantics_math_v4",
+        "feature_version": "feature_semantics_math_v5",
         "atr_5m_24_version": "atr_5m_24_arithmetic_tr_floor_1e-6_v2",
         "iae_max_gap_age_bars": 48,
         "iae_min_displacement_efficiency": 0.6,

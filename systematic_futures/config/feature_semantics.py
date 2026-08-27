@@ -284,6 +284,55 @@ for _iae_atr_field in ("iae_gap_width_atr", "iae_impulse_body_atr"):
         "iae_l1",
     )
 
+_MEASUREMENT_VOCABULARY_V5 = {
+    name: metadata
+    for name, metadata in _MEASUREMENT_VOCABULARY_V4.items()
+    if name
+    not in {
+        "iae_close_position_ratio",
+        "iae_tod_volume_z",
+        "iae_wick_absorption_ratio",
+        "time_outside_value_ratio",
+    }
+}
+_MEASUREMENT_VOCABULARY_V5.update(
+    {
+        "bar_close_outside_value_ratio": (
+            "completed_bar_ratio",
+            "completed_fast_bar_closes",
+            "auction_profile",
+        ),
+        "distance_to_current_poc_vol": (
+            "atr_units",
+            "atr_5m_24_arithmetic_true_range",
+            "auction_profile",
+        ),
+        "iae_close_position_raw": ("dimensionless_ratio", "gap_geometry", "iae_l1"),
+        "iae_close_position_score": (
+            "bounded_ratio_0_1",
+            "gap_geometry_score_input",
+            "iae_l1",
+        ),
+        "iae_tod_volume_score_input": (
+            "non_negative_score_input",
+            "prior_session_slot_floor_v1",
+            "iae_l1",
+        ),
+        "iae_tod_volume_z_raw": ("z_score", "prior_session_slot", "iae_l1"),
+        "iae_wick_rejection_ratio": ("dimensionless_ratio", "bar_geometry", "iae_l1"),
+        "icm_fair_value_distance_vol": (
+            "atr_units",
+            "atr_5m_24_arithmetic_true_range",
+            "icm",
+        ),
+        "icm_residual_autocorrelation": (
+            "correlation_minus1_1",
+            "current_window_residuals",
+            "icm",
+        ),
+    }
+)
+
 _MEASUREMENT_VOCABULARY_V2 = {
     name: metadata
     for name, metadata in _MEASUREMENT_VOCABULARY_V3.items()
@@ -309,6 +358,7 @@ _UNIMPLEMENTED_V2_NAMES = frozenset(
         "volatility_percentile",
     }
 )
+_UNIMPLEMENTED_V5_NAMES = frozenset((*_UNIMPLEMENTED_V2_NAMES, "time_outside_value_ratio"))
 
 
 def _measurement_feature(name: str, metadata: tuple[str, str, str]) -> FeatureSemantic:
@@ -324,6 +374,24 @@ def _measurement_feature(name: str, metadata: tuple[str, str, str]) -> FeatureSe
         ),
         missingness_policy=_MISSING_WITHHOLD,
         implementation_status=_RESEARCH_MEASUREMENT,
+    )
+
+
+def _measurement_feature_v5(name: str, metadata: tuple[str, str, str]) -> FeatureSemantic:
+    feature = _measurement_feature(name, metadata)
+    if name != "profile_kurtosis":
+        return feature
+    return FeatureSemantic(
+        feature_name=name,
+        human_definition=(
+            "Volume-weighted Pearson kurtosis m4/variance^2; the Gaussian reference is 3."
+        ),
+        unit=feature.unit,
+        normalization_family=feature.normalization_family,
+        source_family=feature.source_family,
+        point_in_time_requirement=feature.point_in_time_requirement,
+        missingness_policy=feature.missingness_policy,
+        implementation_status=feature.implementation_status,
     )
 
 
@@ -372,6 +440,23 @@ _FEATURES_V4 = tuple(
             *(
                 _measurement_feature(name, metadata)
                 for name, metadata in _MEASUREMENT_VOCABULARY_V4.items()
+            ),
+        ),
+        key=lambda feature: feature.feature_name,
+    )
+)
+
+_FEATURES_V5 = tuple(
+    sorted(
+        (
+            *(
+                feature
+                for feature in _FEATURES_V1
+                if feature.feature_name in _UNIMPLEMENTED_V5_NAMES
+            ),
+            *(
+                _measurement_feature_v5(name, metadata)
+                for name, metadata in _MEASUREMENT_VOCABULARY_V5.items()
             ),
         ),
         key=lambda feature: feature.feature_name,
@@ -496,10 +581,36 @@ def feature_semantics_v4() -> tuple[FeatureSemantic, ...]:
     return _FEATURES_V4
 
 
+def feature_semantics_v5() -> tuple[FeatureSemantic, ...]:
+    """Return the source-closed Lift 2 semantics with honest time/profile naming."""
+
+    names = tuple(feature.feature_name for feature in _FEATURES_V5)
+    if names != tuple(sorted(set(names))):
+        raise DataQualityError("Lift 2 feature semantics v5 must be sorted and unique")
+    measured = {
+        feature.feature_name
+        for feature in _FEATURES_V5
+        if feature.implementation_status is _RESEARCH_MEASUREMENT
+    }
+    if measured != set(_MEASUREMENT_VOCABULARY_V5):
+        raise DataQualityError("Lift 2 measured vocabulary v5 is incomplete")
+    unimplemented = {
+        feature.feature_name
+        for feature in _FEATURES_V5
+        if feature.implementation_status is _NOT_IMPLEMENTED
+    }
+    if unimplemented != set(_UNIMPLEMENTED_V5_NAMES):
+        raise DataQualityError("Lift 2 unimplemented vocabulary v5 changed")
+    for feature in _FEATURES_V5:
+        validate_feature_semantic(feature)
+    return _FEATURES_V5
+
+
 __all__ = (
     "feature_semantics_v1",
     "feature_semantics_v2",
     "feature_semantics_v3",
     "feature_semantics_v4",
+    "feature_semantics_v5",
     "validate_feature_semantics_registry",
 )

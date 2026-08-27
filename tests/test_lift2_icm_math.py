@@ -11,7 +11,7 @@ from systematic_futures.measurement.icm import (
     fit_quadratic_geometry,
     quadratic_design,
 )
-from systematic_futures.measurement.models import CompletedTradeBar
+from systematic_futures.measurement.models import CompletedTradeBar, PriceScale
 
 SEED = 1729
 
@@ -153,3 +153,38 @@ def test_icm_regime_guard_preserves_raw_capped_and_effective_states() -> None:
         assert snapshot.z_effective is None
     else:
         assert snapshot.z_effective == snapshot.z_capped
+
+
+@pytest.mark.analytic_math
+@pytest.mark.causality_math
+def test_icm_local_scale_distance_and_residual_autocorrelation_match_oracles() -> None:
+    prices = 100.0 + np.linspace(0.0, 2.0, 70) + 0.08 * np.sin(np.arange(70) / 2.0)
+    engine = ICMEngine("ES", "ESH24")
+    scale = PriceScale(
+        value=0.5,
+        observation_count=24,
+        warmup_complete=True,
+        version="atr_5m_24_arithmetic_tr_floor_1e-6_v2",
+    )
+    snapshot = None
+    for index, price in enumerate(prices):
+        snapshot = engine.on_bar(_bar(index, float(price)), scale)
+    assert snapshot is not None
+
+    design = quadratic_design(70)
+    beta, *_ = np.linalg.lstsq(design, prices, rcond=None)
+    residuals = prices - design @ beta
+    left = residuals[:-1] - np.mean(residuals[:-1])
+    right = residuals[1:] - np.mean(residuals[1:])
+    expected_autocorrelation = float(
+        np.sum(left * right) / np.sqrt(np.sum(left**2) * np.sum(right**2))
+    )
+    assert snapshot.fair_value_distance_vol == pytest.approx(
+        (prices[-1] - beta[0]) / 0.5,
+        abs=1e-10,
+    )
+    assert snapshot.residual_autocorrelation == pytest.approx(
+        expected_autocorrelation,
+        abs=1e-10,
+    )
+    assert "ICM_LOCAL_SCALE_UNAVAILABLE" not in snapshot.quality_flags

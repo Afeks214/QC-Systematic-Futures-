@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from systematic_futures.config.feature_semantics import (  # noqa: E402
     feature_semantics_v3,
     feature_semantics_v4,
+    feature_semantics_v5,
 )
 from systematic_futures.config.markets import all_market_definitions  # noqa: E402
 from systematic_futures.config.research import (  # noqa: E402 - repository script entrypoint
@@ -218,6 +219,7 @@ def lift2_source_contract() -> dict[str, object]:
     return {
         "feature_semantics_v3_hash": sha256_hex(feature_semantics_v3()),
         "feature_semantics_v4_hash": sha256_hex(feature_semantics_v4()),
+        "feature_semantics_v5_hash": sha256_hex(feature_semantics_v5()),
         "indicator_specification_hashes": INDICATOR_SPECIFICATION_HASHES,
         "market_registry_hash": sha256_hex(all_market_definitions()),
         "measurement_policy_hash": sha256_hex(lift_2_measurement_configuration()),
@@ -279,6 +281,7 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     for field_name in (
         "feature_semantics_v3_hash",
         "feature_semantics_v4_hash",
+        "feature_semantics_v5_hash",
         "indicator_specification_hashes",
         "market_registry_hash",
         "measurement_policy_hash",
@@ -450,8 +453,32 @@ def _validate_lift2_coverage_evidence(
         unique_count = coverage.get("unique_event_count")
         if raw_count != unique_count:
             raise RuntimeError(f"Lift 2 candidate events are not unique: {key}")
-        if coverage.get("quality_blocked_events") != 0:
-            raise RuntimeError(f"Lift 2 coverage contains blocked candidate events: {key}")
+        required_quality_counts = (
+            "candidate_events_total",
+            "candidate_events_inputs_present",
+            "candidate_events_inputs_ready",
+            "candidate_events_not_ready",
+            "candidate_events_missing_imsi",
+            "candidate_events_missing_icm",
+            "candidate_events_missing_iae",
+        )
+        if any(
+            isinstance(coverage.get(field), bool)
+            or not isinstance(coverage.get(field), int)
+            or cast(int, coverage[field]) < 0
+            for field in required_quality_counts
+        ):
+            raise RuntimeError(f"Lift 2 coverage readiness counts are invalid: {key}")
+        if coverage["candidate_events_total"] != unique_count:
+            raise RuntimeError(f"Lift 2 coverage total does not match unique events: {key}")
+        if (
+            cast(int, coverage["candidate_events_inputs_ready"])
+            + cast(int, coverage["candidate_events_not_ready"])
+            != unique_count
+        ):
+            raise RuntimeError(f"Lift 2 readiness counts do not reconcile: {key}")
+        if coverage.get("quality_blocked_events") != coverage["candidate_events_not_ready"]:
+            raise RuntimeError(f"Lift 2 blocked-event alias does not reconcile: {key}")
     if observed_hashes != runtime_hashes:
         raise RuntimeError("Lift 2 coverage hashes do not reconcile to runtime evidence")
 
@@ -506,11 +533,11 @@ def _validate_lift2_math_evidence(document: dict[str, object]) -> None:
     if document.get("all_passed") is not True:
         raise RuntimeError("Lift 2 math certification is not passing")
     expected_counts = {
-        "analytic_test_count": 14,
+        "analytic_test_count": 19,
         "differential_test_count": 9,
-        "metamorphic_test_count": 11,
-        "causality_test_count": 10,
-        "stress_test_count": 16,
+        "metamorphic_test_count": 14,
+        "causality_test_count": 13,
+        "stress_test_count": 19,
     }
     for field_name, expected in expected_counts.items():
         if document.get(field_name) != expected:

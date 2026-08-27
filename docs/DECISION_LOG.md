@@ -518,3 +518,23 @@ coverage evidence counts the quality flag. The pure geometry function continues 
 raise on non-consecutive input, and the complete math suite is recertified.
 Reopen condition: a separately certified missing-bar policy supplies causal,
 source-backed bars rather than inferred observations.
+
+## 2026-08-27 — Separate source truth, measurement readiness, and candidate retention
+
+Date: 2026-08-27
+Decision: Preserve raw trade provenance and component quality, quarantine invalid or
+suspicious observations, separate snapshot presence/freshness/readiness, require exact
+root/actual-contract/session joins, and retain every descriptive candidate with an
+explicit `research_ready` field.
+Alternatives considered: treat every existing snapshot as usable; infer readiness from
+flag-name prefixes; drop incomplete candidates; deduplicate content-identical ticks;
+reuse one IAE snapshot for simultaneous gap retests.
+Reason: those alternatives destroy lineage or bias coverage. The governing source
+requires point-in-time data contracts, explicit missingness and quality, and no future
+or cross-session contamination.
+Consequences: source identity that QC does not supply remains explicitly
+deduplication-unverifiable; a suspicious tick is quarantined; simultaneous retests bind
+to distinct gap snapshots; candidate breadth and research usability are reported
+separately. No outcome, Alpha, or execution behavior is introduced.
+Reopen condition: a separately verified source adapter supplies a stronger event-ID or
+sequence contract, or a later lift authorizes outcomes under a preregistered policy.

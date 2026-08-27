@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     AuctionLocationState,
     CandidateEventType,
@@ -67,7 +68,7 @@ def _require_snapshot_clock(as_of_utc: datetime, available_at_utc: datetime) -> 
 
 @dataclass(frozen=True, slots=True)
 class TradeObservation:
-    """One positive actual-contract trade in native price and quantity units."""
+    """One raw actual-contract trade plus source provenance metadata."""
 
     root: str
     contract_symbol: str
@@ -78,6 +79,10 @@ class TradeObservation:
     minimum_tick: float
     session_id: str
     roll_state: RollState
+    source_event_id: str | None = None
+    source_sequence: int | None = None
+    trade_condition: str | None = None
+    source_quality_flags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.root, "root")
@@ -87,11 +92,24 @@ class TradeObservation:
         _require_utc(self.available_at_utc, "available_at_utc")
         if self.exchange_time_utc > self.available_at_utc:
             raise DataTimingInvariantError("exchange_time_utc must not exceed available_at_utc")
-        _require_positive(self.price, "price")
-        _require_positive(self.quantity, "quantity")
+        _require_finite(self.price, "price")
+        _require_finite(self.quantity, "quantity")
         _require_positive(self.minimum_tick, "minimum_tick")
         if not isinstance(self.roll_state, RollState):
             raise DataQualityError("roll_state must be a RollState")
+        for field_name, value in (
+            ("source_event_id", self.source_event_id),
+            ("trade_condition", self.trade_condition),
+        ):
+            if value is not None:
+                _require_text(value, field_name)
+        if self.source_sequence is not None and (
+            isinstance(self.source_sequence, bool)
+            or not isinstance(self.source_sequence, int)
+            or self.source_sequence < 0
+        ):
+            raise DataQualityError("source_sequence must be a non-negative integer")
+        _require_flags(self.source_quality_flags)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,8 +133,12 @@ class CompletedTradeBar:
         _require_text(self.root, "root")
         _require_text(self.contract_symbol, "contract_symbol")
         _require_text(self.session_id, "session_id")
-        if self.period_minutes not in {5, 30}:
-            raise DataQualityError("period_minutes must be 5 or 30")
+        if (
+            isinstance(self.period_minutes, bool)
+            or not isinstance(self.period_minutes, int)
+            or self.period_minutes <= 0
+        ):
+            raise DataQualityError("period_minutes must be a positive integer")
         for field_name, value in (
             ("start_utc", self.start_utc),
             ("end_utc", self.end_utc),
@@ -232,6 +254,7 @@ class AuctionFeatureVector:
     """Descriptive Auction measurements with explicit optional normalization."""
 
     distance_to_current_poc_ticks: float
+    distance_to_current_poc_vol: float | None
     distance_to_prior_poc_vol: float | None
     distance_to_vah_vol: float | None
     distance_to_val_vol: float | None
@@ -240,15 +263,14 @@ class AuctionFeatureVector:
     value_mid_migration_vol: float | None
     volume_above_poc_ratio: float
     volume_outside_value_ratio: float | None
-    time_outside_value_ratio: float | None
+    bar_close_outside_value_ratio: float | None
     profile_entropy: float
     profile_skew: float | None
     profile_kurtosis: float | None
     profile_overlap_ratio: float | None
     reentry_count: int
     consecutive_minutes_outside: int
-    atr_5m_24: float | None
-    normalization_version: str
+    local_price_scale: PriceScale
 
     def __post_init__(self) -> None:
         for field_name, value in (
@@ -259,23 +281,23 @@ class AuctionFeatureVector:
             _require_finite(value, field_name)
         for field_name, value in (
             ("distance_to_prior_poc_vol", self.distance_to_prior_poc_vol),
+            ("distance_to_current_poc_vol", self.distance_to_current_poc_vol),
             ("distance_to_vah_vol", self.distance_to_vah_vol),
             ("distance_to_val_vol", self.distance_to_val_vol),
             ("value_area_width_vol", self.value_area_width_vol),
             ("poc_migration_vol", self.poc_migration_vol),
             ("value_mid_migration_vol", self.value_mid_migration_vol),
             ("volume_outside_value_ratio", self.volume_outside_value_ratio),
-            ("time_outside_value_ratio", self.time_outside_value_ratio),
+            ("bar_close_outside_value_ratio", self.bar_close_outside_value_ratio),
             ("profile_skew", self.profile_skew),
             ("profile_kurtosis", self.profile_kurtosis),
             ("profile_overlap_ratio", self.profile_overlap_ratio),
-            ("atr_5m_24", self.atr_5m_24),
         ):
             _require_optional_finite(value, field_name)
         for field_name, value in (
             ("volume_above_poc_ratio", self.volume_above_poc_ratio),
             ("volume_outside_value_ratio", self.volume_outside_value_ratio),
-            ("time_outside_value_ratio", self.time_outside_value_ratio),
+            ("bar_close_outside_value_ratio", self.bar_close_outside_value_ratio),
             ("profile_overlap_ratio", self.profile_overlap_ratio),
         ):
             if value is not None and not 0 <= value <= 1:
@@ -284,9 +306,14 @@ class AuctionFeatureVector:
             raise DataQualityError("profile_entropy must be in [0, 1]")
         if self.reentry_count < 0 or self.consecutive_minutes_outside < 0:
             raise DataQualityError("Auction counts must be non-negative")
-        if self.atr_5m_24 is not None and self.atr_5m_24 <= 0:
-            raise DataQualityError("atr_5m_24 must be positive when present")
-        _require_text(self.normalization_version, "normalization_version")
+        if not isinstance(self.local_price_scale, PriceScale):
+            raise DataQualityError("local_price_scale must be a PriceScale")
+
+    @property
+    def atr_5m_24(self) -> float | None:
+        """Return the explicitly versioned local range value, if fully warmed."""
+
+        return self.local_price_scale.value
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,9 +342,53 @@ class AuctionTransitionMetrics:
 
     @property
     def consecutive_minutes_outside(self) -> int:
-        """Return exact elapsed minutes from completed five-minute bars."""
+        """Return exact elapsed minutes from completed fast-clock bars."""
 
-        return self.consecutive_outside_bars * 5
+        return self.consecutive_outside_bars * MEASUREMENT_CLOCK_POLICY.fast_bar_minutes
+
+
+@dataclass(frozen=True, slots=True)
+class PriceScale:
+    """Auditable local price scale with warmup and version lineage."""
+
+    value: float | None
+    observation_count: int
+    warmup_complete: bool
+    version: str
+
+    def __post_init__(self) -> None:
+        _require_optional_finite(self.value, "value")
+        if self.value is not None and self.value <= 0:
+            raise DataQualityError("PriceScale value must be positive when present")
+        if not 0 <= self.observation_count <= 24:
+            raise DataQualityError("PriceScale observation_count must be in [0, 24]")
+        if self.warmup_complete != (self.observation_count == 24 and self.value is not None):
+            raise DataQualityError("PriceScale warmup state disagrees with count/value")
+        _require_text(self.version, "version")
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileReferenceSet:
+    """Typed point-in-time references used by one Auction snapshot."""
+
+    prior_same_session_type_id: str | None
+    prior_rth_id: str | None
+    prior_eth_id: str | None
+    rolling_30m_id: str | None
+    rolling_60m_id: str | None
+    rolling_120m_id: str | None
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("prior_same_session_type_id", self.prior_same_session_type_id),
+            ("prior_rth_id", self.prior_rth_id),
+            ("prior_eth_id", self.prior_eth_id),
+            ("rolling_30m_id", self.rolling_30m_id),
+            ("rolling_60m_id", self.rolling_60m_id),
+            ("rolling_120m_id", self.rolling_120m_id),
+        ):
+            if value is not None:
+                _require_text(value, field_name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,6 +420,16 @@ class ATRMeasurement:
         if self.warmup_complete != (self.observation_count == 24 and self.value is not None):
             raise DataQualityError("ATR warmup state disagrees with count/value")
 
+    def as_price_scale(self) -> PriceScale:
+        """Return the immutable local-range representation used by Auction and ICM."""
+
+        return PriceScale(
+            value=self.value,
+            observation_count=self.observation_count,
+            warmup_complete=self.warmup_complete,
+            version=self.version,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class AuctionStateSnapshot:
@@ -362,9 +443,11 @@ class AuctionStateSnapshot:
     available_at_utc: datetime
     location_state: AuctionLocationState
     developing_profile_id: str
-    prior_profile_id: str | None
+    references: ProfileReferenceSet
+    migration_reference_profile_id: str | None
     features: AuctionFeatureVector
     active_excursion_id: str | None
+    measurement_ready: bool
     quality_flags: tuple[str, ...]
     feature_version: str
 
@@ -381,12 +464,25 @@ class AuctionStateSnapshot:
         _require_snapshot_clock(self.as_of_utc, self.available_at_utc)
         if not isinstance(self.location_state, AuctionLocationState):
             raise DataQualityError("location_state must be an AuctionLocationState")
+        if not isinstance(self.references, ProfileReferenceSet):
+            raise DataQualityError("references must be a ProfileReferenceSet")
         for field_name, value in (
-            ("prior_profile_id", self.prior_profile_id),
+            ("migration_reference_profile_id", self.migration_reference_profile_id),
             ("active_excursion_id", self.active_excursion_id),
         ):
             if value is not None:
                 _require_text(value, field_name)
+        if self.migration_reference_profile_id != self.references.prior_same_session_type_id:
+            raise DataQualityError(
+                "Auction migration reference must be the prior same-session type"
+            )
+        has_reference = self.references.prior_same_session_type_id is not None
+        if (self.location_state is AuctionLocationState.NO_REFERENCE) == has_reference:
+            raise DataQualityError("Auction location state disagrees with its reference profile")
+        if self.measurement_ready and not (
+            has_reference and self.features.local_price_scale.warmup_complete
+        ):
+            raise DataQualityError("ready Auction requires a reference and warmed local scale")
         _require_flags(self.quality_flags)
 
 
@@ -397,6 +493,7 @@ class IMSIStateSnapshot:
     snapshot_id: str
     root: str
     contract_symbol: str
+    session_id: str
     as_of_utc: datetime
     available_at_utc: datetime
     vwrsi_raw: float
@@ -412,11 +509,13 @@ class IMSIStateSnapshot:
     covariance_effective_sample_size: float | None
     covariance_condition_number: float | None
     warmup_complete: bool
+    measurement_ready: bool
     quality_flags: tuple[str, ...]
     version: str
 
     def __post_init__(self) -> None:
         _validate_indicator_identity(self)
+        _require_text(self.session_id, "session_id")
         _require_finite(self.vwrsi_raw, "vwrsi_raw")
         if not 0 <= self.vwrsi_raw <= 100:
             raise DataQualityError("vwrsi_raw must be in [0, 100]")
@@ -465,6 +564,8 @@ class IMSIStateSnapshot:
             self.mahalanobis_distance is not None and self.state_rarity_percentile is not None
         ):
             raise DataQualityError("IMSI warmup_complete disagrees with distance and rarity")
+        if self.measurement_ready != self.warmup_complete:
+            raise DataQualityError("IMSI measurement_ready disagrees with StateCore warmup")
         if not 0 <= self.neighbor_support <= 15:
             raise DataQualityError("neighbor_support must be in [0, 15]")
         _require_flags(self.quality_flags)
@@ -477,6 +578,7 @@ class ICMStateSnapshot:
     snapshot_id: str
     root: str
     contract_symbol: str
+    session_id: str
     as_of_utc: datetime
     available_at_utc: datetime
     fair_value: float
@@ -491,13 +593,17 @@ class ICMStateSnapshot:
     sigma_mad: float
     sigma_blend: float
     r_ratio: float
+    fair_value_distance_vol: float | None
+    residual_autocorrelation: float | None
     window_size: int
     warmup_complete: bool
+    measurement_ready: bool
     quality_flags: tuple[str, ...]
     version: str
 
     def __post_init__(self) -> None:
         _validate_indicator_identity(self)
+        _require_text(self.session_id, "session_id")
         for field_name, value in (
             ("fair_value", self.fair_value),
             ("slope_per_bar", self.slope_per_bar),
@@ -514,6 +620,8 @@ class ICMStateSnapshot:
             ("z_effective", self.z_effective),
             ("slope_normalized", self.slope_normalized),
             ("curvature_normalized", self.curvature_normalized),
+            ("fair_value_distance_vol", self.fair_value_distance_vol),
+            ("residual_autocorrelation", self.residual_autocorrelation),
         ):
             _require_optional_finite(value, field_name)
         if self.sigma_ols < 0 or self.sigma_mad < 0 or self.sigma_blend < 0:
@@ -529,6 +637,13 @@ class ICMStateSnapshot:
             raise DataQualityError("ICM normalized geometry disagrees with residual scale")
         if self.window_size <= 3:
             raise DataQualityError("window_size must exceed three")
+        if (
+            self.residual_autocorrelation is not None
+            and not -1 <= self.residual_autocorrelation <= 1
+        ):
+            raise DataQualityError("residual_autocorrelation must be in [-1, 1]")
+        if self.measurement_ready != (self.z_effective is not None):
+            raise DataQualityError("ICM measurement_ready disagrees with effective Z")
         _require_flags(self.quality_flags)
 
 
@@ -539,6 +654,7 @@ class IAEStateSnapshot:
     snapshot_id: str
     root: str
     contract_symbol: str
+    session_id: str
     as_of_utc: datetime
     available_at_utc: datetime
     gap_id: str | None
@@ -551,18 +667,22 @@ class IAEStateSnapshot:
     gap_age_bars: int | None
     time_decay: float | None
     retest_depth_ratio: float | None
-    wick_absorption_ratio: float | None
-    close_position_ratio: float | None
-    tod_volume_z: float | None
+    wick_rejection_ratio: float | None
+    close_position_raw: float | None
+    close_position_score: float | None
+    tod_volume_z_raw: float | None
+    tod_volume_score_input: float | None
     score_raw: float | None
     score_effective: float | None
     absorption_confirmed: bool
     active_gap_count: int
+    measurement_ready: bool
     quality_flags: tuple[str, ...]
     version: str
 
     def __post_init__(self) -> None:
         _validate_indicator_identity(self)
+        _require_text(self.session_id, "session_id")
         if self.gap_id is not None:
             _require_text(self.gap_id, "gap_id")
         if (self.direction is None) != (self.gap_state is None):
@@ -574,9 +694,11 @@ class IAEStateSnapshot:
             ("formation_quality", self.formation_quality),
             ("time_decay", self.time_decay),
             ("retest_depth_ratio", self.retest_depth_ratio),
-            ("wick_absorption_ratio", self.wick_absorption_ratio),
-            ("close_position_ratio", self.close_position_ratio),
-            ("tod_volume_z", self.tod_volume_z),
+            ("wick_rejection_ratio", self.wick_rejection_ratio),
+            ("close_position_raw", self.close_position_raw),
+            ("close_position_score", self.close_position_score),
+            ("tod_volume_z_raw", self.tod_volume_z_raw),
+            ("tod_volume_score_input", self.tod_volume_score_input),
             ("score_raw", self.score_raw),
             ("score_effective", self.score_effective),
         ):
@@ -587,10 +709,16 @@ class IAEStateSnapshot:
             raise DataQualityError("active_gap_count must be non-negative")
         if self.time_decay is not None and not 0 < self.time_decay <= 1:
             raise DataQualityError("time_decay must be in (0, 1]")
+        if self.close_position_score is not None and not 0 <= self.close_position_score <= 1:
+            raise DataQualityError("close_position_score must be in [0, 1]")
+        if self.tod_volume_score_input is not None and self.tod_volume_score_input < 0:
+            raise DataQualityError("tod_volume_score_input must be non-negative")
         if self.score_effective is not None and self.score_raw != self.score_effective:
             raise DataQualityError("effective IAE score must equal raw score when unguarded")
         if self.absorption_confirmed != (self.gap_state is IAEGapState.ABSORBED):
             raise DataQualityError("IAE absorption flag disagrees with gap state")
+        if self.measurement_ready and self.gap_id is None:
+            raise DataQualityError("IAE measurement_ready requires a gap state")
         _require_flags(self.quality_flags)
 
 
@@ -601,18 +729,24 @@ class IndicatorSynergySnapshot:
     snapshot_id: str
     root: str
     contract_symbol: str
+    session_id: str
     as_of_utc: datetime
     available_at_utc: datetime
     auction_snapshot_id: str
     imsi_snapshot_id: str | None
     icm_snapshot_id: str | None
     iae_snapshot_id: str | None
-    all_required_inputs_available: bool
+    all_required_inputs_present: bool
+    all_required_inputs_fresh: bool
+    all_required_inputs_ready: bool
+    component_quality_flags: tuple[str, ...]
+    blocking_quality_flags: tuple[str, ...]
     quality_flags: tuple[str, ...]
     version: str
 
     def __post_init__(self) -> None:
         _validate_indicator_identity(self)
+        _require_text(self.session_id, "session_id")
         _require_text(self.auction_snapshot_id, "auction_snapshot_id")
         for field_name, value in (
             ("imsi_snapshot_id", self.imsi_snapshot_id),
@@ -625,8 +759,18 @@ class IndicatorSynergySnapshot:
             value is not None
             for value in (self.imsi_snapshot_id, self.icm_snapshot_id, self.iae_snapshot_id)
         )
-        if self.all_required_inputs_available is not expected:
-            raise DataQualityError("all_required_inputs_available disagrees with references")
+        if self.all_required_inputs_present is not expected:
+            raise DataQualityError("all_required_inputs_present disagrees with references")
+        if self.all_required_inputs_ready and not (
+            self.all_required_inputs_present and self.all_required_inputs_fresh
+        ):
+            raise DataQualityError("ready synergy inputs must also be present and fresh")
+        _require_flags(self.component_quality_flags)
+        _require_flags(self.blocking_quality_flags)
+        if self.quality_flags != tuple(
+            sorted(set(self.component_quality_flags) | set(self.blocking_quality_flags))
+        ):
+            raise DataQualityError("synergy quality_flags must be the complete quality union")
         _require_flags(self.quality_flags)
 
 
@@ -647,6 +791,7 @@ class CandidateEventObservation:
     synergy_snapshot_id: str
     data_snapshot_hash: str
     feature_version: str
+    research_ready: bool
     quality_flags: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -716,7 +861,9 @@ __all__ = (
     "ICMStateSnapshot",
     "IMSIStateSnapshot",
     "IndicatorSynergySnapshot",
+    "PriceScale",
     "ProfileDefinition",
+    "ProfileReferenceSet",
     "TradeObservation",
     "VolumeProfileSnapshot",
 )

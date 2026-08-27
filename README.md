@@ -103,6 +103,7 @@ private storage and are ignored. Required final artifacts are:
 
 - `artifacts/certification/lift2_runtime_measurement.json`
 - `artifacts/certification/lift2_candidate_coverage.json`
+- `artifacts/certification/lift2_math_certification.json`
 - `artifacts/certification/lift_2_evidence_index.json`
 - `artifacts/manifests/lift_2_manifest.json`
 

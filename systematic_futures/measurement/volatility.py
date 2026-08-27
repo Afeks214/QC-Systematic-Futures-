@@ -4,6 +4,7 @@ import math
 from collections import deque
 from datetime import datetime
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -25,8 +26,8 @@ def true_range(bar: CompletedTradeBar, previous_close: float) -> float:
     for a non-five-minute bar or invalid close.
     """
 
-    if bar.period_minutes != 5:
-        raise DataQualityError("true range requires a completed five-minute bar")
+    if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.fast_bar_minutes:
+        raise DataQualityError("true range requires a completed fast-clock bar")
     if not math.isfinite(previous_close) or previous_close <= 0:
         raise DataQualityError("previous_close must be finite and positive")
     value = max(
@@ -69,8 +70,8 @@ class ATR5m24:
 
         if bar.root != self.root or bar.contract_symbol != self.contract_symbol:
             raise ContractBoundaryError("ATR cannot cross actual-contract identity")
-        if bar.period_minutes != 5:
-            raise DataQualityError("ATR requires completed five-minute bars")
+        if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.fast_bar_minutes:
+            raise DataQualityError("ATR requires completed fast-clock bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("ATR bars must arrive in increasing end-time order")
         if self._previous_close is not None:

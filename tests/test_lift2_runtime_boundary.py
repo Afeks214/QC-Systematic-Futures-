@@ -11,6 +11,7 @@ from systematic_futures.config.feature_semantics import (
     feature_semantics_v2,
     feature_semantics_v3,
     feature_semantics_v4,
+    feature_semantics_v5,
 )
 from systematic_futures.data.sessions import SessionEngine, reference_session_policies
 from systematic_futures.domain.research_contracts import FeatureImplementationStatus
@@ -23,7 +24,9 @@ from systematic_futures.measurement.types import (
     ICMStateSnapshot,
     IMSIStateSnapshot,
     IndicatorSynergySnapshot,
+    PriceScale,
     ProfileDefinition,
+    ProfileReferenceSet,
     TradeObservation,
     VolumeProfileSnapshot,
 )
@@ -170,6 +173,16 @@ def test_feature_v1_is_preserved_and_v2_marks_only_measurements() -> None:
     assert v4_by_name["atr_5m_24"].normalization_family == "atr_5m_24_arithmetic_true_range"
     assert v4_by_name["icm_slope_per_bar"].unit == "native_price_per_bar"
     assert "icm_z_score" not in v4_by_name
+    v5 = feature_semantics_v5()
+    v5_by_name = {feature.feature_name: feature for feature in v5}
+    assert "bar_close_outside_value_ratio" in v5_by_name
+    assert "distance_to_current_poc_vol" in v5_by_name
+    assert "icm_residual_autocorrelation" in v5_by_name
+    assert (
+        v5_by_name["time_outside_value_ratio"].implementation_status
+        is FeatureImplementationStatus.NOT_IMPLEMENTED
+    )
+    assert "Gaussian reference is 3" in v5_by_name["profile_kurtosis"].human_definition
 
 
 def test_required_types_are_frozen_slotted_dataclasses() -> None:
@@ -177,6 +190,8 @@ def test_required_types_are_frozen_slotted_dataclasses() -> None:
         TradeObservation,
         CompletedTradeBar,
         ProfileDefinition,
+        PriceScale,
+        ProfileReferenceSet,
         VolumeProfileSnapshot,
         AuctionFeatureVector,
         AuctionStateSnapshot,
@@ -272,18 +287,32 @@ def test_runtime_boundary_filters_quotes_and_routes_trade_ticks(monkeypatch) -> 
             end_time=start.replace(tzinfo=None),
             price=5000,
             quantity=1,
+            suspicious=False,
+            sale_condition="",
         ),
         SimpleNamespace(
             tick_type="trade",
             end_time=start + timedelta(minutes=4),
             price=5000.25,
             quantity=2,
+            suspicious=False,
+            sale_condition="A",
         ),
         SimpleNamespace(
             tick_type="trade",
             end_time=start + timedelta(minutes=5),
             price=5000.50,
             quantity=3,
+            suspicious=False,
+            sale_condition="",
+        ),
+        SimpleNamespace(
+            tick_type="trade",
+            end_time=start + timedelta(minutes=5, seconds=1),
+            price=9000,
+            quantity=100,
+            suspicious=True,
+            sale_condition="LATE",
         ),
     ]
     runtime.on_slice(
@@ -297,6 +326,8 @@ def test_runtime_boundary_filters_quotes_and_routes_trade_ticks(monkeypatch) -> 
     assert runtime.runtime_summary is not None
     assert runtime.runtime_summary["quote_ticks_ignored"] == 1
     assert runtime.runtime_summary["counts"]["trade_ticks"] == 3
+    assert runtime.runtime_summary["counts"]["rejected_trade_ticks"] == 1
+    assert runtime.runtime_summary["quality_counts"]["DATA:SOURCE_SUSPICIOUS"] == 1
     assert host.statistics["L2.ES.FiveMinuteBars"] == 1
     assert host.statistics["L2.NoOrders"] == 0
     assert host.statistics["L2.NoInsights"] == 0

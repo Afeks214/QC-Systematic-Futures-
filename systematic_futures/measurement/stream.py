@@ -5,6 +5,7 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.data.sessions import SessionEngine
 from systematic_futures.domain.enums import (
     ProfileKind,
@@ -36,6 +37,7 @@ from systematic_futures.measurement.models import (
     ICMStateSnapshot,
     IMSIStateSnapshot,
     IndicatorSynergySnapshot,
+    ProfileReferenceSet,
     TradeObservation,
     VolumeProfileSnapshot,
 )
@@ -47,7 +49,7 @@ from systematic_futures.measurement.volume_profile import (
     auction_location,
 )
 
-_FEATURE_VERSION = "feature_semantics_math_v4"
+_FEATURE_VERSION = "feature_semantics_math_v5"
 
 
 @dataclass(slots=True)
@@ -159,8 +161,16 @@ class MeasurementStream:
         self.contract_symbol = contract_symbol
         self.minimum_tick = minimum_tick
         self._sessions = session_engine
-        self._five = _TradeBarAggregator(root, contract_symbol, 5)
-        self._thirty = _TradeBarAggregator(root, contract_symbol, 30)
+        self._five = _TradeBarAggregator(
+            root,
+            contract_symbol,
+            MEASUREMENT_CLOCK_POLICY.fast_bar_minutes,
+        )
+        self._thirty = _TradeBarAggregator(
+            root,
+            contract_symbol,
+            MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes,
+        )
         self._imsi = IMSIStateCore(root, contract_symbol)
         self._icm = ICMEngine(root, contract_symbol)
         self._iae = IAEEngine(root, contract_symbol, minimum_tick)
@@ -171,7 +181,8 @@ class MeasurementStream:
         self._profile: VolumeProfileEngine | None = None
         self._session_id: str | None = None
         self._session_end_utc: datetime | None = None
-        self._prior_profile: VolumeProfileSnapshot | None = None
+        self._final_profiles_by_session_type: dict[SessionType, VolumeProfileSnapshot] = {}
+        self._iae_snapshots_by_id: dict[str, IAEStateSnapshot] = {}
         self._five_bars: deque[CompletedTradeBar] = deque(maxlen=300)
         self._last_trade_time: datetime | None = None
         self._last_roll_state: RollState | None = None
@@ -241,7 +252,9 @@ class MeasurementStream:
         profile = self._require_profile()
         admitted = profile.ingest_trade(trade)
         if not admitted:
-            self.quality_counts["late_trade"] += 1
+            for flag in profile.last_rejection_flags:
+                self.quality_counts[flag] += 1
+            self.counts["rejected_trade_ticks"] += 1
             return self._generator.events[before:]
         five_admitted = self._five.ingest(trade, session_start, session_end)
         thirty_admitted = self._thirty.ingest(trade, session_start, session_end)
@@ -295,6 +308,7 @@ class MeasurementStream:
                 "imsi_snapshot_ids": tuple(item.snapshot_id for item in self.imsi_snapshots),
                 "profile_snapshot_ids": tuple(item.snapshot_id for item in self.profile_snapshots),
                 "quality_counts": dict(sorted(self.quality_counts.items())),
+                "synergy_snapshot_ids": tuple(sorted(self.synergy_snapshots)),
             }
         )
 
@@ -309,27 +323,37 @@ class MeasurementStream:
             boundary_bars = grouped[boundary]
             retests: list[IAERetestObservation] = []
             atr_by_end: dict[datetime, ATRMeasurement] = {}
-            five_bars = [bar for bar in boundary_bars if bar.period_minutes == 5]
-            thirty_bars = [bar for bar in boundary_bars if bar.period_minutes == 30]
+            five_bars = [
+                bar
+                for bar in boundary_bars
+                if bar.period_minutes == MEASUREMENT_CLOCK_POLICY.fast_bar_minutes
+            ]
+            thirty_bars = [
+                bar
+                for bar in boundary_bars
+                if bar.period_minutes == MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes
+            ]
             for bar in five_bars:
                 self._five_bars.append(bar)
                 atr = self._atr.on_bar(bar)
                 atr_by_end[bar.end_utc] = atr
                 session_type = self._sessions.classify(self.root, bar.start_utc)
                 session_start, _ = self._sessions.session_bounds(self.root, bar.start_utc)
-                iae_snapshot, bar_retests = self._iae.on_bar(
+                update = self._iae.on_bar(
                     bar,
                     atr,
                     session_type,
                     session_start,
                 )
-                self.iae_snapshots.append(iae_snapshot)
-                self._aligner.add_iae(iae_snapshot)
-                retests.extend(bar_retests)
-                for flag in iae_snapshot.quality_flags:
-                    self.quality_counts[flag] += 1
+                if update.bar_snapshot is not None:
+                    self._record_iae_snapshot(update.bar_snapshot)
+                    for flag in update.bar_snapshot.quality_flags:
+                        self.quality_counts[flag] += 1
+                for retest_snapshot in update.retest_snapshots:
+                    self._record_iae_snapshot(retest_snapshot)
+                    self.counts["iae_retest_snapshots"] += 1
+                retests.extend(update.retests)
                 self.counts["five_minute_bars"] += 1
-                self.counts["iae_snapshots"] += 1
             for bar in thirty_bars:
                 session_type = self._sessions.classify(self.root, bar.start_utc)
                 session_start, _ = self._sessions.session_bounds(self.root, bar.start_utc)
@@ -340,7 +364,11 @@ class MeasurementStream:
                     self.counts["imsi_snapshots"] += 1
                     if imsi.warmup_complete:
                         self.counts["imsi_ready"] += 1
-                icm = self._icm.on_bar(bar)
+                atr_for_boundary = atr_by_end.get(bar.end_utc)
+                icm = self._icm.on_bar(
+                    bar,
+                    atr_for_boundary.as_price_scale() if atr_for_boundary is not None else None,
+                )
                 if icm is not None:
                     self.icm_snapshots.append(icm)
                     self._aligner.add_icm(icm)
@@ -373,6 +401,7 @@ class MeasurementStream:
         )
         self.profile_snapshots.append(developing)
         self.counts["developing_profiles"] += 1
+        rolling_snapshots: dict[ProfileKind, VolumeProfileSnapshot] = {}
         for kind in (
             ProfileKind.ROLLING_30M,
             ProfileKind.ROLLING_60M,
@@ -384,28 +413,70 @@ class MeasurementStream:
                 self.quality_counts[f"{kind.value}_warmup"] += 1
             else:
                 self.profile_snapshots.append(rolling)
+                rolling_snapshots[kind] = rolling
                 self.counts["rolling_profiles"] += 1
-        location = auction_location(bar.close, self.minimum_tick, self._prior_profile)
+        session_type = self.session_types[bar.session_id]
+        reference_profile = self._final_profiles_by_session_type.get(session_type)
+        location = auction_location(bar.close, self.minimum_tick, reference_profile)
         triggers = self._transition.advance(
             session_id=bar.session_id,
             location=location,
             developing_poc_tick=developing.poc_tick,
-            prior_profile=self._prior_profile,
+            prior_profile=reference_profile,
             event_time_utc=bar.end_utc,
             available_at_utc=bar.available_at_utc,
         )
         features, feature_flags = auction_features(
             developing,
-            self._prior_profile,
+            reference_profile,
             atr,
             tuple(item for item in self._five_bars if item.session_id == bar.session_id),
             self._transition.metrics,
         )
         flags = set(feature_flags)
-        if self._prior_profile is None:
-            flags.add("NO_PRIOR_FINAL_PROFILE")
+        flags.update(developing.quality_flags)
+        if reference_profile is None:
+            flags.add("NO_PRIOR_SAME_SESSION_TYPE_PROFILE")
+        else:
+            flags.update(reference_profile.quality_flags)
         if self._last_roll_state is not None:
-            flags.add(f"ROLL_STATE_{self._last_roll_state.value.upper()}")
+            flags.add(f"ROLL:{self._last_roll_state.value.upper()}")
+        references = ProfileReferenceSet(
+            prior_same_session_type_id=(
+                reference_profile.snapshot_id if reference_profile is not None else None
+            ),
+            prior_rth_id=(
+                self._final_profiles_by_session_type[SessionType.RTH].snapshot_id
+                if SessionType.RTH in self._final_profiles_by_session_type
+                else None
+            ),
+            prior_eth_id=(
+                self._final_profiles_by_session_type[SessionType.ETH].snapshot_id
+                if SessionType.ETH in self._final_profiles_by_session_type
+                else None
+            ),
+            rolling_30m_id=(
+                rolling_snapshots[ProfileKind.ROLLING_30M].snapshot_id
+                if ProfileKind.ROLLING_30M in rolling_snapshots
+                else None
+            ),
+            rolling_60m_id=(
+                rolling_snapshots[ProfileKind.ROLLING_60M].snapshot_id
+                if ProfileKind.ROLLING_60M in rolling_snapshots
+                else None
+            ),
+            rolling_120m_id=(
+                rolling_snapshots[ProfileKind.ROLLING_120M].snapshot_id
+                if ProfileKind.ROLLING_120M in rolling_snapshots
+                else None
+            ),
+        )
+        measurement_ready = (
+            reference_profile is not None
+            and atr.warmup_complete
+            and not any(flag.startswith("DATA:") for flag in flags)
+            and self._last_roll_state is RollState.NORMAL
+        )
         identity = {
             "active_excursion_id": self._transition.active_excursion_id,
             "as_of_utc": bar.end_utc,
@@ -413,9 +484,11 @@ class MeasurementStream:
             "feature_version": _FEATURE_VERSION,
             "features": features,
             "location_state": location,
-            "prior_profile_id": (
-                self._prior_profile.snapshot_id if self._prior_profile is not None else None
+            "references": references,
+            "migration_reference_profile_id": (
+                reference_profile.snapshot_id if reference_profile is not None else None
             ),
+            "measurement_ready": measurement_ready,
         }
         auction = AuctionStateSnapshot(
             snapshot_id=f"auction_{sha256_hex(identity)}",
@@ -426,11 +499,13 @@ class MeasurementStream:
             available_at_utc=bar.available_at_utc,
             location_state=location,
             developing_profile_id=developing.snapshot_id,
-            prior_profile_id=(
-                self._prior_profile.snapshot_id if self._prior_profile is not None else None
+            references=references,
+            migration_reference_profile_id=(
+                reference_profile.snapshot_id if reference_profile is not None else None
             ),
             features=features,
             active_excursion_id=self._transition.active_excursion_id,
+            measurement_ready=measurement_ready,
             quality_flags=tuple(sorted(flags)),
             feature_version=_FEATURE_VERSION,
         )
@@ -438,23 +513,30 @@ class MeasurementStream:
         self.counts["auction_snapshots"] += 1
         synergy = self._aligner.align(auction, bar.available_at_utc)
         self.synergy_snapshots[synergy.snapshot_id] = synergy
-        all_triggers = [*triggers]
-        for retest in retests:
-            if retest.event_time_utc == bar.end_utc:
-                all_triggers.append(
-                    EventTrigger(
-                        event_type=retest.event_type,
-                        event_time_utc=retest.event_time_utc,
-                        available_at_utc=retest.available_at_utc,
-                        session_id=retest.session_id,
-                        direction=retest.direction,
-                        parent_event_id=retest.gap_id,
-                    )
-                )
-        for trigger in all_triggers:
+        for trigger in triggers:
             self._generator.create(trigger, auction, synergy)
             self.counts["candidate_events"] += 1
-            if trigger.event_type.value.startswith("iae_retest"):
+        for retest in retests:
+            if retest.event_time_utc == bar.end_utc:
+                exact_iae = self._iae_snapshots_by_id.get(retest.iae_snapshot_id)
+                if exact_iae is None or exact_iae.gap_id != retest.gap_id:
+                    raise DataQualityError("IAE retest snapshot lineage is unresolved")
+                retest_synergy = self._aligner.align(
+                    auction,
+                    retest.available_at_utc,
+                    iae_override=exact_iae,
+                )
+                self.synergy_snapshots[retest_synergy.snapshot_id] = retest_synergy
+                trigger = EventTrigger(
+                    event_type=retest.event_type,
+                    event_time_utc=retest.event_time_utc,
+                    available_at_utc=retest.available_at_utc,
+                    session_id=retest.session_id,
+                    direction=retest.direction,
+                    parent_event_id=retest.gap_id,
+                )
+                self._generator.create(trigger, auction, retest_synergy)
+                self.counts["candidate_events"] += 1
                 self.counts["iae_retest_events"] += 1
 
     def _finalize_current_profile(
@@ -471,8 +553,21 @@ class MeasurementStream:
         profile.finalize_minutes_through(final_as_of)
         final = profile.snapshot(ProfileKind.FINAL_SESSION, final_as_of, available_at_utc)
         self.profile_snapshots.append(final)
-        self._prior_profile = final
+        session_type = self.session_types.get(final.session_id)
+        if session_type is None:
+            raise DataQualityError("final Profile session type is unavailable")
+        self._final_profiles_by_session_type[session_type] = final
         self.counts["final_profiles"] += 1
+
+    def _record_iae_snapshot(self, snapshot: IAEStateSnapshot) -> None:
+        existing = self._iae_snapshots_by_id.get(snapshot.snapshot_id)
+        if existing is not None and existing != snapshot:
+            raise DataQualityError("IAE snapshot ID collision")
+        if existing is None:
+            self._iae_snapshots_by_id[snapshot.snapshot_id] = snapshot
+            self.iae_snapshots.append(snapshot)
+            self._aligner.add_iae(snapshot)
+            self.counts["iae_snapshots"] += 1
 
     def _validate_trade(self, trade: TradeObservation) -> None:
         if trade.root != self.root or trade.contract_symbol != self.contract_symbol:

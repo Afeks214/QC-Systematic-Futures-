@@ -549,10 +549,14 @@ completed from the independently byte-audited 34-file deployment.
 Requirement: admit traded price/quantity only for the mapped contract.
 
 Verified symbol/API: `slice.ticks` is keyed by `Symbol`; each `Tick` exposes
-`tick_type`, `price`, `quantity`, `time`, and `end_time`. `TickType.TRADE` identifies
-trades; quote ticks are distinct and are excluded. Official documentation states
-that backtests batch ticks in approximately one-millisecond groups, so callback order
-is not represented as nanosecond exchange-event sequencing.
+`tick_type`, `price`, `quantity`, `time`, `end_time`, `sale_condition`, and
+`suspicious`. `TickType.TRADE` identifies trades; quote ticks are distinct and are
+excluded. LEAN's `Tick.Suspicious` property is populated from the futures tick-file
+suspicious field. The installed official `quantconnect-stubs==18032` independently
+resolves the Python names `sale_condition` and `suspicious`. Official documentation
+states that futures tick data is raw and unfiltered and that backtests batch ticks in
+approximately one-millisecond groups, so callback order is not represented as
+nanosecond exchange-event sequencing.
 
 Official source: [Handling futures data](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/handling-data),
 [Tick source](https://github.com/QuantConnect/Lean/blob/07fb0182bfe229edd9445cf675ac6509d0069539/Common/Data/Market/Tick.cs).
@@ -564,8 +568,10 @@ Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 Runtime evidence: ES smoke backtest `cd7b3f083a248def2d4720ae38613f5a`
 admitted 1,223,512 trade ticks and explicitly ignored 15,404,411 quote ticks.
 
-Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; no queue, cancellation, replenishment,
-MLOFI, or native exchange-sequence claim is authorized.
+Status: `VERIFIED_SOURCE_AND_STUBS`; the recertified adapter quarantines suspicious
+ticks and retains sale-condition metadata, but this revised mapping still requires the
+final QC replay matrix. No queue, cancellation, replenishment, MLOFI, or native
+exchange-sequence claim is authorized.
 
 ### Tick EndTime at the UTC algorithm boundary
 

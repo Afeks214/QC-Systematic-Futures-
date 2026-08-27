@@ -237,7 +237,10 @@ def test_missing_five_minute_bar_resets_iae_formation_window() -> None:
     )
     engine.on_bar(first, _atr(first), SessionType.RTH, base)
     engine.on_bar(impulse, _atr(impulse), SessionType.RTH, base)
-    snapshot, events = engine.on_bar(after_gap, _atr(after_gap), SessionType.RTH, base)
+    update = engine.on_bar(after_gap, _atr(after_gap), SessionType.RTH, base)
+    snapshot = update.bar_snapshot
+    events = update.retests
+    assert snapshot is not None
     assert snapshot.direction is None
     assert snapshot.active_gap_count == 0
     assert "IAE_BAR_GAP_RESET" in snapshot.quality_flags
@@ -308,14 +311,18 @@ def test_full_iae_pipeline_is_price_reflection_symmetric_and_absorbs_once() -> N
     )
     bull_snapshot = bear_snapshot = None
     for bar in formation:
-        bull_snapshot, bull_events = bullish.on_bar(bar, _atr(bar), SessionType.RTH, base)
+        bull_update = bullish.on_bar(bar, _atr(bar), SessionType.RTH, base)
+        bull_snapshot = bull_update.bar_snapshot
+        bull_events = bull_update.retests
         mirrored = _mirror(bar)
-        bear_snapshot, bear_events = bearish.on_bar(
+        bear_update = bearish.on_bar(
             mirrored,
             _atr(mirrored),
             SessionType.RTH,
             base,
         )
+        bear_snapshot = bear_update.bar_snapshot
+        bear_events = bear_update.retests
         assert bull_events == bear_events == ()
     assert bull_snapshot is not None and bear_snapshot is not None
     assert bull_snapshot.direction is IAEGapDirection.BULLISH
@@ -334,25 +341,31 @@ def test_full_iae_pipeline_is_price_reflection_symmetric_and_absorbs_once() -> N
         volume=1000.0,
         session_id=session_id,
     )
-    bull_snapshot, bull_events = bullish.on_bar(
+    bull_update = bullish.on_bar(
         retest,
         _atr(retest),
         SessionType.RTH,
         base,
     )
+    bull_snapshot = bull_update.bar_snapshot
+    bull_events = bull_update.retests
     mirrored_retest = _mirror(retest)
-    bear_snapshot, bear_events = bearish.on_bar(
+    bear_update = bearish.on_bar(
         mirrored_retest,
         _atr(mirrored_retest),
         SessionType.RTH,
         base,
     )
+    bear_snapshot = bear_update.bar_snapshot
+    bear_events = bear_update.retests
+    assert bull_snapshot is not None and bear_snapshot is not None
     assert len(bull_events) == len(bear_events) == 1
     assert bull_snapshot.gap_state is IAEGapState.ABSORBED
     assert bear_snapshot.gap_state is IAEGapState.ABSORBED
     assert bull_snapshot.absorption_confirmed and bear_snapshot.absorption_confirmed
-    assert bull_snapshot.wick_absorption_ratio == pytest.approx(bear_snapshot.wick_absorption_ratio)
-    assert bull_snapshot.close_position_ratio == pytest.approx(bear_snapshot.close_position_ratio)
+    assert bull_snapshot.wick_rejection_ratio == pytest.approx(bear_snapshot.wick_rejection_ratio)
+    assert bull_snapshot.close_position_raw == pytest.approx(bear_snapshot.close_position_raw)
+    assert bull_snapshot.close_position_score == bear_snapshot.close_position_score == 1.0
     assert bull_snapshot.score_raw == pytest.approx(bear_snapshot.score_raw)
     assert bull_snapshot.score_effective == pytest.approx(bear_snapshot.score_effective)
     prior_slot_three = tuple(13.0 + day for day in range(20))
@@ -362,12 +375,12 @@ def test_full_iae_pipeline_is_price_reflection_symmetric_and_absorbs_once() -> N
     )
     volume_z = (1000.0 - prior_mean) / (math.sqrt(prior_variance) + 1e-12)
     wick = 1.5 / (1.25 + 1e-12)
-    close_position = 1.75 / (0.5 + 1e-12)
+    close_position_score = 1.0
     expected_score = (
         math.log1p(expected_quality)
         + math.log1p(wick)
         + math.log1p(max(volume_z, 0.1))
-        + 0.5 * close_position
+        + 0.5 * close_position_score
     ) * math.exp(-0.05)
     assert bull_snapshot.score_raw == pytest.approx(expected_score)
     assert bull_snapshot.active_gap_count == bear_snapshot.active_gap_count == 0
@@ -398,12 +411,14 @@ def test_iae_close_invalidation_and_age_expiration_are_terminal() -> None:
         low=99.5,
         close=99.75,
     )
-    snapshot, _ = invalidated.on_bar(
+    invalidated_update = invalidated.on_bar(
         invalidating_bar,
         _atr(invalidating_bar),
         SessionType.RTH,
         base,
     )
+    snapshot = invalidated_update.bar_snapshot
+    assert snapshot is not None
     assert snapshot.gap_state is IAEGapState.INVALIDATED
     assert snapshot.active_gap_count == 0
 
@@ -418,7 +433,72 @@ def test_iae_close_invalidation_and_age_expiration_are_terminal() -> None:
             low=101.75,
             close=102.0,
         )
-        snapshot, _ = expired.on_bar(bar, _atr(bar), SessionType.RTH, base)
+        expired_update = expired.on_bar(bar, _atr(bar), SessionType.RTH, base)
+        snapshot = expired_update.bar_snapshot
+        assert snapshot is not None
     assert snapshot.gap_state is IAEGapState.EXPIRED
     assert snapshot.gap_age_bars == 49
     assert snapshot.active_gap_count == 0
+
+
+@pytest.mark.causality_math
+@pytest.mark.stress_math
+def test_two_gaps_retested_on_one_bar_have_exact_distinct_snapshot_lineage() -> None:
+    base = datetime(2024, 3, 4, 14, 30, tzinfo=UTC)
+    engine = IAEEngine("ES", "ESH24", 0.25)
+    formation = (
+        _bar(0, base=base, open_price=99.5, high=100.0, low=99.0, close=99.75),
+        _bar(1, base=base, open_price=100.0, high=102.5, low=99.75, close=102.0),
+        _bar(2, base=base, open_price=101.0, high=103.5, low=100.5, close=103.0),
+        _bar(3, base=base, open_price=103.0, high=105.0, low=103.0, close=104.5),
+    )
+    for bar in formation:
+        engine.on_bar(bar, _atr(bar), SessionType.RTH, base)
+
+    retest = _bar(
+        4,
+        base=base,
+        open_price=102.0,
+        high=104.0,
+        low=99.5,
+        close=103.25,
+        volume=100.0,
+    )
+    update = engine.on_bar(retest, _atr(retest), SessionType.RTH, base)
+    assert len(update.retests) == len(update.retest_snapshots) == 2
+    assert len({item.gap_id for item in update.retests}) == 2
+    assert len({item.iae_snapshot_id for item in update.retests}) == 2
+    snapshots = {item.snapshot_id: item for item in update.retest_snapshots}
+    assert {
+        retest_observation.gap_id == snapshots[retest_observation.iae_snapshot_id].gap_id
+        for retest_observation in update.retests
+    } == {True}
+
+
+@pytest.mark.analytic_math
+@pytest.mark.stress_math
+def test_doji_retest_withholds_wick_and_score_instead_of_fabricating_evidence() -> None:
+    base = datetime(2024, 3, 4, 14, 30, tzinfo=UTC)
+    engine = IAEEngine("ES", "ESH24", 0.25)
+    formation = (
+        _bar(0, base=base, open_price=99.5, high=100.0, low=99.0, close=99.75),
+        _bar(1, base=base, open_price=100.0, high=102.25, low=99.75, close=102.0),
+        _bar(2, base=base, open_price=101.0, high=103.0, low=100.5, close=102.0),
+    )
+    for bar in formation:
+        engine.on_bar(bar, _atr(bar), SessionType.RTH, base)
+    doji = _bar(
+        3,
+        base=base,
+        open_price=100.25,
+        high=101.0,
+        low=99.75,
+        close=100.25,
+    )
+    update = engine.on_bar(doji, _atr(doji), SessionType.RTH, base)
+    assert len(update.retest_snapshots) == 1
+    snapshot = update.retest_snapshots[0]
+    assert snapshot.wick_rejection_ratio is None
+    assert snapshot.score_raw is None
+    assert snapshot.score_effective is None
+    assert "IAE_DEGENERATE_BODY" in snapshot.quality_flags

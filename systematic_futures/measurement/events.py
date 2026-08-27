@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections import Counter, deque
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol, TypeVar
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     AuctionLocationState,
     CandidateEventType,
@@ -29,8 +30,8 @@ from systematic_futures.measurement.models import (
     VolumeProfileSnapshot,
 )
 
-_FEATURE_VERSION = "feature_semantics_math_v4"
-_SYNERGY_VERSION = "indicator_alignment_v1"
+_FEATURE_VERSION = "feature_semantics_math_v5"
+_SYNERGY_VERSION = "indicator_alignment_v2"
 _MAX_ALIGNMENT_HISTORY = 512
 _AUCTION_TRANSITION_VERSION = "auction_transition_metrics_v2"
 
@@ -337,8 +338,10 @@ class SnapshotAligner:
         self,
         auction: AuctionStateSnapshot,
         available_at_utc: datetime,
+        *,
+        iae_override: IAEStateSnapshot | None = None,
     ) -> IndicatorSynergySnapshot:
-        """Join only same-contract snapshots available no later than the event clock.
+        """Join only same-contract, same-session snapshots available by event time.
 
         Units: opaque snapshot references. Time semantics: strict as-of `<=`; a later
         nearest observation is never selected. Missingness: absent components remain
@@ -348,20 +351,75 @@ class SnapshotAligner:
 
         if auction.available_at_utc > available_at_utc:
             raise DataTimingInvariantError("Auction snapshot is unavailable at alignment time")
-        imsi = _latest_eligible(self._imsi, auction, available_at_utc)
-        icm = _latest_eligible(self._icm, auction, available_at_utc)
-        iae = _latest_eligible(self._iae, auction, available_at_utc)
-        flags = tuple(
-            sorted(
-                name
-                for name, value in (
-                    ("MISSING_ICM", icm),
-                    ("MISSING_IAE", iae),
-                    ("MISSING_IMSI", imsi),
-                )
-                if value is None
-            )
+        imsi = _latest_eligible(
+            self._imsi,
+            root=auction.root,
+            contract_symbol=auction.contract_symbol,
+            session_id=auction.session_id,
+            available_at_utc=available_at_utc,
         )
+        icm = _latest_eligible(
+            self._icm,
+            root=auction.root,
+            contract_symbol=auction.contract_symbol,
+            session_id=auction.session_id,
+            available_at_utc=available_at_utc,
+        )
+        if iae_override is not None:
+            if not _snapshot_is_eligible(
+                iae_override,
+                root=auction.root,
+                contract_symbol=auction.contract_symbol,
+                session_id=auction.session_id,
+                available_at_utc=available_at_utc,
+            ):
+                raise DataTimingInvariantError("IAE override is ineligible for Auction alignment")
+            iae = iae_override
+        else:
+            iae = _latest_eligible(
+                self._iae,
+                root=auction.root,
+                contract_symbol=auction.contract_symbol,
+                session_id=auction.session_id,
+                available_at_utc=available_at_utc,
+            )
+        components = (("IMSI", imsi), ("ICM", icm), ("IAE", iae))
+        component_flags: set[str] = {
+            _prefixed_quality("AUCTION", flag) for flag in auction.quality_flags
+        }
+        blocking_flags: set[str] = set()
+        if not auction.measurement_ready:
+            blocking_flags.add("AUCTION:MEASUREMENT_NOT_READY")
+        freshness_minutes = {
+            "IMSI": MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes,
+            "ICM": MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes,
+            "IAE": MEASUREMENT_CLOCK_POLICY.fast_bar_minutes,
+        }
+        present = all(snapshot is not None for _, snapshot in components)
+        fresh = present
+        component_ready = True
+        for name, snapshot in components:
+            if snapshot is None:
+                flag = f"{name}:MISSING"
+                component_flags.add(flag)
+                blocking_flags.add(flag)
+                fresh = False
+                component_ready = False
+                continue
+            component_flags.update(_prefixed_quality(name, flag) for flag in snapshot.quality_flags)
+            if not _snapshot_is_fresh(snapshot, auction, freshness_minutes[name]):
+                flag = f"{name}:STALE"
+                component_flags.add(flag)
+                blocking_flags.add(flag)
+                fresh = False
+            if not snapshot.measurement_ready:
+                flag = f"{name}:MEASUREMENT_NOT_READY"
+                blocking_flags.add(flag)
+                component_ready = False
+        ready = present and fresh and auction.measurement_ready and component_ready
+        component_quality_flags = tuple(sorted(component_flags))
+        blocking_quality_flags = tuple(sorted(blocking_flags))
+        quality_flags = tuple(sorted(component_flags | blocking_flags))
         identity = {
             "as_of_utc": auction.as_of_utc,
             "auction_snapshot_id": auction.snapshot_id,
@@ -369,20 +427,30 @@ class SnapshotAligner:
             "icm_snapshot_id": icm.snapshot_id if icm is not None else None,
             "iae_snapshot_id": iae.snapshot_id if iae is not None else None,
             "imsi_snapshot_id": imsi.snapshot_id if imsi is not None else None,
+            "session_id": auction.session_id,
+            "all_required_inputs_present": present,
+            "all_required_inputs_fresh": fresh,
+            "all_required_inputs_ready": ready,
+            "quality_flags": quality_flags,
             "version": _SYNERGY_VERSION,
         }
         return IndicatorSynergySnapshot(
             snapshot_id=f"synergy_{sha256_hex(identity)}",
             root=auction.root,
             contract_symbol=auction.contract_symbol,
+            session_id=auction.session_id,
             as_of_utc=auction.as_of_utc,
             available_at_utc=available_at_utc,
             auction_snapshot_id=auction.snapshot_id,
             imsi_snapshot_id=imsi.snapshot_id if imsi is not None else None,
             icm_snapshot_id=icm.snapshot_id if icm is not None else None,
             iae_snapshot_id=iae.snapshot_id if iae is not None else None,
-            all_required_inputs_available=all(value is not None for value in (imsi, icm, iae)),
-            quality_flags=flags,
+            all_required_inputs_present=present,
+            all_required_inputs_fresh=fresh,
+            all_required_inputs_ready=ready,
+            component_quality_flags=component_quality_flags,
+            blocking_quality_flags=blocking_quality_flags,
+            quality_flags=quality_flags,
             version=_SYNERGY_VERSION,
         )
 
@@ -416,6 +484,8 @@ class CandidateEventGenerator:
 
         if auction.root != synergy.root or auction.contract_symbol != synergy.contract_symbol:
             raise ContractBoundaryError("Auction and synergy identities differ")
+        if trigger.session_id != auction.session_id or synergy.session_id != auction.session_id:
+            raise DataQualityError("event, Auction, and synergy sessions must match exactly")
         if auction.available_at_utc > trigger.available_at_utc:
             raise DataTimingInvariantError("Auction snapshot is unavailable for event")
         if synergy.available_at_utc > trigger.available_at_utc:
@@ -453,7 +523,8 @@ class CandidateEventGenerator:
             synergy_snapshot_id=synergy.snapshot_id,
             data_snapshot_hash=data_hash,
             feature_version=_FEATURE_VERSION,
-            quality_flags=tuple(sorted(set(auction.quality_flags) | set(synergy.quality_flags))),
+            research_ready=synergy.all_required_inputs_ready,
+            quality_flags=synergy.quality_flags,
         )
         self._events.append(event)
         return event
@@ -508,13 +579,26 @@ def candidate_coverage(
         "events_with_IMSI": sum(
             item is not None and item.imsi_snapshot_id is not None for item in resolved
         ),
+        "candidate_events_total": len(records),
+        "candidate_events_inputs_present": sum(
+            item is not None and item.all_required_inputs_present for item in resolved
+        ),
+        "candidate_events_inputs_ready": sum(event.research_ready for event in records),
+        "candidate_events_not_ready": sum(not event.research_ready for event in records),
+        "candidate_events_missing_imsi": sum(
+            item is None or item.imsi_snapshot_id is None for item in resolved
+        ),
+        "candidate_events_missing_icm": sum(
+            item is None or item.icm_snapshot_id is None for item in resolved
+        ),
+        "candidate_events_missing_iae": sum(
+            item is None or item.iae_snapshot_id is None for item in resolved
+        ),
         "events_with_all_three": sum(
-            item is not None and item.all_required_inputs_available for item in resolved
+            item is not None and item.all_required_inputs_present for item in resolved
         ),
         "parent_excursion_count": len(parent_ids),
-        "quality_blocked_events": sum(
-            any(flag.startswith("BLOCKED_") for flag in event.quality_flags) for event in records
-        ),
+        "quality_blocked_events": sum(not event.research_ready for event in records),
         "raw_event_count": raw_count,
         "unique_event_count": len(records),
         "unique_session_count": len(unique_sessions),
@@ -532,7 +616,19 @@ class _AlignableSnapshot(Protocol):
     def contract_symbol(self) -> str: ...
 
     @property
+    def session_id(self) -> str: ...
+
+    @property
+    def as_of_utc(self) -> datetime: ...
+
+    @property
     def available_at_utc(self) -> datetime: ...
+
+    @property
+    def measurement_ready(self) -> bool: ...
+
+    @property
+    def quality_flags(self) -> tuple[str, ...]: ...
 
 
 _SnapshotT = TypeVar("_SnapshotT", bound=_AlignableSnapshot)
@@ -540,17 +636,55 @@ _SnapshotT = TypeVar("_SnapshotT", bound=_AlignableSnapshot)
 
 def _latest_eligible(
     snapshots: Iterable[_SnapshotT],
-    auction: AuctionStateSnapshot,
+    *,
+    root: str,
+    contract_symbol: str,
+    session_id: str,
     available_at_utc: datetime,
 ) -> _SnapshotT | None:
     eligible = [
         snapshot
         for snapshot in snapshots
-        if snapshot.root == auction.root
-        and snapshot.contract_symbol == auction.contract_symbol
-        and snapshot.available_at_utc <= available_at_utc
+        if _snapshot_is_eligible(
+            snapshot,
+            root=root,
+            contract_symbol=contract_symbol,
+            session_id=session_id,
+            available_at_utc=available_at_utc,
+        )
     ]
     return max(eligible, key=lambda snapshot: snapshot.available_at_utc, default=None)
+
+
+def _snapshot_is_eligible(
+    snapshot: _AlignableSnapshot,
+    *,
+    root: str,
+    contract_symbol: str,
+    session_id: str,
+    available_at_utc: datetime,
+) -> bool:
+    return (
+        snapshot.root == root
+        and snapshot.contract_symbol == contract_symbol
+        and snapshot.session_id == session_id
+        and snapshot.available_at_utc <= available_at_utc
+    )
+
+
+def _snapshot_is_fresh(
+    snapshot: _AlignableSnapshot,
+    auction: AuctionStateSnapshot,
+    maximum_age_minutes: int,
+) -> bool:
+    age = auction.as_of_utc - snapshot.as_of_utc
+    return timedelta(0) <= age <= timedelta(minutes=maximum_age_minutes)
+
+
+def _prefixed_quality(source: str, flag: str) -> str:
+    if flag.startswith(("DATA:", "ROLL:", "SESSION:")):
+        return flag
+    return f"{source}:{flag}"
 
 
 __all__ = (

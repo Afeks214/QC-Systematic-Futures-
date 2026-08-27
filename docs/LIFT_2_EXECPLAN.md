@@ -1,6 +1,6 @@
 # Lift 2 ExecPlan
 
-Status: `MATH_READY_FOR_LIFT_2_RUNTIME`
+Status: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`
 Started: 2026-08-27
 Base commit: `3520c50f1eba674b074deabd7ca8b47320962b62`
 Scope: causal market measurement and candidate-event observations only.
@@ -32,7 +32,7 @@ portfolio, risk, execution, order, or L2 behavior.
 ### 2. Measurement contracts and feature vocabulary
 
 - Purpose: define immutable point-in-time inputs, snapshots, event records, and
-  Profile/Auction/IMSI/ICM/IAE feature semantics v4, while preserving v1-v3.
+  Profile/Auction/IMSI/ICM/IAE feature semantics v5, while preserving v1-v4.
 - Existing files reused: `domain/enums.py`, `domain/research_contracts.py`,
   `config/feature_semantics.py`, `config/research.py`.
 - Files changed: those existing files.
@@ -103,8 +103,9 @@ an observed, version-recorded platform constraint rather than a second formula p
 ### 6. ICM descriptive measurement
 
 - Purpose: compute scalar quadratic fair value, raw/capped/effective Z geometry,
-  per-bar slope/curvature, robust residual scales, and regime ratio from completed
-  30m actual-contract bars.
+  per-bar slope/curvature, robust residual scales, regime ratio, causal residual
+  autocorrelation, and local-scale fair-value distance from completed 30m
+  actual-contract bars.
 - Existing files reused: market registry and measurement-policy configuration.
 - Files changed: `config/research.py`.
 - Files added: `measurement/icm.py`.
@@ -140,10 +141,13 @@ an observed, version-recorded platform constraint rather than a second formula p
 - Existing files reused: canonical hashing, domain errors, snapshot/event records.
 - Files changed: `domain/research_contracts.py` only if a shared guard is required.
 - Files added: `measurement/events.py`.
-- Invariants: every attached snapshot has `available_at <= event available_at`; missing
-  inputs remain `None`; duplicates raise; no outcome field or filtering by confluence.
-- Tests: causal alignment, transition once, parents, POC crossing once, deterministic
-  IDs, coverage counts, no outcome vocabulary.
+- Invariants: every attached snapshot has exact root/contract/session identity and
+  `available_at <= event available_at`; presence, freshness, and mathematical readiness
+  are distinct; component quality retains provenance; missing inputs remain `None`;
+  duplicates raise; no outcome field or filtering by confluence.
+- Tests: causal/session-safe alignment, explicit staleness, multi-gap exact lineage,
+  quality propagation, transition once, parents, POC crossing once, deterministic IDs,
+  readiness coverage counts, and no outcome vocabulary.
 - QC evidence: event family, parent, session, contract, month, alignment, and quality
   aggregates only.
 - Completion state: `COMPLETE_LOCAL`.
@@ -157,7 +161,9 @@ an observed, version-recorded platform constraint rather than a second formula p
 - Files changed: those existing files.
 - Files added: `qc_adapters/lift2_runtime.py`.
 - Invariants: continuous root for mapping only; actual contract TRADE ticks for all
-  measurements; one parameterized code path; bounded logs; zero trading actions.
+  measurements; verified suspicious ticks are quarantined; unavailable source identity
+  is recorded as deduplication-unverifiable; one parameterized code path; bounded logs;
+  zero trading actions.
 - Tests: fake-boundary routing, tick filtering, source isolation, thin composition
   root, notebook business-logic guard.
 - QC evidence: source/build/backtest IDs, versions, per-market counts, hashes, zero
@@ -243,6 +249,14 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   shared version is `atr_5m_24_arithmetic_tr_floor_1e-6_v2`; all 89 tests and the five
   independent math classes pass. All pre-floor QC runs are superseded for final
   certification, and the required matrix will restart from the recertified source.
+- 2026-08-27 — Final source-forensic reconciliation added exact per-gap IAE snapshot
+  lineage, explicit presence/freshness/readiness, same-session joins, typed Profile
+  references, raw trade provenance and fail-closed bad-tick admission, honest
+  bar-close-versus-TPO semantics, typed local price-scale lineage, current-POC
+  normalization, ICM extension diagnostics, and raw/bounded IAE score inputs. The
+  supported local suite passes 99 tests; the 32 marked math cases contain 19 analytic,
+  9 differential, 14 metamorphic, 13 causality, and 19 stress memberships. Source
+  status is `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`.
 
 ## Source acceptance matrix
 

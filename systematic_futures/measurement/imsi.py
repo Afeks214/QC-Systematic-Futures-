@@ -8,6 +8,7 @@ from datetime import datetime
 import numpy as np
 import numpy.typing as npt
 
+from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import SessionType
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -107,7 +108,9 @@ class IMSIStateCore:
         dist_vwap = (bar.close - session_vwap) / session_vwap * 100.0
 
         elapsed = bar.start_utc - session_start_utc
-        slot = int(elapsed.total_seconds() // (30 * 60))
+        slot = int(
+            elapsed.total_seconds() // (MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes * 60)
+        )
         seasonal_key = (session_type, slot)
         prior_bucket = self._seasonal[seasonal_key]
         if any(session_id == bar.session_id for session_id, _ in prior_bucket):
@@ -117,7 +120,7 @@ class IMSIStateCore:
             vwrsi - float(np.median(prior_tod)) if len(prior_tod) >= _MIN_TOD_OBSERVATIONS else None
         )
 
-        flags: set[str] = {"SPEC_DEPENDENCY_NOT_READY"}
+        flags: set[str] = {"IMSI_FULL_MODEL_DEFERRED_LIFT3"}
         if adjusted is None:
             flags.add("IMSI_TOD_WARMUP")
         distance: float | None = None
@@ -193,6 +196,7 @@ class IMSIStateCore:
             snapshot_id=f"imsi_{sha256_hex(identity)}",
             root=self.root,
             contract_symbol=self.contract_symbol,
+            session_id=bar.session_id,
             as_of_utc=bar.end_utc,
             available_at_utc=bar.available_at_utc,
             vwrsi_raw=vwrsi,
@@ -208,6 +212,7 @@ class IMSIStateCore:
             covariance_effective_sample_size=effective_sample_size,
             covariance_condition_number=condition,
             warmup_complete=warmup_complete,
+            measurement_ready=warmup_complete,
             quality_flags=tuple(sorted(flags)),
             version=_VERSION,
         )
@@ -220,8 +225,8 @@ class IMSIStateCore:
     ) -> None:
         if bar.root != self.root or bar.contract_symbol != self.contract_symbol:
             raise ContractBoundaryError("IMSI StateCore cannot cross actual-contract identity")
-        if bar.period_minutes != 30:
-            raise DataQualityError("IMSI StateCore requires completed 30-minute bars")
+        if bar.period_minutes != MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes:
+            raise DataQualityError("IMSI StateCore requires completed medium-state bars")
         if not isinstance(session_type, SessionType):
             raise DataQualityError("session_type must be a SessionType")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:

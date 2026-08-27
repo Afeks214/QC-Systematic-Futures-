@@ -2,8 +2,8 @@
 
 ## 1. Executive Result
 
-Status: `MATH_READY_FOR_LIFT_2_RUNTIME`; the required QC matrix must be replayed from
-the recertified locked-market ATR source.
+Status: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`; the required QC matrix must be
+replayed from the source commit created after this report is reconciled.
 
 Lift 2 implements one causal, actual-contract measurement path for Profile/Auction,
 IMSI StateCore, ICM, IAE-L1, aligned candidate events, and aggregate coverage. It
@@ -14,7 +14,8 @@ behavior. Engineering correctness is not evidence of predictive value or profita
 
 - Directive base: `3520c50f1eba674b074deabd7ca8b47320962b62`.
 - Math-certified commit: `835c753f18ef235358fcb91231435b5182312d50`.
-- QC runtime source commit: `PENDING_RECERTIFIED_SOURCE_COMMIT`.
+- Source-forensic commit: `PENDING_SOURCE_COMMIT`.
+- QC runtime source commit: `PENDING_SOURCE_COMMIT`.
 - Final evidence commit: `PENDING_QC_MATRIX`.
 
 ## 3. Files Changed
@@ -49,14 +50,17 @@ candidate events in causal order. Every output is immutable, versioned, and hash
 `volume_profile_math_v2` uses an exact native-tick lattice, admitted-volume
 conservation, deterministic POC ties, and the disclosed
 `CONTIGUOUS_POC_EXPANSION_V1` value-area policy. Snapshot identity includes
-measurement time. Analytic, differential, metamorphic, causal, and stress cases pass.
+measurement time. Suspicious, nonpositive, off-grid, duplicate-source, late, and
+out-of-order ticks are quarantined; absent reliable source identity is recorded as
+deduplication-unverifiable rather than guessed.
 
 ## 7. Auction-State Certification
 
-Auction location, transition counts, POC migration, re-entry, and time outside value
-use same-contract, same-session, completed bars and the shared
-`ATR_5M_24_ARITHMETIC_TR_FLOOR_1E-6_V2` scale. A transition is emitted once and never
-rewritten.
+Auction location, transition counts, POC migration, re-entry, and the explicitly named
+completed-bar-close ratio use same-contract, same-session, completed bars and the
+shared `ATR_5M_24_ARITHMETIC_TR_FLOOR_1E-6_V2` scale. TPO/residence time is not
+implemented. Current POC has raw tick and normalized distances; every migration
+feature names its Profile reference.
 
 ## 8. IMSI Measurement Certification
 
@@ -68,25 +72,29 @@ deliberately deferred.
 
 ## 9. ICM Certification
 
-`icm_quadratic_geometry_math_v2|pinv_solver_v1` uses the normalized oldest-minus-one
+`icm_quadratic_geometry_math_v3|pinv_solver_v1` uses the normalized oldest-minus-one
 to current-zero coordinate, pseudoinverse least squares, scalar current fair value,
 per-bar chain-rule derivatives, OLS/MAD residual scales, and separately retained raw,
-capped, and regime-guarded Z measurements.
+capped, and regime-guarded Z measurements, plus causal lag-1 residual autocorrelation
+and local-scale fair-value distance.
 
 ## 10. IAE-L1 Certification
 
 `iae_l1_absorption_math_v2` implements exact mirrored bullish/bearish three-bar gap
 geometry, strict formation gates, exact gap-ID lifecycle joins, prior-session
-time-of-day volume context, and full-bracket exponential score decay. Same-session
+time-of-day volume context, raw/bounded close and volume-score inputs, per-gap retest
+snapshot lineage, and full-bracket exponential score decay. Same-session
 missing five-minute buckets reset formation/gap state with `IAE_BAR_GAP_RESET`; the
 three-consecutive-bar formula is unchanged.
 
 ## 11. Multi-Horizon Alignment
 
-As-of joins require `available_at_utc <= event.available_at_utc`, exact contract and
-session identity, and the latest eligible snapshot only. The 2,000-observation frozen
-stream has identical full-run and independently truncated hashes at 100, 250, 500,
-1,000, and 1,500 observations.
+As-of joins require `available_at_utc <= event.available_at_utc`, exact root, actual
+contract and session identity, and the latest eligible snapshot only. Presence,
+freshness, and mathematical readiness are separate fields; component and blocking
+quality retain source provenance. The 2,000-observation frozen stream has identical
+full-run and independently truncated hashes at 100, 250, 500, 1,000, and 1,500
+observations, including Synergy snapshots.
 
 ## 12. Candidate Event Dataset
 
@@ -96,18 +104,17 @@ P&L, forecast, rank, or execution field. Duplicate identities raise rather than 
 
 ## 13. Coverage Results
 
-The completed ES smoke run produced 65 raw/unique events across 9 event-bearing
-sessions with 0 quality-blocked events. Full deep and all-eight aggregate coverage is
-`PENDING_QC_MATRIX`; low rare-event frequency alone will not be treated as an
-engineering failure.
+All earlier ES coverage belongs to superseded source. Full deep and all-eight aggregate
+coverage is `PENDING_QC_MATRIX`. Every candidate will be retained; readiness and
+missing-component counts are explicit, and low rare-event frequency alone will not be
+treated as an engineering failure.
 
 ## 14. QC Runtime Evidence
 
 - Project: `35697180` (`Geeky Sky Blue Pig`).
 - LEAN: `2.5.0.0.18036`, master `v18036`.
 - Cloud Python/NumPy: `3.11.14` / `1.26.4`.
-- Recertified runtime source tree hash:
-  `37895e6931a05b9e77ea589762491f7fbe0cee89aacc7c4d8dc939ddd64ec013`.
+- Source-forensic runtime tree hash: `PENDING_FINAL_LOCAL_GATE`.
 - Pre-floor ES smoke/deep integration runs completed but are superseded and cannot
   qualify final evidence.
 - ZN deep backtest `0f2c86d773425e9db2b6f81ad3f0a90b` exposed a valid zero true range in a locked
@@ -129,9 +136,9 @@ integration evidence only and is not part of the final acceptance matrix.
 ## 16. Quality Results
 
 Python 3.11 local gate: compile PASS; Ruff format/check PASS; strict Pyright PASS;
-89 tests PASS; 4 notebooks PASS; deterministic source rebuild PASS. The 25 marked
-math cases contain 14 analytic, 9 differential, 11 metamorphic, 10 causality, and
-16 stress memberships.
+99 tests PASS; 4 notebooks PASS; deterministic source rebuild PASS. The 32 marked math
+cases contain 19 analytic, 9 differential, 14 metamorphic, 13 causality, and 19 stress
+memberships.
 
 ## 17. Performance / Memory Observations
 
@@ -163,9 +170,9 @@ useful.
 
 | Question | Result | Evidence |
 |---|---|---|
-| Contract/session integrity | PENDING | QC matrix and runtime artifact |
-| Volume Profile correctness | YES | math reconciliation and 89-test gate |
-| Cross-market normalization | PENDING | all-eight QC matrix |
+| Contract/session integrity | YES LOCAL / PENDING QC | session leakage/boundary tests; QC matrix pending |
+| Volume Profile correctness | YES | math reconciliation and 99-test gate |
+| Cross-market normalization | YES LOCAL / PENDING QC | ES-like/ZN-like dimensional oracle; all-eight QC pending |
 | Auction transitions | YES | analytic/causal tests and ES runtime counts |
 | IMSI state integrity | YES | exact spec reconciliation and independent oracles |
 | ICM integrity | YES | pinv/lstsq differential and numerical stress tests |

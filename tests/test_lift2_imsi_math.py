@@ -68,6 +68,45 @@ def test_vwrsi_zero_seed_recursion_and_scale_metamorphism() -> None:
 
 
 @pytest.mark.analytic_math
+@pytest.mark.metamorphic_math
+def test_imsi_price_translation_and_positive_scaling_obey_declared_units() -> None:
+    base = datetime(2024, 1, 1, 14, 30, tzinfo=UTC)
+    original = IMSIStateCore("ES", "ESH24")
+    translated = IMSIStateCore("ES", "ESH24")
+    scaled = IMSIStateCore("ES", "ESH24")
+    outputs = []
+    for index, (price, volume) in enumerate(((100.0, 10.0), (101.0, 20.0), (99.5, 15.0))):
+        original_snapshot = original.on_bar(
+            _bar(index, base=base, close=price, volume=volume, session_id="session-a"),
+            SessionType.RTH,
+            base,
+        )
+        translated_snapshot = translated.on_bar(
+            _bar(index, base=base, close=price + 50.0, volume=volume, session_id="session-a"),
+            SessionType.RTH,
+            base,
+        )
+        scaled_snapshot = scaled.on_bar(
+            _bar(index, base=base, close=price * 3.0, volume=volume * 7.0, session_id="session-a"),
+            SessionType.RTH,
+            base,
+        )
+        outputs.append((original_snapshot, translated_snapshot, scaled_snapshot))
+
+    for original_snapshot, translated_snapshot, scaled_snapshot in outputs[1:]:
+        assert original_snapshot is not None
+        assert translated_snapshot is not None
+        assert scaled_snapshot is not None
+        assert translated_snapshot.vwrsi_raw == pytest.approx(original_snapshot.vwrsi_raw)
+        assert scaled_snapshot.vwrsi_raw == pytest.approx(original_snapshot.vwrsi_raw)
+        assert translated_snapshot.session_vwap - original_snapshot.session_vwap == pytest.approx(
+            50.0
+        )
+        assert scaled_snapshot.session_vwap == pytest.approx(3.0 * original_snapshot.session_vwap)
+        assert scaled_snapshot.dist_vwap_pct == pytest.approx(original_snapshot.dist_vwap_pct)
+
+
+@pytest.mark.analytic_math
 @pytest.mark.causality_math
 @pytest.mark.metamorphic_math
 def test_bar_vwap_tod_covariance_neighbors_and_prefix_causality() -> None:
@@ -115,7 +154,7 @@ def test_bar_vwap_tod_covariance_neighbors_and_prefix_causality() -> None:
         assert second.dist_vwap_pct == pytest.approx(
             100.0 * (second_close - expected_vwap) / expected_vwap
         )
-        assert "SPEC_DEPENDENCY_NOT_READY" in second.quality_flags
+        assert "IMSI_FULL_MODEL_DEFERRED_LIFT3" in second.quality_flags
 
     assert slot_one_snapshots[29].vwrsi_tod_adjusted is None
     assert slot_one_snapshots[30].vwrsi_tod_adjusted == pytest.approx(
@@ -251,6 +290,7 @@ def test_mahalanobis_and_knn_exact_eligibility_boundary() -> None:
     inverse = np.asarray(((2.0, 0.0), (0.0, 0.5)), dtype=np.float64)
     expected = math.sqrt((-1.0) ** 2 * 2.0 + (-2.0) ** 2 * 0.5)
     assert mahalanobis_distance(current, mean, inverse) == pytest.approx(expected)
+    assert mahalanobis_distance(current, current, inverse) == 0.0
     with pytest.raises(DataQualityError, match="materially negative"):
         mahalanobis_distance(
             current + np.asarray((1.0, 0.0)),

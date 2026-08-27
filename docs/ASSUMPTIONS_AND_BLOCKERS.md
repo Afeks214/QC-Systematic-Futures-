@@ -56,19 +56,24 @@ Reviewed: **2026-08-27**
   separately certified calendars, roll/data-quality inputs, and versioned interfaces.
 - The supplied IMSI formula is implemented and named
   `EWMA_DIAGONAL_SHRINKAGE_SPEC_V1`; it is not represented as formal Ledoit-Wolf.
-- Regime-conditioned 63-trading-day IMSI limits remain
-  `SPEC_DEPENDENCY_NOT_READY`; no unconditional substitute is applied.
+- Regime-conditioned 63-trading-day IMSI limits remain deferred to Lift 3. Valid
+  StateCore rows retain `IMSI_FULL_MODEL_DEFERRED_LIFT3` as non-blocking information;
+  no unconditional substitute is applied.
 
-## Deferred beyond Lift 1
+## Deferred beyond Lift 2
 
-Market Profile, Auction State, IMSI, ICM, IAE, L2, candidate events, labels, returns,
-P&L, forecasts, ML, Alpha, portfolio construction, risk, execution, orders, paper
-trading, and live trading remain unimplemented.
+IMSI MES, forward labels/outcomes, return and P&L calculations, forecasts, calibration,
+ML, Alpha, portfolio construction, risk allocation, execution, orders, paper trading,
+live trading, and true L2 order-book behavior remain unimplemented and unauthorized.
 
 ## Lift 2 runtime certification — 2026-08-27
 
 - `MATH_READY_FOR_LIFT_2_RUNTIME`: all local mathematical reconciliation gates pass
   against the three supplied indicator specifications.
+- `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`: source admission, semantics,
+  lineage, readiness, session-safe alignment, and quality propagation now pass the
+  complete 99-test local gate. This is source closure only, not QC parity or Lift 3
+  readiness.
 - `RESOLVED_CLOUD_SYNC`: build `b77ac2-941e38` failed before any market data was
   processed. Direct inspection found `data/policies.py` bytes at the cloud
   `domain/enums.py` path. All 34 deployed files were subsequently synchronized and

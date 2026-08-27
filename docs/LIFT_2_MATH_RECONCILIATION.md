@@ -1,6 +1,6 @@
 # Lift 2 Mathematical Reconciliation
 
-Status: `MATH_READY_FOR_LIFT_2_RUNTIME`
+Status: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`
 
 This is the sole mathematical audit, reconciliation, and certification record for Lift 2. The three user-supplied research specifications are authoritative for the indicator definitions. The stop-and-reconcile directive controls the gate and requires local mathematical certification before any QuantConnect runtime work resumes. Predictive validity, profitability, and live-trading readiness are outside this gate.
 
@@ -20,7 +20,7 @@ Frozen conventions: UTC-aware completed bars only; current observation excluded 
 | Volume Profile value area | Lift 2 directive; Master Profile representation | Start at POC; expand to adjacent tick(s) with larger volume; equal adjacent volumes include both; absent ticks have zero; stop after cumulative volume reaches at least `0.70 total` | Contiguous expansion exists | PASS_PENDING_TEST | Edge/tie/zero-bin behavior is not independently certified | Freeze name and verify all expansion branches | Hand-calculated asymmetric, tied, sparse, and one-bin histograms | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/volume_profile.py:select_value_area` | Tests/version label |
 | Volume Profile snapshot identity | Lift 2 directive; immutable snapshot requirement | Hash commits root, contract, session, kind, `as_of`, availability, version, tick size, current tick, and full histogram | Identity omits `as_of_utc` | FAIL | Distinct point-in-time snapshots can collide when payload otherwise matches | Add `as_of_utc` and every listed field to identity | Analytic identity mutation test for every field | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/volume_profile.py:build_profile_snapshot` | Snapshot IDs change |
 | Auction bar eligibility | Lift 2 directive; Auction-state representation | Every bar has same root, actual contract, session, five-minute period, and `end <= current as_of`; prior profile identity is validated | Only partial prior-root validation | FAIL | Mixed contract/session or future bars can enter features | Validate every bar and both profile identities fail-closed | Identity mismatch and future-bar negative tests; valid permutation test | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/volume_profile.py:auction_features` | Auction math version bump |
-| Auction time outside prior value | Lift 2 directive; Auction features | `5 * count(completed current-session 5m closes with tick < prior VAL or tick > prior VAH)`; unavailable without eligible prior profile | Calculation mostly matches, but input eligibility is not complete | PARTIAL | Invalid bars can contaminate numerator/count | Apply full bar eligibility and expose eligible-bar count | Analytic close sequence; prefix causality; translation invariance in ticks | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/volume_profile.py:auction_features` | Auction math version bump |
+| Auction completed-bar closes outside prior value | Lift 2 directive; Auction features | Fraction of eligible completed current-session 5m bar closes with tick `< prior VAL` or `> prior VAH`; this is not residence time or TPO | Earlier field name falsely implied time-at-price | FAIL | Bar-close sampling was presented as elapsed residence time | Rename to `bar_close_outside_value_ratio`; retain `time_outside_value_ratio` as not implemented pending a separate time-profile policy | Analytic close sequence; prefix causality; translation invariance in ticks | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/volume_profile.py:auction_features`; feature semantics v5 | Feature semantics v5 |
 | Auction transition counters | Lift 2 directive; Auction event state machine | Re-entry count and consecutive outside minutes are derived only by transition state; `consecutive_minutes = 5n` | Stream passes primitive caller numbers from engine properties | PARTIAL | Public feature function accepts arbitrary integers with no provenance | Introduce immutable transition metrics emitted by transition engine and accepted as one typed input | State-machine sequences; impossible-counter rejection; prefix causality | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/events.py`; `measurement/volume_profile.py`; `measurement/stream.py` | Auction/event version bump |
 | Shared ATR true range | IMSI/ICM/IAE shared dependency; IAE ATR | `TR_t = max(H_t-L_t, abs(H_t-C_{t-1}), abs(L_t-C_{t-1}))`; after 24 ranges, `ATR_5M_24 = max(mean(last 24 TR), 1e-6)` | Audit found a local helper with wrong warmup; first reconciliation then incorrectly rejected a valid zero TR despite the specification's locked-market floor | FAIL | Wrong statistic/warmup plus zero-range rejection; ZN runtime exposed the missed locked-market clause | Use one shared contract-local ATR; retain zero TR observations; withhold until 24 ranges; then apply the exact `1e-6` native-price floor; reset by actual contract | Gap-up/down vectors; scaling metamorphism; 23/24 boundary; 24 zero-range locked-market vector; contract reset; ZN replay | CERTIFIED | IAE research specification Cell 02; Wilder true-range definition only for TR, with project-specific arithmetic averaging/floor | `measurement/volatility.py`; consumers in profile/IAE/stream | Shared measurement version `atr_5m_24_arithmetic_tr_floor_1e-6_v2` |
 | Stream 5m/30m aggregation | Lift 2 directive; completed-bar semantics | Session-anchored fixed windows; open first trade, high max, low min, close last trade, volume sum; emit only after window end; do not cross session/contract | Implementation appears aligned | PASS_PENDING_TEST | No independent differential and prefix certificate | Retain implementation; add reference aggregator and checkpoint comparisons | Analytic OHLCV; differential random stream; translation/scaling; prefix causality; boundary stress | CERTIFIED | User-supplied Lift 2 directive and master specification | `measurement/stream.py:_TradeBarAggregator` | Tests/version hash |
@@ -70,14 +70,36 @@ Frozen conventions: UTC-aware completed bars only; current observation excluded 
 
 ## Public output audit
 
-- Profile outputs are immutable integer-tick histograms, native traded volume, POC/VA ticks, clocks, and identities. They exist after at least one admitted trade, reset at semantic session/contract boundaries, reject off-grid prices, and are measurements.
-- Auction outputs are dimensionless ratios, ATR-normalized distances, state-machine counts, and a categorical location. They exist only from completed eligible five-minute bars; prior-profile and fully warmed ATR dependencies remain absent with flags. Appended observations cannot mutate prior snapshots.
+- Profile outputs are immutable integer-tick histograms, native admitted trade volume,
+  POC/VA ticks, clocks, source-quality state, and identities. Admission quarantines
+  suspicious, nonpositive, off-grid, duplicate-source, late, and out-of-order ticks.
+  Content-identical ticks are never fake-deduplicated; missing source identity is
+  retained as `DATA:DEDUPLICATION_UNVERIFIABLE`.
+- Auction outputs are dimensionless ratios, ATR-normalized distances, state-machine
+  counts, a categorical location, and explicit prior-RTH/prior-ETH/same-session/rolling
+  Profile references. `bar_close_outside_value_ratio` is not TPO or residence time;
+  the latter remains unimplemented. Readiness requires a causal same-session-type
+  reference, a fully warmed price scale, clean data admission, and normal roll state.
 - `ATR_5M_24` is native price: after exactly 24 completed five-minute true ranges it is `max(arithmetic_mean, 1e-6)`. It begins after a prior close plus 24 ranges, retains locked/flat zero ranges, resets by actual-contract instance, and withholds only the under-warmed state.
 - IMSI outputs are raw oscillator points, prior-TOD-adjusted points, native bar VWAP, percentage displacement, project-estimator diagnostics, distances, and empirical prior-distance percentile. They reset session VWAP by semantic session and all state by actual contract. Regime-conditioned limits and MES remain deferred; no field is a probability or trading action.
-- ICM outputs are native fair value, native price-per-bar slope, native price-per-bar-squared curvature, residual scales, raw/capped/effective Z, and guard reasons. They begin after the root-specific full window, reset by actual contract, preserve flat/regime degeneracy, and are geometric measurements.
-- IAE outputs are gap geometry, formation quality, lifecycle state, decay, retest geometry, prior-TOD volume Z, raw/effective score, and an absorption-confirmed proxy state. They begin only after exact formation and full ATR warmup, reset by semantic session/contract, fail closed on missing TOD or degenerate candles, and do not assert actual OFI, hidden liquidity, or institutional activity.
-- Stream outputs commit completed bars, profiles, component snapshots, Auction state, aligned references, and unlabeled candidate events. Canonical prefix hashes match at 100/250/500/1000/1500 observations against independent truncated runs of the fixed 2,000-observation stream.
+- ICM outputs are native fair value, native price-per-bar slope, native
+  price-per-bar-squared curvature, residual scales, raw/capped/effective Z, causal
+  lag-1 residual autocorrelation, local-scale fair-value distance, and guard reasons.
+- IAE outputs separate raw close location from its bounded score input and raw TOD
+  volume Z from its floored score input. A zero-body retest withholds wick/score state
+  under `IAE_DEGENERATE_BODY`. Every simultaneous first retest has its own exact
+  gap-bound snapshot and event-specific Synergy reference.
+- Stream outputs commit completed bars, profiles, component snapshots, Auction state,
+  source-prefixed quality, present/fresh/ready alignment, and unlabeled candidate
+  events. Exact session identity is mandatory. Canonical prefix hashes, now including
+  Synergy snapshots, match at 100/250/500/1000/1500 observations against independent
+  truncated runs of the fixed 2,000-observation stream.
 
 Intentional deferrals: regime-conditioned IMSI limits; MES and every forward outcome; calibration, probability, Alpha, portfolio, risk, execution, and orders; true OFI/MLOFI requiring quote or order-book events; predictive validation; and live readiness.
 
-All matrix rows are `CERTIFIED`. The five marked verification classes pass locally: 14 analytic, 9 differential, 11 metamorphic, 10 causality, and 16 stress test memberships across 25 collected math cases. The complete gate passes 89 tests, strict Ruff, strict Pyright, notebook validation, and deterministic source-manifest rebuild. The whole-engine prefix equivalence includes bars, profiles, IMSI, ICM, IAE, Auction state, and events. Result: `MATH_READY_FOR_LIFT_2_RUNTIME`.
+All matrix rows are `CERTIFIED`. The five marked verification classes pass locally:
+19 analytic, 9 differential, 14 metamorphic, 13 causality, and 19 stress memberships
+across 32 collected math cases. The complete gate passes 99 tests, strict Ruff, strict
+Pyright, notebook validation, and deterministic source-manifest rebuild. Whole-engine
+prefix equivalence includes bars, profiles, IMSI, ICM, IAE, Auction, Synergy, and
+candidate events. Result: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`.

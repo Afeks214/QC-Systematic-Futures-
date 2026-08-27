@@ -142,8 +142,14 @@ class Lift2Runtime:
                     "trade tick end_time",
                     naive_source_timezone="UTC",
                 )
+                if not hasattr(tick, "suspicious") or not hasattr(tick, "sale_condition"):
+                    raise UnverifiedQuantConnectApiError(
+                        "trade Tick lacks verified suspicious/sale_condition metadata"
+                    )
                 price = float(getattr(tick, "price", 0.0))
                 quantity = float(getattr(tick, "quantity", 0.0))
+                trade_condition_text = str(tick.sale_condition).strip()
+                source_quality_flags = ("SOURCE_SUSPICIOUS",) if bool(tick.suspicious) else ()
                 session_id = self._sessions.session_id(self.root, exchange_time)
                 roll_state = self._rolls.current_roll_state(self.root, observed_at)
                 self._stream.on_trade(
@@ -157,6 +163,8 @@ class Lift2Runtime:
                         minimum_tick=self._stream.minimum_tick,
                         session_id=session_id,
                         roll_state=roll_state,
+                        trade_condition=trade_condition_text or None,
+                        source_quality_flags=source_quality_flags,
                     )
                 )
 

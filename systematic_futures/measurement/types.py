@@ -17,7 +17,9 @@ from systematic_futures.measurement.models import (
     ICMStateSnapshot,
     IMSIStateSnapshot,
     IndicatorSynergySnapshot,
+    PriceScale,
     ProfileDefinition,
+    ProfileReferenceSet,
     TradeObservation,
     VolumeProfileSnapshot,
 )
@@ -31,7 +33,9 @@ __all__ = (
     "ICMStateSnapshot",
     "IMSIStateSnapshot",
     "IndicatorSynergySnapshot",
+    "PriceScale",
     "ProfileDefinition",
+    "ProfileReferenceSet",
     "TradeObservation",
     "VolumeProfileSnapshot",
 )
