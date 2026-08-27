@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import platform
 from collections import Counter
 from collections.abc import Mapping
@@ -72,7 +70,7 @@ class Lift2Runtime:
         self._runtime_summary: Mapping[str, object] | None = None
 
     @classmethod
-    def create(cls, algorithm: object) -> Lift2Runtime:
+    def create(cls, algorithm: object) -> "Lift2Runtime":
         """Configure one root's deep or smoke replay from verified QC parameters.
 
         Units: calendar dates and tick/minute subscriptions. Time semantics: UTC

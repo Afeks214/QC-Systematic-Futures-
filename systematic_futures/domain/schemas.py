@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # pyright: reportUnnecessaryIsInstance=false
 import math
 import re

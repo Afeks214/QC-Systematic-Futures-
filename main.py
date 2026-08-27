@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from AlgorithmImports import QCAlgorithm, Slice, SymbolChangedEvents
 
 from systematic_futures.qc_adapters.lift2_runtime import Lift2Runtime

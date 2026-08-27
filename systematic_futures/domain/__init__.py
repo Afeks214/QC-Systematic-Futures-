@@ -5,6 +5,4 @@ re-entering ``domain.enums`` while Python is resolving a direct submodule import
 restricted runtimes such as QuantConnect Cloud.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ()

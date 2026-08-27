@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # pyright: reportUnnecessaryIsInstance=false
 from datetime import UTC, datetime
 

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # pyright: reportUnnecessaryIsInstance=false
 import math
 from collections import defaultdict, deque

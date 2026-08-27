@@ -1,7 +1,5 @@
 """Stable public import surface for split QC-safe measurement model modules."""
 
-from __future__ import annotations
-
 from systematic_futures.measurement.measurement_records import (
     ATRMeasurement,
     AuctionFeatureVector,

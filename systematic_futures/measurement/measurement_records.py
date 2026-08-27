@@ -1,7 +1,5 @@
 """Immutable Lift 2 measurement records and validation invariants."""
 
-from __future__ import annotations
-
 # pyright: reportUnnecessaryIsInstance=false
 import math
 from dataclasses import dataclass
@@ -267,7 +265,7 @@ class AuctionFeatureVector:
     profile_overlap_ratio: float | None
     reentry_count: int
     consecutive_minutes_outside: int
-    local_price_scale: PriceScale
+    local_price_scale: "PriceScale"
 
     def __post_init__(self) -> None:
         for field_name, value in (

@@ -1,7 +1,5 @@
 """Immutable Lift 2 state snapshots and candidate-event records."""
 
-from __future__ import annotations
-
 # pyright: reportPrivateUsage=false, reportUnnecessaryIsInstance=false
 from dataclasses import dataclass
 from datetime import datetime

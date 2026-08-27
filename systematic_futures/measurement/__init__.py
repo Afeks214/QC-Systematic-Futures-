@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from systematic_futures.measurement.state_models import (
     AuctionFeatureVector,
     AuctionStateSnapshot,

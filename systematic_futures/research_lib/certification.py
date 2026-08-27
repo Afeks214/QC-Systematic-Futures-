@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # pyright: reportUnnecessaryIsInstance=false
 import math
 from collections.abc import Mapping, Sequence

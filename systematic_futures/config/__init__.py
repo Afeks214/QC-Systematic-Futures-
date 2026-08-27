@@ -5,6 +5,4 @@ empty prevents unrelated dataset policy construction when a runtime requests onl
 market or research configuration module.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ()
