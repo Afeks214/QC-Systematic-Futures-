@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from systematic_futures.domain.enums import IAEGapDirection, IAEGapState, SessionType
-from systematic_futures.domain.errors import DataQualityError
+from systematic_futures.domain.errors import DataQualityError, DataTimingInvariantError
 from systematic_futures.measurement.iae import (
     IAEEngine,
     absorption_score,
@@ -201,6 +201,46 @@ def test_exact_three_bar_formation_predicate_and_directional_mirror() -> None:
         close=100.0,
     )
     assert detect_gap_geometry(first, weak_impulse, current, 0.25) is None
+
+
+@pytest.mark.causality_math
+@pytest.mark.stress_math
+def test_missing_five_minute_bar_resets_iae_formation_window() -> None:
+    base = datetime(2024, 3, 4, 14, 30, tzinfo=UTC)
+    engine = IAEEngine("ES", "ESH24", 0.25)
+    first = _bar(
+        0,
+        base=base,
+        open_price=99.5,
+        high=100.0,
+        low=99.0,
+        close=99.75,
+    )
+    impulse = _bar(
+        1,
+        base=base,
+        open_price=100.0,
+        high=102.25,
+        low=99.75,
+        close=102.0,
+    )
+    after_gap = _bar(
+        3,
+        base=base,
+        open_price=101.0,
+        high=103.0,
+        low=100.5,
+        close=102.0,
+    )
+    engine.on_bar(first, _atr(first), SessionType.RTH, base)
+    engine.on_bar(impulse, _atr(impulse), SessionType.RTH, base)
+    snapshot, events = engine.on_bar(after_gap, _atr(after_gap), SessionType.RTH, base)
+    assert snapshot.direction is None
+    assert snapshot.active_gap_count == 0
+    assert "IAE_BAR_GAP_RESET" in snapshot.quality_flags
+    assert events == ()
+    with pytest.raises(DataTimingInvariantError, match="three consecutive bars"):
+        detect_gap_geometry(first, impulse, after_gap, 0.25)
 
 
 @pytest.mark.causality_math

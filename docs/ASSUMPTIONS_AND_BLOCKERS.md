@@ -69,9 +69,12 @@ trading, and live trading remain unimplemented.
 
 - `MATH_READY_FOR_LIFT_2_RUNTIME`: all local mathematical reconciliation gates pass
   against the three supplied indicator specifications.
-- `QC_REPLAY_PENDING`: build `b77ac2-941e38` failed before any market data was
+- `RESOLVED_CLOUD_SYNC`: build `b77ac2-941e38` failed before any market data was
   processed. Direct inspection found `data/policies.py` bytes at the cloud
-  `domain/enums.py` path. The cloud source requires exact resynchronization; a fresh
-  build and replay must pass before Lift 2 can be declared complete.
-- This packaging issue does not invalidate the reconciled formulas, but local success
-  is not substituted for QC runtime evidence.
+  `domain/enums.py` path. All 34 deployed files were subsequently synchronized and
+  independently reopened/read as byte-identical; build `4dabc4-360f32` initialized.
+- `QC_REPLAY_PENDING`: fresh build `4dabc4-360f32` passed initialization. ES smoke
+  backtest `69edd3f1bd02d166f9170c6223349be6` then found a missing same-session
+  five-minute bucket. The state boundary now resets with `IAE_BAR_GAP_RESET`; the
+  exact three-bar formula is unchanged and all 89 local tests pass. Fresh QC replay
+  remains required.

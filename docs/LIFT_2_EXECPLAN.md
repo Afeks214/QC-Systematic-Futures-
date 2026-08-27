@@ -211,9 +211,9 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   Lift 2. The later full mathematical reconciliation below supersedes its provisional
   trade-tick VWAP and compatibility-helper decisions.
 - 2026-08-27 — Stop-and-reconcile directive completed against the three supplied
-  indicator specifications. The single reconciliation matrix is complete; 23 marked
-  math tests cover 14 analytic, 9 differential, 11 metamorphic, 9 causality, and 15
-  stress memberships; the complete Python 3.11 gate passes 87 tests. Whole-engine
+  indicator specifications. The single reconciliation matrix is complete; 25 marked
+  math tests cover 14 analytic, 9 differential, 11 metamorphic, 10 causality, and 16
+  stress memberships; the complete Python 3.11 gate passes 89 tests. Whole-engine
   hashes match at 100/250/500/1000/1500 observations of the frozen 2,000-observation
   stream. Result: `MATH_READY_FOR_LIFT_2_RUNTIME`.
 - 2026-08-27 — QC builds through `b77ac2-941e38` failed before data delivery. Direct
@@ -222,6 +222,13 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   runtime-source closure was expanded to every deployed transitive file while
   excluding the two documented local-only filename facades. Indicator mathematics
   remain frozen; exact cloud resynchronization and fresh replay are pending.
+- 2026-08-27 — Isolated-editor synchronization and an independent reopen/read audit
+  established byte equality for all 34 deployed runtime files. QC build
+  `4dabc4-360f32` passed initialization; ES smoke backtest
+  `69edd3f1bd02d166f9170c6223349be6` then exposed a missing five-minute bucket inside
+  one semantic session. The exact three-consecutive-bar IAE predicate remains frozen;
+  the state engine now resets formation/active-gap state and records
+  `IAE_BAR_GAP_RESET`. The complete local suite was recertified before replay.
 
 ## Source acceptance matrix
 

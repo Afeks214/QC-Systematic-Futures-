@@ -474,7 +474,27 @@ their defining modules, and a source-boundary regression test enforces the rule.
 This changes package loading only; indicator formulas and state transitions are
 unchanged.
 
-Status: `OBSERVED_CLOUD_SOURCE_MISMATCH_CORRECTION_AND_QC_REPLAY_PENDING`.
+Correction evidence: all 34 deployed runtime files were synchronized through isolated
+editor sessions and independently reopened/read as byte-identical. Fresh build
+`4dabc4-360f32` passed initialization on LEAN `2.5.0.0.18036`.
+
+Status: `CLOUD_SOURCE_MISMATCH_RESOLVED`.
+
+### Missing completed-bar buckets in real tick replay
+
+Requirement: IAE formation uses exactly three consecutive completed five-minute bars;
+missing buckets must not be treated as adjacent observations or silently filled.
+
+Observed behavior: ES smoke backtest `69edd3f1bd02d166f9170c6223349be6`
+reached real tick processing and stopped at 2024-03-04 23:05 UTC when the pure gap
+geometry guard rejected a non-consecutive three-bar window.
+
+Resolution: preserve the pure fail-closed guard and exact formation predicate. The
+stateful IAE boundary clears its formation window and active gaps on a same-session
+bar discontinuity, emits `IAE_BAR_GAP_RESET`, and restarts only from subsequently
+completed bars. No synthetic or zero-volume bar is created.
+
+Status: `LOCAL_RECERTIFIED_QC_REPLAY_PENDING`.
 
 ### Python project filename compatibility
 

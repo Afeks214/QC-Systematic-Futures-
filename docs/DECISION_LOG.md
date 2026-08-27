@@ -500,3 +500,21 @@ the repository already imports concrete modules. A static regression test preven
 the cycle from returning. No indicator equation or numerical state is changed.
 Reopen condition: a separately versioned public facade is required and can be proven
 not to introduce import-time side effects in local Python and QC Cloud.
+
+## 2026-08-27 — Reset IAE state across missing five-minute buckets
+
+Date: 2026-08-27
+Decision: within one semantic session, a discontinuity between consecutive completed
+five-minute bars clears the IAE three-bar formation window and active gaps and records
+`IAE_BAR_GAP_RESET`.
+Alternatives considered: synthesize a zero-volume bar; treat separated observations
+as adjacent; weaken the pure three-bar guard; terminate every real-data replay.
+Reason: the IAE specification defines formation over bars `t-2`, `t-1`, and `t`.
+Backtest `69edd3f1bd02d166f9170c6223349be6` proved real tick data can contain a missing
+bucket within the semantic session. A reset is the only fail-closed response that
+does not invent market data or alter the formation equation.
+Consequences: no formation or retained gap can bridge missing market observations;
+coverage evidence counts the quality flag. The pure geometry function continues to
+raise on non-consecutive input, and the complete math suite is recertified.
+Reopen condition: a separately certified missing-bar policy supplies causal,
+source-backed bars rather than inferred observations.

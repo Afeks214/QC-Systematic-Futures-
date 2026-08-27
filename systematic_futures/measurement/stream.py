@@ -326,6 +326,8 @@ class MeasurementStream:
                 self.iae_snapshots.append(iae_snapshot)
                 self._aligner.add_iae(iae_snapshot)
                 retests.extend(bar_retests)
+                for flag in iae_snapshot.quality_flags:
+                    self.quality_counts[flag] += 1
                 self.counts["five_minute_bars"] += 1
                 self.counts["iae_snapshots"] += 1
             for bar in thirty_bars:

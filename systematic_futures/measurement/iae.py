@@ -130,11 +130,17 @@ class IAEEngine:
         against prior completed sessions at the same semantic slot.
         """
 
+        previous_bar_end = self._last_bar_end
         self._validate_inputs(bar, atr, session_type, session_start_utc)
+        continuity_reset = False
         if bar.session_id != self._session_id:
             self._session_id = bar.session_id
             self._bars.clear()
             self._gaps.clear()
+        elif previous_bar_end is not None and previous_bar_end != bar.start_utc:
+            self._bars.clear()
+            self._gaps.clear()
+            continuity_reset = True
         elapsed = bar.start_utc - session_start_utc
         slot = int(elapsed.total_seconds() // (5 * 60))
         seasonal_key = (session_type, slot)
@@ -145,6 +151,8 @@ class IAEEngine:
         volume_z, tod_guard = prior_volume_z(bar.volume, prior_volumes)
 
         flags: set[str] = set()
+        if continuity_reset:
+            flags.add("IAE_BAR_GAP_RESET")
         if tod_guard is not None:
             flags.add(tod_guard)
         if not atr.warmup_complete:
