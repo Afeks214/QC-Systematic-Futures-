@@ -8,15 +8,19 @@ from AlgorithmImports import QCAlgorithm, Slice, SymbolChangedEvents
 from systematic_futures.config.markets import reference_market_definitions
 from systematic_futures.domain.errors import MarketConfigurationError
 from systematic_futures.domain.serialization import canonical_json_bytes, sha256_hex
+from systematic_futures.qc_adapters.cftc_probe_recorder import CftcProbeRecorder
 from systematic_futures.qc_adapters.futures_registration import (
     register_reference_cftc,
     register_reference_futures,
 )
 from systematic_futures.qc_adapters.probe_recorder import (
-    CftcProbeRecorder,
     FuturesProbeRecorder,
-    probe_result_json,
     runtime_market_evidence_json,
+)
+
+_CFTC_AUDIT_RELEASES = (
+    ("2026-01-05", "2026-01-02"),
+    ("2026-01-09", "2026-01-09"),
 )
 
 
@@ -64,8 +68,7 @@ class InstitutionalFuturesDataProbe(QCAlgorithm):
         """
 
         if self._probe_mode == "cftc":
-            for row in self._cftc_recorder.observe_slice(slice):
-                self.log(f"LIFT_1_CFTC_DELIVERY {row}")
+            self._cftc_recorder.observe_slice(slice)
             return
         self._recorder.observe_slice(slice, self._subscriptions)
 
@@ -95,20 +98,40 @@ class InstitutionalFuturesDataProbe(QCAlgorithm):
 
         if self._probe_mode == "cftc":
             summaries = self._cftc_recorder.build_summary_json()
-            for summary in summaries:
+            for root, summary in zip(self._cftc_subscriptions, summaries, strict=True):
                 self.log(f"LIFT_1_CFTC_SUMMARY {summary}")
+                self.set_summary_statistic(f"L1.CFTC.{root}.Summary", summary)
+            audit_rows = self._cftc_recorder.build_delivery_audit_json(_CFTC_AUDIT_RELEASES)
+            audit_keys = (
+                (release_date, root)
+                for release_date, _ in _CFTC_AUDIT_RELEASES
+                for root in self._cftc_subscriptions
+            )
+            for (release_date, root), audit_row in zip(audit_keys, audit_rows, strict=True):
+                self.log(f"LIFT_1_CFTC_DELIVERY_AUDIT {audit_row}")
+                self.set_summary_statistic(
+                    f"L1.CFTC.{root}.{release_date}.Audit",
+                    audit_row,
+                )
             for root, rows in self._cftc_recorder.row_counts().items():
                 self.set_summary_statistic(f"L1.CFTC.{root}.Rows", rows)
-            probe_hash = sha256_hex(summaries)
+            self.set_summary_statistic(
+                "L1.CFTC.AuditObserved",
+                self._cftc_recorder.delivery_audit_observed_count(_CFTC_AUDIT_RELEASES),
+            )
+            self.set_summary_statistic(
+                "L1.CFTC.AuditExpected",
+                len(_CFTC_AUDIT_RELEASES) * len(self._cftc_subscriptions),
+            )
+            probe_hash = sha256_hex((*summaries, *audit_rows))
             datetime_probe = self._cftc_recorder.datetime_boundary_probe_json()
         else:
-            results = self._recorder.build_results(self.time)
             evidence_rows = self._recorder.build_runtime_market_evidence(self.time)
-            for result in results:
-                self.log(f"LIFT_1_DATA_PROBE {probe_result_json(result)}")
             for evidence in evidence_rows:
-                self.log(f"LIFT_1_RUNTIME_MARKET {runtime_market_evidence_json(evidence)}")
+                evidence_json = runtime_market_evidence_json(evidence)
+                self.log(f"LIFT_1_RUNTIME_MARKET {evidence_json}")
                 prefix = f"L1.{evidence.root}"
+                self.set_summary_statistic(f"{prefix}.Evidence", evidence_json)
                 self.set_summary_statistic(f"{prefix}.Rows", evidence.rows_received)
                 self.set_summary_statistic(f"{prefix}.MappedCount", evidence.mapped_contract_count)
                 self.set_summary_statistic(f"{prefix}.MappingEvents", evidence.mapping_event_count)
@@ -132,6 +155,13 @@ class InstitutionalFuturesDataProbe(QCAlgorithm):
             "python_implementation": platform.python_implementation(),
             "python_version": platform.python_version(),
         }
+        self.set_summary_statistic("L1.Machine", runtime_identity["machine"])
+        self.set_summary_statistic("L1.Platform", runtime_identity["platform"])
+        self.set_summary_statistic(
+            "L1.PythonImplementation", runtime_identity["python_implementation"]
+        )
+        self.set_summary_statistic("L1.PythonVersion", runtime_identity["python_version"])
+        self.set_summary_statistic("L1.DateTimeProbe", datetime_probe)
         self.log(
             f"LIFT_1_RUNTIME_IDENTITY {canonical_json_bytes(runtime_identity).decode('utf-8')}"
         )

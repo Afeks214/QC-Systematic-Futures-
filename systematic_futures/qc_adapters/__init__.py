@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from systematic_futures.qc_adapters.cftc_probe_recorder import CftcProbeRecorder
 from systematic_futures.qc_adapters.futures_registration import (
     configure_quantbook_utc,
     register_reference_future,
@@ -13,6 +14,7 @@ from systematic_futures.qc_adapters.probe_recorder import (
 )
 
 __all__ = (
+    "CftcProbeRecorder",
     "FuturesProbeRecorder",
     "configure_quantbook_utc",
     "probe_result_json",

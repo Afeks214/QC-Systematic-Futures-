@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sys
 import tempfile
@@ -38,6 +39,14 @@ SOURCE_DOCUMENTS = (
     PROJECT_ROOT / "upload/Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
     PROJECT_ROOT / "upload/Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx",
 )
+VERIFIED_SOURCE_DOCUMENT_HASHES = {
+    "Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx": (
+        "ef19e4242a48747ef13b235e38f9c9fa0c09a7ed07085b5bb689be39a8786747"
+    ),
+    "Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx": (
+        "bdebaf3e0ec38c3cb13d605b1fdc289db0a6316218756d0264ed23856f3195b2"
+    ),
+}
 DEPENDENCY_FILES = (
     PROJECT_ROOT / "pyproject.toml",
     PROJECT_ROOT / "requirements.txt",
@@ -66,15 +75,20 @@ def build_manifest(created_at_utc: datetime) -> ResearchRunManifest:
 
     Units: probe dates are ISO calendar dates; seed is dimensionless.
     Time semantics: ``created_at_utc`` is supplied by the composition-root caller.
-    Missingness: LEAN version and repository revision remain ``None`` because neither
-    was established in this workspace.
-    Raises: domain validation errors and FileNotFoundError for missing inputs.
+    Missingness: private specifications may be absent from a public clone; their
+    verified digests remain explicit inputs. LEAN version and repository revision
+    remain ``None`` because this historical local manifest does not qualify runtime or
+    Git evidence. Raises: domain validation errors, FileNotFoundError for an incomplete
+    private-document mount, or RuntimeError if mounted bytes disagree with the verified
+    digest.
     """
+    _verify_mounted_source_documents()
     return RunManifestBuilder().build(
         environment=ResearchEnvironment.LOCAL,
         created_at_utc=created_at_utc,
         configuration=lift_1_manifest_configuration(),
-        source_document_paths=SOURCE_DOCUMENTS,
+        source_document_paths=(),
+        source_document_hashes=VERIFIED_SOURCE_DOCUMENT_HASHES,
         dependency_files=DEPENDENCY_FILES,
         reference_markets=REFERENCE_MARKETS,
         probe_start_date=PROBE_START_DATE,
@@ -83,6 +97,20 @@ def build_manifest(created_at_utc: datetime) -> ResearchRunManifest:
         repository_revision=None,
         random_seed=RESEARCH_RANDOM_SEED,
     )
+
+
+def _verify_mounted_source_documents() -> None:
+    present = tuple(path.is_file() for path in SOURCE_DOCUMENTS)
+    if not any(present):
+        return
+    if not all(present):
+        missing = SOURCE_DOCUMENTS[present.index(False)]
+        raise FileNotFoundError(missing)
+    for path in SOURCE_DOCUMENTS:
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        expected = VERIFIED_SOURCE_DOCUMENT_HASHES[path.name]
+        if actual != expected:
+            raise RuntimeError(f"Private source-document digest mismatch: {path.name}")
 
 
 def write_manifest(manifest: object, output_path: Path) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 from systematic_futures.data.availability_gate import AvailabilityGate
 from systematic_futures.data.point_in_time import PointInTimeNormalizer
@@ -12,6 +13,7 @@ from systematic_futures.data.policies import (
 )
 from systematic_futures.domain.schemas import RawSourceRecord
 from systematic_futures.domain.serialization import sha256_hex
+from systematic_futures.qc_adapters.cftc_probe_recorder import CftcProbeRecorder
 
 _DATASET_ID = "synthetic_cftc_release_audit"
 _SCHEMA_VERSION = "synthetic-test-v1"
@@ -20,6 +22,18 @@ _ORDINARY_RELEASE = datetime(2026, 1, 9, 20, 30, tzinfo=UTC)
 _DELAYED_OBSERVATION = datetime(2026, 1, 13, 0, 0, tzinfo=UTC)
 _DELAYED_RELEASE = datetime(2026, 1, 20, 20, 30, tzinfo=UTC)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _FakeCftcSlice:
+    def __init__(self, point: object) -> None:
+        self.time = datetime(2026, 1, 2, 20, 30)  # noqa: DTZ001 - QC boundary fixture
+        self._rows = dict.fromkeys(("ES", "ZN", "6E"), point)
+
+    def contains_key(self, symbol: object) -> bool:
+        return str(symbol) in self._rows
+
+    def __getitem__(self, symbol: object) -> object:
+        return self._rows[str(symbol)]
 
 
 def _policy() -> UnderReviewCftcReleaseTimingPolicy:
@@ -82,6 +96,27 @@ def test_cftc_holiday_delayed_release_is_not_released_on_ordinary_friday() -> No
     assert gate.release(ordinary_friday) == ()
     assert gate.release(_DELAYED_RELEASE - timedelta(microseconds=1)) == ()
     assert len(gate.release(_DELAYED_RELEASE)) == 1
+
+
+def test_cftc_runtime_audit_preserves_early_qc_clock_against_official_delay() -> None:
+    recorder = CftcProbeRecorder({root: root for root in ("ES", "ZN", "6E")})
+    point = SimpleNamespace(
+        time=datetime(2025, 12, 27, 23, 30),  # noqa: DTZ001 - QC boundary fixture
+        end_time=datetime(2026, 1, 2, 15, 30),  # noqa: DTZ001 - QC boundary fixture
+        open_interest=100,
+    )
+    recorder.observe_slice(_FakeCftcSlice(point))
+
+    audit_rows = tuple(
+        json.loads(row)
+        for row in recorder.build_delivery_audit_json((("2026-01-05", "2026-01-02"),))
+    )
+
+    assert len(audit_rows) == 3
+    assert recorder.delivery_audit_observed_count((("2026-01-05", "2026-01-02"),)) == 3
+    assert all(row["delivery_observed"] is True for row in audit_rows)
+    assert all(row["qc_delivery_precedes_official_release"] is True for row in audit_rows)
+    assert all(row["data_end_time_utc"] == "2026-01-02T20:30:00.000000Z" for row in audit_rows)
 
 
 def test_official_2026_schedule_fixture_is_versioned_but_has_no_qc_delivery_claim() -> None:

@@ -32,6 +32,7 @@ class RunManifestBuilder:
         created_at_utc: datetime,
         configuration: object,
         source_document_paths: Sequence[Path],
+        source_document_hashes: Mapping[str, str] | None = None,
         dependency_files: Sequence[Path],
         reference_markets: Sequence[str],
         probe_start_date: str,
@@ -45,12 +46,21 @@ class RunManifestBuilder:
         Units: dates are ISO calendar dates; seed is dimensionless.
         Time semantics: creation time is normalized to UTC; probe dates are retained
         exactly after schema validation.
-        Missingness: absent version/revision values remain ``None``.
-        Raises: FileNotFoundError, DuplicateIdentifierError, TimeSemanticsError, or
-        a domain validation error.
+        Missingness: absent version/revision values remain ``None``. Private source
+        documents may be represented by their previously verified SHA-256 mapping
+        only when no source paths are supplied. Raises: FileNotFoundError,
+        DuplicateIdentifierError, TimeSemanticsError, ValueError for ambiguous source
+        inputs, or a domain validation error.
         """
         normalized_time = _aware_utc(created_at_utc)
-        source_hashes = _named_file_hashes(source_document_paths)
+        if source_document_hashes is not None:
+            if source_document_paths:
+                raise ValueError(
+                    "source_document_paths and source_document_hashes are mutually exclusive"
+                )
+            source_hashes = _canonical_mapping(source_document_hashes)
+        else:
+            source_hashes = _named_file_hashes(source_document_paths)
         dependency_hashes = _named_file_hashes(dependency_files)
         configuration_hash = sha256_hex(configuration)
         run_id = make_run_id(normalized_time, configuration_hash)

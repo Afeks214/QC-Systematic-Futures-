@@ -4,7 +4,6 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from types import MappingProxyType
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -32,23 +31,6 @@ from systematic_futures.research_lib.certification import (
 )
 
 _MINUTE = timedelta(minutes=1)
-_CFTC_POSITION_FIELDS = (
-    "asset_manager_long",
-    "asset_manager_short",
-    "asset_manager_spread",
-    "dealer_long",
-    "dealer_short",
-    "dealer_spread",
-    "leveraged_funds_long",
-    "leveraged_funds_short",
-    "leveraged_funds_spread",
-    "non_reportable_long",
-    "non_reportable_short",
-    "open_interest",
-    "other_reportable_long",
-    "other_reportable_short",
-    "other_reportable_spread",
-)
 
 
 @dataclass(slots=True)
@@ -76,17 +58,6 @@ class _ProbeState:
     roll_initialized: bool = False
     chain_observations: int = 0
     quality_flags: set[str] = field(default_factory=set)
-
-
-@dataclass(slots=True)
-class _CftcProbeState:
-    root: str
-    dataset_symbol: str
-    rows_received: int = 0
-    first_delivery_utc: datetime | None = None
-    last_delivery_utc: datetime | None = None
-    non_null_field_observations: int = 0
-    nullable_field_names: set[str] = field(default_factory=set)
 
 
 def qc_datetime_to_utc(
@@ -121,7 +92,7 @@ def qc_datetime_to_utc(
     return value.astimezone(UTC)
 
 
-def _datetime_boundary_record(
+def qc_datetime_boundary_record(
     value: object,
     field_name: str,
     naive_source_timezone: str | None,
@@ -151,7 +122,7 @@ def _positive_observed_float(value: object, field_name: str) -> float | None:
     return observed
 
 
-def _symbol_text(value: object, field_name: str, *, optional: bool = False) -> str | None:
+def qc_symbol_text(value: object, field_name: str, *, optional: bool = False) -> str | None:
     if value is None:
         if optional:
             return None
@@ -166,7 +137,7 @@ def _symbol_text(value: object, field_name: str, *, optional: bool = False) -> s
 
 def _subscription_values(subscription: object) -> tuple[str, float | None, float | None]:
     qc_subscription = cast(Any, subscription)
-    continuous = _symbol_text(getattr(qc_subscription, "symbol", None), "continuous symbol")
+    continuous = qc_symbol_text(getattr(qc_subscription, "symbol", None), "continuous symbol")
     properties = getattr(qc_subscription, "symbol_properties", None)
     if continuous is None or properties is None:
         raise UnverifiedQuantConnectApiError("Future subscription lacks verified properties")
@@ -250,7 +221,7 @@ class FuturesProbeRecorder:
         subscription: object,
         observed_at_utc: datetime | None,
     ) -> None:
-        mapped = _symbol_text(
+        mapped = qc_symbol_text(
             getattr(cast(Any, subscription), "mapped", None),
             "mapped symbol",
             optional=True,
@@ -301,7 +272,7 @@ class FuturesProbeRecorder:
             return
         state.chain_observations += 1
         for contract in chain:
-            contract_symbol = _symbol_text(
+            contract_symbol = qc_symbol_text(
                 getattr(contract, "symbol", None),
                 "future-chain contract symbol",
             )
@@ -336,7 +307,7 @@ class FuturesProbeRecorder:
     ) -> None:
         if name in self._datetime_boundaries:
             return
-        self._datetime_boundaries[name] = _datetime_boundary_record(
+        self._datetime_boundaries[name] = qc_datetime_boundary_record(
             value,
             name,
             naive_source_timezone,
@@ -374,7 +345,7 @@ class FuturesProbeRecorder:
             if state is None:
                 raise MarketConfigurationError(f"unregistered probe root: {root}")
             symbol = getattr(cast(Any, subscription), "symbol", None)
-            if _symbol_text(symbol, "continuous symbol") != state.continuous_symbol:
+            if qc_symbol_text(symbol, "continuous symbol") != state.continuous_symbol:
                 raise ContractBoundaryError(f"continuous identity changed for {root}")
             self._observe_current_mapping(state, subscription, observed_at)
             bar = cast(Any, bars).get(symbol)
@@ -424,10 +395,10 @@ class FuturesProbeRecorder:
             if root is None:
                 raise ContractBoundaryError(f"unknown continuous mapping event: {continuous}")
             state = self._states[root]
-            old_symbol = _symbol_text(
+            old_symbol = qc_symbol_text(
                 getattr(changed_event, "old_symbol", None), "old mapped symbol", optional=True
             )
-            new_symbol = _symbol_text(
+            new_symbol = qc_symbol_text(
                 getattr(changed_event, "new_symbol", None), "new mapped symbol"
             )
             if old_symbol is not None:
@@ -616,172 +587,6 @@ class FuturesProbeRecorder:
         ).decode("utf-8")
 
 
-class CftcProbeRecorder:
-    """Record sparse CFTC TFF delivery clocks and nullable-field coverage."""
-
-    def __init__(self, subscriptions: Mapping[str, object]) -> None:
-        """Bind exact reference roots to already-created CFTC dataset symbols.
-
-        Units: CFTC contract counts. Time semantics: dataset time/end-time use the
-        documented Eastern data timezone; Slice delivery uses the UTC algorithm clock.
-        Missingness: exactly ES, ZN, and 6E are required and no substitute is accepted.
-        Raises: ``MarketConfigurationError`` or ``ContractBoundaryError``.
-        """
-
-        if tuple(subscriptions) != ("ES", "ZN", "6E"):
-            raise MarketConfigurationError("CFTC probe requires ES, ZN, and 6E in order")
-        self._states: dict[str, _CftcProbeState] = {}
-        self._symbols: dict[str, object] = {}
-        self._datetime_boundaries: dict[str, Mapping[str, object]] = {}
-        for root, symbol in subscriptions.items():
-            symbol_text = _symbol_text(symbol, f"{root} CFTC dataset symbol")
-            if symbol_text is None:
-                raise ContractBoundaryError(f"{root} CFTC dataset symbol is missing")
-            self._states[root] = _CftcProbeState(root, symbol_text)
-            self._symbols[root] = symbol
-
-    def observe_slice(self, slice_data: object) -> tuple[str, ...]:
-        """Record each actually delivered CFTC TFF object in one Slice.
-
-        Units: contract counts and field counts. Time semantics: Slice delivery is
-        normalized from the UTC algorithm clock; data time/end-time are normalized from
-        the dataset's documented ``America/New_York`` timezone. Missingness: nullable
-        fields remain null and their names are retained; absent weekly rows emit nothing.
-        Raises: time, quality, or verified-QC-boundary exceptions.
-        """
-
-        qc_slice = cast(Any, slice_data)
-        slice_time_value = getattr(qc_slice, "time", None)
-        delivered_at = qc_datetime_to_utc(
-            slice_time_value,
-            "CFTC slice.time",
-            naive_source_timezone="UTC",
-        )
-        self._datetime_boundaries.setdefault(
-            "slice.time",
-            _datetime_boundary_record(slice_time_value, "CFTC slice.time", "UTC"),
-        )
-        contains_key = getattr(qc_slice, "contains_key", None)
-        if contains_key is None or not callable(contains_key):
-            raise UnverifiedQuantConnectApiError("Slice lacks verified contains_key boundary")
-        rows: list[str] = []
-        for root, symbol in self._symbols.items():
-            if not contains_key(symbol):
-                continue
-            point = qc_slice[symbol]
-            rows.append(self._observe_point(root, point, delivered_at))
-        return tuple(rows)
-
-    def _observe_point(self, root: str, point: Any, delivered_at: datetime) -> str:
-        state = self._states[root]
-        data_time_value = getattr(point, "time", None)
-        end_time_value = getattr(point, "end_time", None)
-        data_time = qc_datetime_to_utc(
-            data_time_value,
-            f"{root} CFTC data.time",
-            naive_source_timezone="America/New_York",
-        )
-        end_time = qc_datetime_to_utc(
-            end_time_value,
-            f"{root} CFTC data.end_time",
-            naive_source_timezone="America/New_York",
-        )
-        self._datetime_boundaries.setdefault(
-            f"{root}.data.time",
-            _datetime_boundary_record(
-                data_time_value,
-                f"{root} CFTC data.time",
-                "America/New_York",
-            ),
-        )
-        self._datetime_boundaries.setdefault(
-            f"{root}.data.end_time",
-            _datetime_boundary_record(
-                end_time_value,
-                f"{root} CFTC data.end_time",
-                "America/New_York",
-            ),
-        )
-        non_null = tuple(
-            name for name in _CFTC_POSITION_FIELDS if getattr(point, name, None) is not None
-        )
-        nullable = tuple(sorted(set(_CFTC_POSITION_FIELDS).difference(non_null)))
-        state.rows_received += 1
-        state.first_delivery_utc = min(
-            delivered_at,
-            state.first_delivery_utc or delivered_at,
-        )
-        state.last_delivery_utc = max(
-            delivered_at,
-            state.last_delivery_utc or delivered_at,
-        )
-        state.non_null_field_observations += len(non_null)
-        state.nullable_field_names.update(nullable)
-        row = {
-            "root": root,
-            "dataset_symbol": state.dataset_symbol,
-            "qc_slice_time_utc": delivered_at,
-            "data_time_utc": data_time,
-            "data_end_time_utc": end_time,
-            "non_null_field_count": len(non_null),
-            "nullable_field_names": nullable,
-            "report_type": "CFTCFinancialFutures",
-        }
-        return canonical_json_bytes({**row, "row_hash": sha256_hex(row)}).decode("utf-8")
-
-    def build_summary_json(self) -> tuple[str, ...]:
-        """Return deterministic per-market delivery summaries.
-
-        Units: row and field-observation counts. Time semantics: first/last clocks are
-        actual UTC Slice delivery observations. Missingness: markets with no rows retain
-        null clocks and an explicit quality flag. Raises: canonical serialization errors.
-        """
-
-        summaries: list[str] = []
-        for root in ("ES", "ZN", "6E"):
-            state = self._states[root]
-            summary = {
-                "root": root,
-                "dataset_symbol": state.dataset_symbol,
-                "rows_received": state.rows_received,
-                "first_delivery_utc": state.first_delivery_utc,
-                "last_delivery_utc": state.last_delivery_utc,
-                "non_null_field_observations": state.non_null_field_observations,
-                "nullable_field_names": tuple(sorted(state.nullable_field_names)),
-                "quality_flags": (
-                    ("NO_CFTC_TFF_ROWS_RECEIVED",) if state.rows_received == 0 else ()
-                ),
-            }
-            summaries.append(canonical_json_bytes(summary).decode("utf-8"))
-        return tuple(summaries)
-
-    def datetime_boundary_probe_json(self) -> str:
-        """Return deterministic CFTC Python/Python.NET datetime observations.
-
-        Units: microsecond datetime precision. Time semantics: every conversion records
-        its exact documented source timezone. Missingness: unobserved fields are absent.
-        Raises: canonical serialization errors.
-        """
-
-        return canonical_json_bytes(
-            {
-                "schema_version": "lift1-cftc-pythonnet-datetime-probe-v1",
-                "observations": dict(sorted(self._datetime_boundaries.items())),
-            }
-        ).decode("utf-8")
-
-    def row_counts(self) -> Mapping[str, int]:
-        """Return per-root delivered-row counts for compact QC summary statistics.
-
-        Units: delivered CFTC objects. Time semantics: counts include only observed
-        Slices. Missingness: absent markets return zero. Raises: none.
-        """
-
-        return MappingProxyType(
-            {root: self._states[root].rows_received for root in ("ES", "ZN", "6E")}
-        )
-
-
 def probe_result_json(result: DataProbeResult) -> str:
     """Return one validated probe result as compact canonical JSON.
 
@@ -807,9 +612,10 @@ def runtime_market_evidence_json(result: RuntimeMarketProbeEvidence) -> str:
 
 
 __all__ = (
-    "CftcProbeRecorder",
     "FuturesProbeRecorder",
     "probe_result_json",
+    "qc_datetime_boundary_record",
     "qc_datetime_to_utc",
+    "qc_symbol_text",
     "runtime_market_evidence_json",
 )
