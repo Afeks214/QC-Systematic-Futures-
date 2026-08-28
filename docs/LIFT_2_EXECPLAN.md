@@ -1,6 +1,6 @@
 # Lift 2 ExecPlan
 
-Status: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`
+Status: `LIFT_2_COMPLETE_MEASUREMENT_ONLY`
 Started: 2026-08-27
 Base commit: `3520c50f1eba674b074deabd7ca8b47320962b62`
 Scope: causal market measurement and candidate-event observations only.
@@ -170,7 +170,7 @@ than a second formula path.
   root, notebook business-logic guard.
 - QC evidence: source/build/backtest IDs, versions, per-market counts, hashes, zero
   actions, and bounded samples.
-- Completion state: `SOURCE_RECERTIFIED_QC_REPLAY_PENDING`.
+- Completion state: `COMPLETE_QC_3_DEEP_8_SMOKE`.
 
 ### 10. Certification, manifest, and handoff
 
@@ -185,7 +185,7 @@ than a second formula path.
   content hashes; runtime and evidence SHAs distinct when required.
 - Tests: manifest/evidence hash validation, required-field checks, all source guards.
 - QC evidence: deep and smoke run records from project `35697180`.
-- Completion state: `PENDING`.
+- Completion state: `COMPLETE`.
 
 ## Supported quality sequence
 
@@ -258,7 +258,8 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   normalization, ICM extension diagnostics, and raw/bounded IAE score inputs. The
   supported local suite passes 99 tests; the 32 marked math cases contain 19 analytic,
   9 differential, 14 metamorphic, 13 causality, and 19 stress memberships. Source
-  status is `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`.
+  status at that checkpoint was `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`;
+  the completed 2026-08-28 matrix below supersedes it.
 - 2026-08-27 — Post-reconciliation QC replay
   `cd72b8ce4944656538ff443fd2d1f213` reached real ES tick data and exposed a
   same-bar IAE state-identity defect: a first retest snapshot and the closing bar
@@ -270,6 +271,18 @@ will be extended only to validate the required Lift 2 manifest/evidence contract
   `43535ea8f01832b5b8222a1038399cef2edb8abf0c5a9dda48f7e199cd5a7008`;
   corrected QC build `f3b3ae-94b66a` is under replay. Runtime parameter evidence
   uses the exact keys `lift2_root` and `lift2_mode`; shorter aliases are ignored.
+- 2026-08-28 — LEAN master advanced to `2.5.0.0.18039`. The final compatibility
+  commit `ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5` removes unsupported postponed
+  annotations and quotes two forward references only; no measurement formula changed.
+  All 36 deployed runtime files were independently reopened and matched to the local
+  source closure, whose tree hash is
+  `cb48ca4b995bbb28f579fee1542076465308792105cc56a2d0f9b16f4d7d0f32`.
+- 2026-08-28 — The final QC matrix completed from that source: ES/ZN/6E deep plus
+  ES/NQ/RTY/ZT/ZN/6E/6J/6B smoke, 11 unique backtest IDs, 281,509,041 delivered data
+  points and exact zero Orders, Insights and PortfolioTargets in every run. The four
+  evidence artifacts passed their schema/hash/reconciliation validators and were
+  committed as `359333ba2ccc5f810906f9c7631b625deb3cd454`. The final manifest validator
+  returns `PASS_FINAL_EVIDENCE_VALIDATED`.
 
 ## Source acceptance matrix
 

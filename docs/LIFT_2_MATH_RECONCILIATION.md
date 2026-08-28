@@ -1,6 +1,6 @@
 # Lift 2 Mathematical Reconciliation
 
-Status: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`
+Status: `MATH_CERTIFIED_FINAL_QC_MATRIX_COMPLETE`
 
 This is the sole mathematical audit, reconciliation, and certification record for Lift 2. The three user-supplied research specifications are authoritative for the indicator definitions. The stop-and-reconcile directive controls the gate and requires local mathematical certification before any QuantConnect runtime work resumes. Predictive validity, profitability, and live-trading readiness are outside this gate.
 
@@ -98,8 +98,11 @@ Frozen conventions: UTC-aware completed bars only; current observation excluded 
 Intentional deferrals: regime-conditioned IMSI limits; MES and every forward outcome; calibration, probability, Alpha, portfolio, risk, execution, and orders; true OFI/MLOFI requiring quote or order-book events; predictive validation; and live readiness.
 
 All matrix rows are `CERTIFIED`. The five marked verification classes pass locally:
-19 analytic, 9 differential, 14 metamorphic, 13 causality, and 19 stress memberships
-across 32 collected math cases. The complete gate passes 99 tests, strict Ruff, strict
-Pyright, notebook validation, and deterministic source-manifest rebuild. Whole-engine
-prefix equivalence includes bars, profiles, IMSI, ICM, IAE, Auction, Synergy, and
-candidate events. Result: `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`.
+19 analytic, 9 differential, 14 metamorphic, 14 causality, and 20 stress memberships.
+The complete gate passes 100 tests, strict Ruff, strict Pyright, four-notebook
+validation, and deterministic final evidence validation. Whole-engine prefix
+equivalence includes bars, profiles, IMSI, ICM, IAE, Auction, Synergy, and candidate
+events. The ordered measurement/coverage hash matrix from the 3-deep plus 8-smoke QC
+replays is
+`e1485c87fa1bb16621823b8a96bb3d23a0c258d2c6914aa5574eef508a2174b6`.
+Result: `MATH_CERTIFIED_FINAL_QC_MATRIX_COMPLETE`.

@@ -573,3 +573,25 @@ that the retest and bar-close records have different IDs while preserving identi
 gap and as-of lineage.
 Reopen condition: the IAE snapshot schema removes `active_gap_count` or replaces it
 with a separately versioned aggregate-state identity contract.
+
+## 2026-08-28 — Close Lift 2 as a measurement-only system
+
+Date: 2026-08-28
+Decision: Declare `LIFT_2_COMPLETE_MEASUREMENT_ONLY` and permit only the next
+phase's research-gate design under `READY_FOR_LIFT_3_RESEARCH_GATING`.
+Alternatives considered: leave Lift 2 pending after the required matrix passed;
+promote deterministic measurement to Alpha/live readiness; discard candidates that
+did not satisfy the complete readiness contract.
+Reason: source commit `ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5` passed the
+100-test local gate, a 36-file cloud byte audit, 3 deep replays and 8 all-market smoke
+replays under LEAN 18039. All 11 runs completed with zero Orders, Insights and
+PortfolioTargets. Evidence commit
+`359333ba2ccc5f810906f9c7631b625deb3cd454` preserves every candidate and its
+quality/readiness state.
+Consequences: Lift 2 descriptive measurement is closed. The 1,771 retained candidates
+are all explicitly not-ready in the bounded evidence windows, so none may be treated
+as a predictive sample or trading signal. Outcomes, friction, Alpha, portfolio, risk,
+execution and live approval remain outside this decision.
+Reopen condition: a defect invalidates the source/evidence hashes, a required matrix
+row is shown not to have executed the bound source, or the governing Lift 2
+measurement specification changes.

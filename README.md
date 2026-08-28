@@ -10,6 +10,12 @@ unlabeled Candidate Event Observations for later hypothesis falsification.
 Lift 2 is a measurement layer. It contains no strategy optimization, future outcome,
 predictive model, portfolio/risk allocation, order, or execution logic.
 
+Certification status: `LIFT_2_COMPLETE_MEASUREMENT_ONLY`. The final authenticated
+QuantConnect matrix contains 3 completed deep replays and 8 completed smoke replays
+under LEAN `2.5.0.0.18039`, with exact zero Orders, Insights and PortfolioTargets in
+all 11 runs. See `docs/LIFT_2_COMPLETION_REPORT.md` for the immutable IDs, hashes and
+limitations.
+
 ## Scope
 
 - Actual mapped-contract `TRADE` ticks only for Profile, bars, and VWAP.

@@ -1,7 +1,7 @@
 # QuantConnect API Resolution
 
 Resolution date: **2026-08-26**
-Runtime certification date: **2026-08-27**
+Runtime certification date: **2026-08-28**
 
 No runtime was executed during the initial API-resolution phase. The resolved source
 was subsequently executed in authenticated QC Cloud project `35697180`, build
@@ -32,6 +32,10 @@ static name resolution.
 - Final cloud backtests `b22d565d649c5b31650fd033cdc89cf3` (futures) and
   `a7ba4f84937fb19bc3f6f63bc773e3c3` (CFTC) executed the same certified source commit
   under LEAN `2.5.0.0.18036` and CPython `3.11.14`.
+- Final Lift 2 source `ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5` executed in
+  11 completed backtests under LEAN `2.5.0.0.18039`, CPython `3.11.14` and
+  NumPy `1.26.4`. The matrix is ES/ZN/6E deep plus
+  ES/NQ/RTY/ZT/ZN/6E/6J/6B smoke, with zero trading actions in every row.
 
 ## Required resolutions
 
@@ -454,12 +458,11 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Runtime evidence: corrected ES smoke backtest
-`cd7b3f083a248def2d4720ae38613f5a` observed one mapped actual contract and
-1,223,512 admitted trade ticks.
+Runtime evidence: final deep replays observed two mapped actual contracts for each of
+ES, ZN and 6E; all eight smoke roots observed one actual contract. Across the final
+matrix the adapter admitted 15,990,378 actual-contract trade ticks.
 
-Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; full matrix certification remains
-separate.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_3_DEEP_8_SMOKE`.
 
 ### Python package initialization in QC Cloud
 
@@ -479,9 +482,11 @@ their defining modules, and a source-boundary regression test enforces the rule.
 This changes package loading only; indicator formulas and state transitions are
 unchanged.
 
-Correction evidence: all 34 deployed runtime files were synchronized through isolated
-editor sessions and independently reopened/read as byte-identical. Fresh build
-`4dabc4-360f32` passed initialization on LEAN `2.5.0.0.18036`.
+Correction evidence: the final 36-file runtime closure was synchronized through
+isolated editor sessions and independently reopened/read as byte-identical. Its source
+tree hash is
+`cb48ca4b995bbb28f579fee1542076465308792105cc56a2d0f9b16f4d7d0f32`; the
+complete final matrix initialized and ran under LEAN `2.5.0.0.18039`.
 
 Status: `CLOUD_SOURCE_MISMATCH_RESOLVED`.
 
@@ -521,8 +526,7 @@ then emits `max(mean(TR), 1e-6)` in native price units. The shared version, math
 reference vector, prefix certificate, measurement-policy hash, and local tests were
 recertified. No bar is fabricated or dropped.
 
-Status: `LOCAL_MATH_RECERTIFIED_QC_REPLAY_PENDING`; all pre-floor successful runs are
-superseded for final runtime parity.
+Status: `VERIFIED_MATH_AND_FINAL_QC_MATRIX`; all pre-floor runs remain superseded.
 
 ### Python project filename compatibility
 
@@ -548,10 +552,9 @@ model module reverted to the server skeleton, while the split 17,249-byte record
 does not infer a general platform size limit from those observations; it uses the
 smallest semantics-preserving split proven in project `35697180`.
 
-Status: `VERIFIED_RUNTIME_CONSTRAINT_RESOLVED`; corrected source build
-`f3b3ae-94b66a` on LEAN `2.5.0.0.18036` completed after the independently
-byte-audited 36-file deployment and the IAE state-identity correction. Final replay
-identifiers remain in the completion report.
+Status: `VERIFIED_RUNTIME_CONSTRAINT_RESOLVED`; the independently byte-audited
+36-file deployment completed the final 11-run matrix under LEAN 18039. Exact build
+and backtest identifiers are in the completion report and runtime artifact.
 
 ### Tick collection and trade filtering
 
@@ -574,13 +577,13 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Runtime evidence: ES smoke backtest `cd7b3f083a248def2d4720ae38613f5a`
-admitted 1,223,512 trade ticks and explicitly ignored 15,404,411 quote ticks.
+Runtime evidence: the final matrix admitted 15,990,378 trade ticks. Every run records
+its independently counted ignored quote ticks in
+`artifacts/certification/lift2_runtime_measurement.json`.
 
-Status: `VERIFIED_SOURCE_AND_STUBS`; the recertified adapter quarantines suspicious
-ticks and retains sale-condition metadata, but this revised mapping still requires the
-final QC replay matrix. No queue, cancellation, replenishment, MLOFI, or native
-exchange-sequence claim is authorized.
+Status: `VERIFIED_SOURCE_STUBS_AND_FINAL_QC_MATRIX`; the adapter quarantines
+suspicious ticks and retains sale-condition metadata. No queue, cancellation,
+replenishment, MLOFI, or native exchange-sequence claim is authorized.
 
 ### Tick EndTime at the UTC algorithm boundary
 
@@ -621,8 +624,8 @@ Source version/date: LEAN `07fb018`; living docs inspected 2026-08-27.
 
 Used in file: `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ES`; the completed ES run created its
-positive native tick lattice from the actual-contract security metadata.
+Status: `VERIFIED_AND_EXECUTED_QC_CLOUD_ALL_EIGHT`; every smoke root created its
+positive native tick lattice from actual-contract security metadata.
 
 ### Runtime parameter and version reporting
 
@@ -641,9 +644,9 @@ Source version/date: living docs inspected 2026-08-27.
 
 Used in file: `main.py`, `systematic_futures/qc_adapters/lift2_runtime.py`.
 
-Status: `VERIFIED_SOURCE_AND_UI_PARAMETERS`; the exact project keys are
-`lift2_root` and `lift2_mode`. The aliases `root` and `mode` are not consumed by the
-runtime and cannot qualify a matrix row.
+Status: `VERIFIED_SOURCE_UI_AND_11_RUNS`; the exact project keys are `lift2_root`
+and `lift2_mode`. Each qualifying launch verified the saved root and mode. The aliases
+`root` and `mode` are not consumed by the runtime and cannot qualify a matrix row.
 
 ### NumPy runtime
 
@@ -660,4 +663,4 @@ Source version/date: living docs inspected 2026-08-27.
 Used in file: `pyproject.toml`, `requirements.txt`, `measurement/imsi.py`, and
 `measurement/icm.py`.
 
-Status: `VERIFIED_SOURCE_NOT_YET_EXECUTED`.
+Status: `VERIFIED_SOURCE_AND_EXECUTED_QC_CLOUD_11_RUNS`.

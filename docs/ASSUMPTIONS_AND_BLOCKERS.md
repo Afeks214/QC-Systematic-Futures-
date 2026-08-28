@@ -1,14 +1,14 @@
 # Assumptions and Blockers
 
-Status: **NO UNRESOLVED LIFT 1 FOUNDATIONAL BLOCKER**
-Reviewed: **2026-08-27**
+Status: **NO UNRESOLVED LIFT 1 OR LIFT 2 MEASUREMENT BLOCKER**
+Reviewed: **2026-08-28**
 
 ## Verified
 
 - The controlling private specifications were reviewed and are represented by exact
   SHA-256 digests; their bytes are not committed to the public repository.
-- CPython 3.11.16 runs the complete supported local gate. QC Cloud reported CPython
-  3.11.14, LEAN 2.5.0.0.18036, Linux x86_64.
+- CPython 3.11.16 runs the complete supported local gate. Final Lift 2 QC Cloud
+  evidence reports CPython 3.11.14, NumPy 1.26.4 and LEAN 2.5.0.0.18039.
 - The eight-market registry validates. The real QC futures probe observed ES, ZN, and
   6E rows, mapped identities, mapping events, Open Interest, expiries, ticks,
   multipliers, session IDs, roll states, and Python.NET boundary values.
@@ -70,10 +70,9 @@ live trading, and true L2 order-book behavior remain unimplemented and unauthori
 
 - `MATH_READY_FOR_LIFT_2_RUNTIME`: all local mathematical reconciliation gates pass
   against the three supplied indicator specifications.
-- `SOURCE_FORENSICALLY_CLOSED_QC_MATRIX_PENDING`: source admission, semantics,
-  lineage, readiness, session-safe alignment, and quality propagation now pass the
-  complete 99-test local gate. This is source closure only, not QC parity or Lift 3
-  readiness.
+- `LIFT_2_COMPLETE_MEASUREMENT_ONLY`: source admission, semantics, lineage,
+  readiness, session-safe alignment and quality propagation pass the complete
+  100-test local gate and the final 3-deep plus 8-smoke QC matrix.
 - `RESOLVED_CLOUD_SYNC`: build `b77ac2-941e38` failed before any market data was
   processed. Direct inspection found `data/policies.py` bytes at the cloud
   `domain/enums.py` path. All 34 deployed files were subsequently synchronized and
@@ -88,5 +87,18 @@ live trading, and true L2 order-book behavior remain unimplemented and unauthori
   `0f2c86d773425e9db2b6f81ad3f0a90b` exposed the specification's locked-market
   edge: zero true ranges are valid and the warmed ATR must be floored at `1e-6`.
   The corrected source and all math classes are recertified. Every pre-floor run is
-  integration evidence only; ES/ZN/6E deep and all-eight smoke must be replayed from
-  the new source before Lift 2 or Lift 3 readiness can be claimed.
+  integration evidence only; at that checkpoint ES/ZN/6E deep and all-eight smoke
+  still had to be replayed. The final resolution below supersedes that requirement.
+- `RESOLVED_FINAL_QC_MATRIX`: source commit
+  `ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5`, runtime tree
+  `cb48ca4b995bbb28f579fee1542076465308792105cc56a2d0f9b16f4d7d0f32`, and
+  evidence commit `359333ba2ccc5f810906f9c7631b625deb3cd454` bind 11 unique
+  completed backtests under LEAN 18039. All 11 report zero Orders, Insights and
+  PortfolioTargets.
+- `READINESS_DISCLOSURE`: all 1,771 candidate observations are retained, unique and
+  explicitly not-ready under the current mathematical/quality contract. This is not
+  a Lift 2 blocker because Lift 2 is descriptive; it blocks treating the bounded
+  sample as a predictive-research or trading dataset.
+- `READY_FOR_LIFT_3_RESEARCH_GATING`: the completed measurement layer may be used to
+  design the next research gates. Alpha, profitability, allocation, paper/live
+  trading and institutional approval remain unproven and unauthorized.
