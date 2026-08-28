@@ -64,6 +64,10 @@ _READINESS_COUNT_FIELDS = (
 )
 
 
+class ExternalQCCredentialRequired(RuntimeError):  # noqa: N818
+    """Raised when no authorized QuantConnect API credentials are available."""
+
+
 def _canonical_json_bytes(value: object) -> bytes:
     return json.dumps(
         value,
@@ -78,39 +82,87 @@ def _content_hash(value: object) -> str:
     return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
 
 
-def qc_post(endpoint: str, payload: Mapping[str, object]) -> Mapping[str, object]:
-    """Call one official QuantConnect v2 POST endpoint without exposing credentials."""
+def _load_qc_credentials() -> tuple[str, str]:
+    """Load QC credentials from environment or the official LEAN CLI storage."""
 
     user_id = os.environ.get("QC_USER_ID")
     api_token = os.environ.get("QC_API_TOKEN")
-    if not user_id or not api_token:
-        raise RuntimeError("QC_USER_ID and QC_API_TOKEN must be present in the environment")
+    if user_id and api_token:
+        return user_id, api_token
+
+    try:
+        from lean.commands.login import get_lean_config_credentials
+    except ImportError:
+        pass
+    else:
+        stored_user_id, stored_api_token = get_lean_config_credentials()
+        if stored_user_id and stored_api_token:
+            return stored_user_id, stored_api_token
+
+    credentials_path = Path("~/.lean/credentials").expanduser()
+    if credentials_path.is_file():
+        try:
+            decoded: object = json.loads(credentials_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            decoded = None
+        if isinstance(decoded, dict):
+            credentials = cast(dict[str, object], decoded)
+            stored_user_id = credentials.get("user-id")
+            stored_api_token = credentials.get("api-token")
+            if (
+                isinstance(stored_user_id, str)
+                and stored_user_id
+                and isinstance(stored_api_token, str)
+                and stored_api_token
+            ):
+                return stored_user_id, stored_api_token
+
+    raise ExternalQCCredentialRequired(
+        "EXTERNAL_QC_CREDENTIAL_REQUIRED: run `lean login` or configure QC_USER_ID and QC_API_TOKEN"
+    )
+
+
+def qc_post(endpoint: str, payload: Mapping[str, object]) -> Mapping[str, object]:
+    """Call one official QuantConnect v2 POST endpoint without exposing credentials."""
+
+    user_id, api_token = _load_qc_credentials()
     normalized_endpoint = endpoint.strip("/")
     if not normalized_endpoint:
         raise RuntimeError("QC endpoint must be non-blank")
-    timestamp = str(int(time.time()))
-    token_hash = hashlib.sha256(f"{api_token}:{timestamp}".encode()).hexdigest()
-    encoded_auth = base64.b64encode(f"{user_id}:{token_hash}".encode()).decode("ascii")
-    request = urllib.request.Request(
-        f"{QC_API_BASE}/{normalized_endpoint}",
-        data=_canonical_json_bytes(dict(payload)),
-        headers={
-            "Authorization": f"Basic {encoded_auth}",
-            "Content-Type": "application/json",
-            "Timestamp": timestamp,
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            decoded: object = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"QC API {normalized_endpoint} returned HTTP {error.code}: {body}"
-        ) from error
-    except urllib.error.URLError as error:
-        raise RuntimeError(f"QC API {normalized_endpoint} request failed") from error
+    for attempt in range(5):
+        timestamp = str(int(time.time()))
+        token_hash = hashlib.sha256(f"{api_token}:{timestamp}".encode()).hexdigest()
+        encoded_auth = base64.b64encode(f"{user_id}:{token_hash}".encode()).decode("ascii")
+        request = urllib.request.Request(
+            f"{QC_API_BASE}/{normalized_endpoint}",
+            data=_canonical_json_bytes(dict(payload)),
+            headers={
+                "Authorization": f"Basic {encoded_auth}",
+                "Content-Type": "application/json",
+                "Timestamp": timestamp,
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                decoded: object = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as error:
+            body = error.read().decode("utf-8", errors="replace")
+            is_transient = error.code == 429 or 500 <= error.code <= 599
+            if is_transient and attempt < 4:
+                time.sleep(2**attempt)
+                continue
+            raise RuntimeError(
+                f"QC API {normalized_endpoint} returned HTTP {error.code}: {body}"
+            ) from error
+        except urllib.error.URLError as error:
+            if attempt < 4:
+                time.sleep(2**attempt)
+                continue
+            raise RuntimeError(f"QC API {normalized_endpoint} request failed") from error
+    else:
+        raise RuntimeError(f"QC API {normalized_endpoint} exhausted retries")
     if not isinstance(decoded, dict):
         raise RuntimeError(f"QC API {normalized_endpoint} returned a non-object response")
     result = cast(dict[str, object], decoded)
@@ -437,6 +489,7 @@ def _read_hashed_artifact(path: Path) -> dict[str, object]:
 
 
 def _run_qc_certification(upload_source: bool, timeout_seconds: int) -> None:
+    qc_post("authenticate", {})
     local_files, local_file_hashes, local_tree_hash = _local_runtime_source()
     source_git_sha = _git_sha()
     portfolio_evidence = _portfolio_target_source_evidence()
