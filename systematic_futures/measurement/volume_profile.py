@@ -205,26 +205,24 @@ class VolumeProfileEngine:
 
         self._validate_trade_identity(trade)
         self._last_rejection_flags = ()
-        source_flags = {f"DATA:{flag}" for flag in trade.source_quality_flags}
-        self._quality_flags.update(source_flags)
         if "SOURCE_SUSPICIOUS" in trade.source_quality_flags:
-            return self._reject_trade("DATA:SOURCE_SUSPICIOUS")
+            return self._reject_trade("DATA:SOURCE_SUSPICIOUS_EXCLUDED")
         if trade.price <= 0:
-            return self._reject_trade("DATA:NON_POSITIVE_PRICE")
+            return self._reject_trade("DATA:NON_POSITIVE_PRICE_EXCLUDED")
         if trade.quantity <= 0:
-            return self._reject_trade("DATA:NON_POSITIVE_QUANTITY")
+            return self._reject_trade("DATA:NON_POSITIVE_QUANTITY_EXCLUDED")
         if (
             trade.source_event_id is not None
             and trade.source_event_id in self._seen_source_event_ids
         ):
-            return self._reject_trade("DATA:DUPLICATE_SOURCE_ID")
+            return self._reject_trade("DATA:DUPLICATE_SOURCE_ID_EXCLUDED")
         if (
             trade.source_sequence is not None
             and trade.source_sequence in self._seen_source_sequences
         ):
-            return self._reject_trade("DATA:DUPLICATE_SOURCE_SEQUENCE")
+            return self._reject_trade("DATA:DUPLICATE_SOURCE_SEQUENCE_EXCLUDED")
         if trade.source_event_id is None and trade.source_sequence is None:
-            self._quality_flags.add("DATA:DEDUPLICATION_UNVERIFIABLE")
+            self._quality_flags.add("PROVENANCE:DEDUPLICATION_UNVERIFIABLE")
         if self._final_snapshot is not None:
             self._quality_flags.add("DATA:LATE_TRADE_AFTER_FINAL_PROFILE")
             self.late_trade_count += 1
@@ -246,7 +244,7 @@ class VolumeProfileEngine:
         try:
             tick = price_to_tick(trade.price, trade.minimum_tick)
         except DataQualityError:
-            return self._reject_trade("DATA:OFF_TICK_GRID")
+            return self._reject_trade("DATA:OFF_TICK_GRID_EXCLUDED")
         minute_end = trade.exchange_time_utc.replace(second=0, microsecond=0) + timedelta(minutes=1)
         if self._minute_end_utc is None:
             self._minute_end_utc = minute_end

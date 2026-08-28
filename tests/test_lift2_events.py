@@ -81,12 +81,18 @@ def _features() -> AuctionFeatureVector:
     )
 
 
-def _auction(timestamp: datetime) -> AuctionStateSnapshot:
+def _auction(
+    timestamp: datetime,
+    *,
+    measurement_ready: bool = True,
+    quality_flags: tuple[str, ...] = (),
+    session_id: str = "session-a",
+) -> AuctionStateSnapshot:
     return AuctionStateSnapshot(
         snapshot_id=f"auction-{timestamp.isoformat()}",
         root="ES",
         contract_symbol="ESH24",
-        session_id="session-a",
+        session_id=session_id,
         as_of_utc=timestamp,
         available_at_utc=timestamp,
         location_state=AuctionLocationState.INSIDE_VALUE,
@@ -102,8 +108,8 @@ def _auction(timestamp: datetime) -> AuctionStateSnapshot:
         migration_reference_profile_id="profile-prior",
         features=_features(),
         active_excursion_id=None,
-        measurement_ready=True,
-        quality_flags=(),
+        measurement_ready=measurement_ready,
+        quality_flags=quality_flags,
         feature_version="feature_semantics_math_v5",
     )
 
@@ -172,7 +178,7 @@ def _icm(timestamp: datetime) -> ICMStateSnapshot:
     )
 
 
-def _iae(timestamp: datetime) -> IAEStateSnapshot:
+def _iae(timestamp: datetime, *, score_ready: bool = False) -> IAEStateSnapshot:
     return IAEStateSnapshot(
         snapshot_id="iae-current",
         root="ES",
@@ -188,18 +194,19 @@ def _iae(timestamp: datetime) -> IAEStateSnapshot:
         displacement_efficiency=0.8,
         formation_quality=1,
         gap_age_bars=0,
-        time_decay=None,
-        retest_depth_ratio=None,
-        wick_rejection_ratio=None,
-        close_position_raw=None,
-        close_position_score=None,
-        tod_volume_z_raw=None,
-        tod_volume_score_input=None,
-        score_raw=None,
-        score_effective=None,
+        time_decay=1 if score_ready else None,
+        retest_depth_ratio=0.5 if score_ready else None,
+        wick_rejection_ratio=1 if score_ready else None,
+        close_position_raw=0.5 if score_ready else None,
+        close_position_score=0.5 if score_ready else None,
+        tod_volume_z_raw=1 if score_ready else None,
+        tod_volume_score_input=1 if score_ready else None,
+        score_raw=2 if score_ready else None,
+        score_effective=2 if score_ready else None,
         absorption_confirmed=False,
         active_gap_count=1,
         measurement_ready=True,
+        score_ready=score_ready,
         quality_flags=(),
         version="iae-v1",
     )
@@ -328,8 +335,13 @@ def test_candidate_ids_deduplicate_and_coverage_contains_only_breadth() -> None:
     assert coverage["unique_event_count"] == 1
     assert coverage["by_root"] == {"ES": 1}
     assert coverage["events_with_all_three"] == 0
-    assert coverage["candidate_events_not_ready"] == 1
-    assert not event.research_ready
+    assert coverage["candidate_events_not_ready"] == 0
+    assert coverage["candidate_events_base_ready"] == 1
+    assert event.research_ready
+    assert event.readiness.base_event_ready
+    assert not event.readiness.imsi_state_ready
+    assert not event.readiness.icm_state_ready
+    assert not event.readiness.iae_structural_ready
     assert not any(
         forbidden in key.lower()
         for key in coverage
@@ -418,8 +430,76 @@ def test_quality_provenance_preserves_information_and_blocks_unready_math() -> N
         _auction(event_time),
         not_ready,
     )
-    assert not event.research_ready
+    assert event.research_ready
+    assert event.readiness.base_event_ready
+    assert not event.readiness.imsi_state_ready
     assert event.quality_flags == not_ready.quality_flags
+
+
+def test_ablation_readiness_is_incremental_and_iae_score_is_optional() -> None:
+    event_time = datetime(2024, 3, 4, 10, 5, tzinfo=UTC)
+    auction = _auction(event_time)
+    aligner = SnapshotAligner()
+
+    auction_only = aligner.align(auction, event_time)
+    assert not auction_only.imsi_ready
+    assert not auction_only.icm_ready
+    assert not auction_only.iae_structural_ready
+
+    aligner.add_imsi(_imsi(event_time, "ablation"))
+    with_imsi = aligner.align(auction, event_time)
+    assert with_imsi.imsi_ready
+    assert not with_imsi.icm_ready
+
+    aligner.add_icm(_icm(event_time))
+    with_icm = aligner.align(auction, event_time)
+    assert with_icm.imsi_ready and with_icm.icm_ready
+    assert not with_icm.iae_structural_ready
+
+    aligner.add_iae(_iae(event_time))
+    structural = aligner.align(auction, event_time)
+    assert structural.iae_structural_ready
+    assert not structural.iae_score_ready
+    assert structural.all_required_inputs_ready
+
+    scored_aligner = SnapshotAligner()
+    scored_aligner.add_imsi(_imsi(event_time, "scored"))
+    scored_aligner.add_icm(_icm(event_time))
+    scored_aligner.add_iae(_iae(event_time, score_ready=True))
+    scored = scored_aligner.align(auction, event_time)
+    assert scored.iae_structural_ready and scored.iae_score_ready
+
+
+def test_maintenance_candidate_is_retained_but_base_blocked() -> None:
+    event_time = datetime(2024, 3, 4, 10, 5, tzinfo=UTC)
+    auction = _auction(
+        event_time,
+        measurement_ready=False,
+        quality_flags=("SESSION:MAINTENANCE",),
+        session_id="maintenance-session",
+    )
+    synergy = SnapshotAligner().align(auction, event_time)
+    event = CandidateEventGenerator().create(
+        EventTrigger(
+            event_type=CandidateEventType.VALUE_EXIT_UP,
+            event_time_utc=event_time,
+            available_at_utc=event_time,
+            session_id="maintenance-session",
+            direction=1,
+            parent_event_id="maintenance-excursion",
+        ),
+        auction,
+        synergy,
+    )
+    assert not event.readiness.base_event_ready
+    assert "SESSION:MAINTENANCE" in event.quality_flags
+    coverage = candidate_coverage(
+        (event,),
+        {synergy.snapshot_id: synergy},
+        {"maintenance-session": SessionType.MAINTENANCE},
+    )
+    assert coverage["candidate_events_base_not_ready"] == 1
+    assert coverage["by_session_type"] == {"maintenance": 1}
 
 
 def test_iae_override_binds_each_retest_to_its_exact_gap_snapshot() -> None:

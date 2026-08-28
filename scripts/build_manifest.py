@@ -55,6 +55,10 @@ LIFT2_RUNTIME_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_runtime_m
 LIFT2_COVERAGE_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_candidate_coverage.json"
 LIFT2_EVIDENCE_INDEX = PROJECT_ROOT / "artifacts/certification/lift_2_evidence_index.json"
 LIFT2_MATH_EVIDENCE = PROJECT_ROOT / "artifacts/certification/lift2_math_certification.json"
+LIFT2_READINESS_EVIDENCE = (
+    PROJECT_ROOT / "artifacts/certification/lift2_readiness_qualification.json"
+)
+LIFT2_READINESS_MANIFEST = PROJECT_ROOT / "artifacts/manifests/lift_2_readiness_manifest.json"
 SOURCE_DOCUMENTS = (
     PROJECT_ROOT / "upload/Institutional_Systematic_Futures_Program_Master_Spec_v1.0(2).docx",
     PROJECT_ROOT / "upload/Intraday_Alpha_Capture_Execution_Extension_v1.0_HE(2).docx",
@@ -256,8 +260,21 @@ def build_lift2_rebuild_check() -> dict[str, object]:
         ]
         raise RuntimeError(f"partial Lift 2 evidence set; missing {missing}")
     if all(present):
-        _validate_lift2_final_evidence(contract)
-        status = "PASS_FINAL_EVIDENCE_VALIDATED"
+        _validate_lift2_final_evidence(contract, require_current_source=False)
+    readiness_paths = (LIFT2_READINESS_EVIDENCE, LIFT2_READINESS_MANIFEST)
+    readiness_present = tuple(path.is_file() for path in readiness_paths)
+    if any(readiness_present) and not all(readiness_present):
+        missing = [
+            str(path.relative_to(PROJECT_ROOT))
+            for path, exists in zip(readiness_paths, readiness_present, strict=True)
+            if not exists
+        ]
+        raise RuntimeError(f"partial Lift 2 readiness evidence set; missing {missing}")
+    if all(readiness_present):
+        _validate_lift2_readiness_evidence(contract)
+        status = "PASS_READINESS_EVIDENCE_VALIDATED"
+    elif all(present):
+        status = "PASS_SOURCE_READY_READINESS_EVIDENCE_PENDING"
     else:
         status = "PASS_SOURCE_READY_RUNTIME_EVIDENCE_PENDING"
     payload: dict[str, object] = {
@@ -269,7 +286,9 @@ def build_lift2_rebuild_check() -> dict[str, object]:
     return payload
 
 
-def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
+def _validate_lift2_final_evidence(
+    source_contract: dict[str, object], *, require_current_source: bool = True
+) -> None:
     manifest = _read_and_validate_content_hash(LIFT2_MANIFEST)
     runtime = _read_and_validate_content_hash(LIFT2_RUNTIME_EVIDENCE)
     coverage = _read_and_validate_content_hash(LIFT2_COVERAGE_EVIDENCE)
@@ -278,21 +297,22 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     _validate_lift2_runtime_evidence(runtime)
     _validate_lift2_coverage_evidence(coverage, runtime)
     _validate_lift2_math_evidence(math)
-    for field_name in (
-        "feature_semantics_v3_hash",
-        "feature_semantics_v4_hash",
-        "feature_semantics_v5_hash",
-        "indicator_specification_hashes",
-        "market_registry_hash",
-        "measurement_policy_hash",
-        "numpy_version",
-        "profile_definition_hash",
-        "runtime_source_file_hashes",
-        "runtime_source_tree_hash",
-        "session_policy_hash",
-    ):
-        if manifest.get(field_name) != source_contract[field_name]:
-            raise RuntimeError(f"Lift 2 manifest current-source mismatch: {field_name}")
+    if require_current_source:
+        for field_name in (
+            "feature_semantics_v3_hash",
+            "feature_semantics_v4_hash",
+            "feature_semantics_v5_hash",
+            "indicator_specification_hashes",
+            "market_registry_hash",
+            "measurement_policy_hash",
+            "numpy_version",
+            "profile_definition_hash",
+            "runtime_source_file_hashes",
+            "runtime_source_tree_hash",
+            "session_policy_hash",
+        ):
+            if manifest.get(field_name) != source_contract[field_name]:
+                raise RuntimeError(f"Lift 2 manifest current-source mismatch: {field_name}")
     if manifest.get("runtime_measurement_hash") != runtime["content_hash"]:
         raise RuntimeError("Lift 2 runtime measurement hash mismatch")
     if manifest.get("candidate_coverage_hash") != coverage["content_hash"]:
@@ -321,6 +341,116 @@ def _validate_lift2_final_evidence(source_contract: dict[str, object]) -> None:
     ):
         if not manifest.get(field_name):
             raise RuntimeError(f"Lift 2 manifest field is missing: {field_name}")
+
+
+def _validate_lift2_readiness_evidence(source_contract: dict[str, object]) -> None:
+    qualification = _read_and_validate_content_hash(LIFT2_READINESS_EVIDENCE)
+    manifest = _read_and_validate_content_hash(LIFT2_READINESS_MANIFEST)
+    math = _read_and_validate_content_hash(LIFT2_MATH_EVIDENCE)
+    previous = _read_and_validate_content_hash(LIFT2_MANIFEST)
+    if qualification.get("local_runtime_tree_hash") != source_contract["runtime_source_tree_hash"]:
+        raise RuntimeError("Lift 2 readiness source-tree hash differs from current source")
+    if (
+        qualification.get("local_runtime_file_hashes")
+        != source_contract["runtime_source_file_hashes"]
+    ):
+        raise RuntimeError("Lift 2 readiness file hashes differ from current source")
+    if (
+        qualification.get("qc_project_runtime_tree_hash")
+        != source_contract["runtime_source_tree_hash"]
+    ):
+        raise RuntimeError("Lift 2 readiness QC project hash differs from current source")
+    if qualification.get("qc_project_id") != 35697180:
+        raise RuntimeError("Lift 2 readiness project ID mismatch")
+    for field_name in ("source_git_sha", "compile_id", "compile_signature"):
+        value = qualification.get(field_name)
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"Lift 2 readiness field is missing: {field_name}")
+    if qualification.get("compile_state") != "BuildSuccess":
+        raise RuntimeError("Lift 2 readiness compile did not succeed")
+    expected_runs = {
+        *(("readiness", root) for root in ("ES", "ZN", "6E")),
+        *(("smoke", root) for root in ("ES", "NQ", "RTY", "ZT", "ZN", "6E", "6J", "6B")),
+    }
+    raw_runs = qualification.get("readiness_runs")
+    raw_smoke_runs = qualification.get("smoke_runs")
+    if not isinstance(raw_runs, list) or not isinstance(raw_smoke_runs, list):
+        raise RuntimeError("Lift 2 readiness run lists are missing")
+    runs = (*cast(list[object], raw_runs), *cast(list[object], raw_smoke_runs))
+    if len(runs) != 11:
+        raise RuntimeError("Lift 2 readiness evidence requires exactly 11 runs")
+    observed_runs: set[tuple[str, str]] = set()
+    backtest_ids: set[str] = set()
+    compile_id = qualification["compile_id"]
+    for raw_run in runs:
+        if not isinstance(raw_run, dict):
+            raise RuntimeError("Lift 2 readiness run must be an object")
+        run = cast(dict[str, object], raw_run)
+        mode = run.get("mode")
+        root = run.get("root")
+        backtest_id = run.get("backtest_id")
+        if not isinstance(mode, str) or not isinstance(root, str):
+            raise RuntimeError("Lift 2 readiness run identity is invalid")
+        if not isinstance(backtest_id, str) or not backtest_id:
+            raise RuntimeError("Lift 2 readiness backtest ID is invalid")
+        if backtest_id in backtest_ids:
+            raise RuntimeError("Lift 2 readiness backtest ID is duplicated")
+        backtest_ids.add(backtest_id)
+        observed_runs.add((mode, root))
+        if run.get("status") != "COMPLETED" or run.get("compile_id") != compile_id:
+            raise RuntimeError(f"Lift 2 readiness run is not compile-bound: {mode}/{root}")
+        if mode == "readiness":
+            counts = run.get("candidate_readiness_counts")
+            recovery = run.get("post_roll_recovery")
+            if not isinstance(counts, dict) or not isinstance(recovery, dict) or not recovery:
+                raise RuntimeError(f"Lift 2 readiness qualification is incomplete: {root}")
+            for field_name in (
+                "candidate_events_total",
+                "candidate_events_base_ready",
+                "candidate_events_imsi_ready",
+                "candidate_events_icm_ready",
+                "candidate_events_iae_structural_ready",
+                "candidate_events_iae_score_ready",
+            ):
+                _require_positive_count(cast(dict[str, object], counts), field_name, mode, root)
+    if observed_runs != expected_runs:
+        raise RuntimeError("Lift 2 readiness run matrix mismatch")
+    for field_name in ("independent_order_counts", "independent_insight_counts"):
+        raw_counts = qualification.get(field_name)
+        if not isinstance(raw_counts, dict):
+            raise RuntimeError(f"Lift 2 readiness {field_name} matrix is missing")
+        count_map = cast(dict[str, object], raw_counts)
+        if set(count_map) != backtest_ids:
+            raise RuntimeError(f"Lift 2 readiness {field_name} matrix mismatch")
+        for backtest_id, raw_evidence in count_map.items():
+            if not isinstance(raw_evidence, dict):
+                raise RuntimeError(f"Lift 2 readiness {field_name} row is invalid")
+            evidence = cast(dict[str, object], raw_evidence)
+            if evidence.get("count") != 0:
+                raise RuntimeError(f"Lift 2 readiness {field_name} is nonzero: {backtest_id}")
+            result_hash = evidence.get("api_result_hash")
+            if not isinstance(result_hash, str) or not _is_lower_hex(result_hash, 64):
+                raise RuntimeError(f"Lift 2 readiness {field_name} hash is invalid")
+    if qualification.get("portfolio_target_evidence_type") != "SOURCE-STATIC ZERO":
+        raise RuntimeError("Lift 2 PortfolioTarget evidence type is overstated")
+    expected_manifest_fields = {
+        "source_git_sha": qualification["source_git_sha"],
+        "runtime_source_tree_hash": source_contract["runtime_source_tree_hash"],
+        "qc_project_runtime_tree_hash": source_contract["runtime_source_tree_hash"],
+        "qc_project_id": 35697180,
+        "compile_id": qualification["compile_id"],
+        "compile_signature": qualification["compile_signature"],
+        "qc_backtest_ids": sorted(backtest_ids),
+        "readiness_qualification_hash": qualification["content_hash"],
+        "math_certification_hash": math["content_hash"],
+        "previous_lift_2_manifest_hash": previous["content_hash"],
+    }
+    for field_name, expected in expected_manifest_fields.items():
+        if manifest.get(field_name) != expected:
+            raise RuntimeError(f"Lift 2 readiness manifest mismatch: {field_name}")
+    evidence_git_sha = manifest.get("evidence_git_sha")
+    if not isinstance(evidence_git_sha, str) or not _is_lower_hex(evidence_git_sha, 40):
+        raise RuntimeError("Lift 2 readiness evidence Git SHA is invalid")
 
 
 def _validate_lift2_runtime_evidence(document: dict[str, object]) -> None:

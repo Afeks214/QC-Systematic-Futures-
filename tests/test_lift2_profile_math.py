@@ -5,7 +5,16 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from systematic_futures.domain.enums import AuctionLocationState, ProfileKind, RollState
+from systematic_futures.data.quality import (
+    blocking_measurement_flags,
+    measurement_quality_severity,
+)
+from systematic_futures.domain.enums import (
+    AuctionLocationState,
+    MeasurementQualitySeverity,
+    ProfileKind,
+    RollState,
+)
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -229,6 +238,7 @@ def test_trade_admission_uses_source_identity_and_quarantines_bad_ticks() -> Non
         price: float = 100.0,
         quantity: float = 1.0,
         flags: tuple[str, ...] = (),
+        sequence: int | None = None,
     ) -> TradeObservation:
         return TradeObservation(
             root="ES",
@@ -241,24 +251,42 @@ def test_trade_admission_uses_source_identity_and_quarantines_bad_ticks() -> Non
             session_id="current",
             roll_state=RollState.NORMAL,
             source_event_id=event_id,
+            source_sequence=sequence,
             source_quality_flags=flags,
         )
 
     assert engine.ingest_trade(trade("trade-a"))
     assert engine.ingest_trade(trade("trade-b"))
     assert not engine.ingest_trade(trade("trade-a"))
-    assert engine.last_rejection_flags == ("DATA:DUPLICATE_SOURCE_ID",)
+    assert engine.last_rejection_flags == ("DATA:DUPLICATE_SOURCE_ID_EXCLUDED",)
     assert not engine.ingest_trade(trade("suspicious", flags=("SOURCE_SUSPICIOUS",)))
-    assert engine.last_rejection_flags == ("DATA:SOURCE_SUSPICIOUS",)
+    assert engine.last_rejection_flags == ("DATA:SOURCE_SUSPICIOUS_EXCLUDED",)
     assert not engine.ingest_trade(trade("off-grid", price=100.125))
-    assert engine.last_rejection_flags == ("DATA:OFF_TICK_GRID",)
+    assert engine.last_rejection_flags == ("DATA:OFF_TICK_GRID_EXCLUDED",)
     assert not engine.ingest_trade(trade("bad-quantity", quantity=0.0))
-    assert engine.last_rejection_flags == ("DATA:NON_POSITIVE_QUANTITY",)
+    assert engine.last_rejection_flags == ("DATA:NON_POSITIVE_QUANTITY_EXCLUDED",)
+
+    sequence_engine = VolumeProfileEngine("ES", "ESH24", "current", 0.25)
+    assert sequence_engine.ingest_trade(trade(None, sequence=7))
+    assert not sequence_engine.ingest_trade(trade(None, sequence=7))
+    assert sequence_engine.last_rejection_flags == ("DATA:DUPLICATE_SOURCE_SEQUENCE_EXCLUDED",)
 
     unverifiable = VolumeProfileEngine("ES", "ESH24", "current", 0.25)
     assert unverifiable.ingest_trade(trade(None))
+    assert unverifiable.ingest_trade(trade(None))
     snapshot = unverifiable.snapshot(ProfileKind.DEVELOPING_SESSION, at, at)
-    assert "DATA:DEDUPLICATION_UNVERIFIABLE" in snapshot.quality_flags
+    assert snapshot.total_volume == 2
+    assert "PROVENANCE:DEDUPLICATION_UNVERIFIABLE" in snapshot.quality_flags
+
+
+def test_measurement_quality_severity_is_exact_and_dedup_provenance_is_nonblocking() -> None:
+    assert (
+        measurement_quality_severity("PROVENANCE:DEDUPLICATION_UNVERIFIABLE")
+        is MeasurementQualitySeverity.INFORMATIONAL
+    )
+    assert measurement_quality_severity("DATA:LATE") is MeasurementQualitySeverity.BLOCKING
+    assert measurement_quality_severity("DATA:OUT_OF_ORDER") is MeasurementQualitySeverity.BLOCKING
+    assert blocking_measurement_flags(("PROVENANCE:DEDUPLICATION_UNVERIFIABLE",)) == ()
 
 
 @pytest.mark.analytic_math

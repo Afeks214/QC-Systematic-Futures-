@@ -24,6 +24,12 @@ class DataQualityStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class MeasurementQualitySeverity(str, Enum):
+    INFORMATIONAL = "informational"
+    WARNING = "warning"
+    BLOCKING = "blocking"
+
+
 class RollState(str, Enum):
     NORMAL = "normal"
     PRE_ROLL = "pre_roll"
@@ -106,6 +112,7 @@ __all__ = (
     "ExperimentDecision",
     "IAEGapDirection",
     "IAEGapState",
+    "MeasurementQualitySeverity",
     "ProfileKind",
     "ResearchEnvironment",
     "RollState",

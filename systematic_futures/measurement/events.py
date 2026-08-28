@@ -1,13 +1,15 @@
 from collections import Counter, deque
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol, TypeVar
 
 from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.data.quality import measurement_quality_severity
 from systematic_futures.domain.enums import (
     AuctionLocationState,
     CandidateEventType,
+    MeasurementQualitySeverity,
     SessionType,
 )
 from systematic_futures.domain.errors import (
@@ -21,6 +23,7 @@ from systematic_futures.measurement.state_models import (
     AuctionStateSnapshot,
     AuctionTransitionMetrics,
     CandidateEventObservation,
+    CandidateResearchReadiness,
     IAEStateSnapshot,
     ICMStateSnapshot,
     IMSIStateSnapshot,
@@ -29,7 +32,7 @@ from systematic_futures.measurement.state_models import (
 )
 
 _FEATURE_VERSION = "feature_semantics_math_v5"
-_SYNERGY_VERSION = "indicator_alignment_v2"
+_SYNERGY_VERSION = "indicator_alignment_v3"
 _MAX_ALIGNMENT_HISTORY = 512
 _AUCTION_TRANSITION_VERSION = "auction_transition_metrics_v2"
 
@@ -395,17 +398,19 @@ class SnapshotAligner:
         }
         present = all(snapshot is not None for _, snapshot in components)
         fresh = present
-        component_ready = True
+        component_freshness: dict[str, bool] = {}
         for name, snapshot in components:
             if snapshot is None:
                 flag = f"{name}:MISSING"
                 component_flags.add(flag)
                 blocking_flags.add(flag)
                 fresh = False
-                component_ready = False
+                component_freshness[name] = False
                 continue
             component_flags.update(_prefixed_quality(name, flag) for flag in snapshot.quality_flags)
-            if not _snapshot_is_fresh(snapshot, auction, freshness_minutes[name]):
+            is_fresh = _snapshot_is_fresh(snapshot, auction, freshness_minutes[name])
+            component_freshness[name] = is_fresh
+            if not is_fresh:
                 flag = f"{name}:STALE"
                 component_flags.add(flag)
                 blocking_flags.add(flag)
@@ -413,8 +418,13 @@ class SnapshotAligner:
             if not snapshot.measurement_ready:
                 flag = f"{name}:MEASUREMENT_NOT_READY"
                 blocking_flags.add(flag)
-                component_ready = False
-        ready = present and fresh and auction.measurement_ready and component_ready
+        imsi_ready = imsi is not None and component_freshness["IMSI"] and imsi.measurement_ready
+        icm_ready = icm is not None and component_freshness["ICM"] and icm.measurement_ready
+        iae_structural_ready = (
+            iae is not None and component_freshness["IAE"] and iae.measurement_ready
+        )
+        iae_score_ready = iae_structural_ready and iae is not None and iae.score_ready
+        ready = auction.measurement_ready and imsi_ready and icm_ready and iae_structural_ready
         component_quality_flags = tuple(sorted(component_flags))
         blocking_quality_flags = tuple(sorted(blocking_flags))
         quality_flags = tuple(sorted(component_flags | blocking_flags))
@@ -429,6 +439,10 @@ class SnapshotAligner:
             "all_required_inputs_present": present,
             "all_required_inputs_fresh": fresh,
             "all_required_inputs_ready": ready,
+            "imsi_ready": imsi_ready,
+            "icm_ready": icm_ready,
+            "iae_structural_ready": iae_structural_ready,
+            "iae_score_ready": iae_score_ready,
             "quality_flags": quality_flags,
             "version": _SYNERGY_VERSION,
         }
@@ -446,6 +460,10 @@ class SnapshotAligner:
             all_required_inputs_present=present,
             all_required_inputs_fresh=fresh,
             all_required_inputs_ready=ready,
+            imsi_ready=imsi_ready,
+            icm_ready=icm_ready,
+            iae_structural_ready=iae_structural_ready,
+            iae_score_ready=iae_score_ready,
             component_quality_flags=component_quality_flags,
             blocking_quality_flags=blocking_quality_flags,
             quality_flags=quality_flags,
@@ -507,6 +525,26 @@ class CandidateEventGenerator:
                 synergy.iae_snapshot_id,
             )
         )
+        is_iae_retest = trigger.event_type in {
+            CandidateEventType.IAE_RETEST_BULL,
+            CandidateEventType.IAE_RETEST_BEAR,
+        }
+        base_event_ready = auction.measurement_ready and (
+            not is_iae_retest or synergy.iae_structural_ready
+        )
+        readiness = CandidateResearchReadiness(
+            base_event_ready=base_event_ready,
+            imsi_state_ready=synergy.imsi_ready,
+            icm_state_ready=synergy.icm_ready,
+            iae_structural_ready=synergy.iae_structural_ready,
+            iae_score_ready=synergy.iae_score_ready,
+            full_context_ready=(
+                base_event_ready
+                and synergy.imsi_ready
+                and synergy.icm_ready
+                and synergy.iae_structural_ready
+            ),
+        )
         event = CandidateEventObservation(
             event_id=event_id,
             parent_event_id=trigger.parent_event_id,
@@ -521,7 +559,7 @@ class CandidateEventGenerator:
             synergy_snapshot_id=synergy.snapshot_id,
             data_snapshot_hash=data_hash,
             feature_version=_FEATURE_VERSION,
-            research_ready=synergy.all_required_inputs_ready,
+            readiness=readiness,
             quality_flags=synergy.quality_flags,
         )
         self._events.append(event)
@@ -561,6 +599,58 @@ def candidate_coverage(
     unique_sessions = {event.session_id for event in records}
     resolved = [synergies.get(event.synergy_snapshot_id) for event in records]
     parent_ids = {event.parent_event_id for event in records if event.parent_event_id is not None}
+    blocking_reasons: Counter[str] = Counter()
+    informational_reasons: Counter[str] = Counter()
+    warning_reasons: Counter[str] = Counter()
+    blocking_by_root: dict[str, Counter[str]] = {}
+    blocking_by_event_type: dict[str, Counter[str]] = {}
+    for event in records:
+        for flag in event.quality_flags:
+            severity = measurement_quality_severity(flag)
+            if severity is MeasurementQualitySeverity.BLOCKING:
+                blocking_reasons[flag] += 1
+                blocking_by_root.setdefault(event.root, Counter())[flag] += 1
+                blocking_by_event_type.setdefault(event.event_type.value, Counter())[flag] += 1
+            elif severity is MeasurementQualitySeverity.WARNING:
+                warning_reasons[flag] += 1
+            else:
+                informational_reasons[flag] += 1
+
+    readiness_by_contract: dict[str, dict[str, object]] = {}
+    post_roll_contracts: set[str] = set()
+    for contract_symbol in sorted(by_contract):
+        contract_events = tuple(
+            event for event in records if event.contract_symbol == contract_symbol
+        )
+        if any("ROLL:POST_ROLL" in event.quality_flags for event in contract_events):
+            post_roll_contracts.add(contract_symbol)
+        readiness_by_contract[contract_symbol] = {
+            "first_event_utc": _first_event_time(contract_events, lambda event: True),
+            "first_base_ready_event_utc": _first_event_time(
+                contract_events, lambda event: event.readiness.base_event_ready
+            ),
+            "first_imsi_ready_event_utc": _first_event_time(
+                contract_events, lambda event: event.readiness.imsi_state_ready
+            ),
+            "first_icm_ready_event_utc": _first_event_time(
+                contract_events, lambda event: event.readiness.icm_state_ready
+            ),
+            "first_iae_structural_ready_event_utc": _first_event_time(
+                contract_events, lambda event: event.readiness.iae_structural_ready
+            ),
+            "first_iae_score_ready_event_utc": _first_event_time(
+                contract_events, lambda event: event.readiness.iae_score_ready
+            ),
+            "base_ready_count": sum(event.readiness.base_event_ready for event in contract_events),
+            "imsi_ready_count": sum(event.readiness.imsi_state_ready for event in contract_events),
+            "icm_ready_count": sum(event.readiness.icm_state_ready for event in contract_events),
+            "iae_structural_ready_count": sum(
+                event.readiness.iae_structural_ready for event in contract_events
+            ),
+            "iae_score_ready_count": sum(
+                event.readiness.iae_score_ready for event in contract_events
+            ),
+        }
     return {
         "by_calendar_month": dict(sorted(by_month.items())),
         "by_contract": dict(sorted(by_contract.items())),
@@ -581,8 +671,25 @@ def candidate_coverage(
         "candidate_events_inputs_present": sum(
             item is not None and item.all_required_inputs_present for item in resolved
         ),
-        "candidate_events_inputs_ready": sum(event.research_ready for event in records),
+        "candidate_events_inputs_ready": sum(
+            item is not None and item.all_required_inputs_ready for item in resolved
+        ),
         "candidate_events_not_ready": sum(not event.research_ready for event in records),
+        "candidate_events_base_ready": sum(event.readiness.base_event_ready for event in records),
+        "candidate_events_imsi_ready": sum(event.readiness.imsi_state_ready for event in records),
+        "candidate_events_icm_ready": sum(event.readiness.icm_state_ready for event in records),
+        "candidate_events_iae_structural_ready": sum(
+            event.readiness.iae_structural_ready for event in records
+        ),
+        "candidate_events_iae_score_ready": sum(
+            event.readiness.iae_score_ready for event in records
+        ),
+        "candidate_events_full_context_ready": sum(
+            event.readiness.full_context_ready for event in records
+        ),
+        "candidate_events_base_not_ready": sum(
+            not event.readiness.base_event_ready for event in records
+        ),
         "candidate_events_missing_imsi": sum(
             item is None or item.imsi_snapshot_id is None for item in resolved
         ),
@@ -596,11 +703,39 @@ def candidate_coverage(
             item is not None and item.all_required_inputs_present for item in resolved
         ),
         "parent_excursion_count": len(parent_ids),
-        "quality_blocked_events": sum(not event.research_ready for event in records),
+        "quality_blocked_events": sum(
+            any(
+                measurement_quality_severity(flag) is MeasurementQualitySeverity.BLOCKING
+                for flag in event.quality_flags
+            )
+            for event in records
+        ),
+        "blocking_reason_counts": dict(sorted(blocking_reasons.items())),
+        "informational_reason_counts": dict(sorted(informational_reasons.items())),
+        "warning_reason_counts": dict(sorted(warning_reasons.items())),
+        "blocking_reason_counts_by_root": {
+            root: dict(sorted(counts.items())) for root, counts in sorted(blocking_by_root.items())
+        },
+        "blocking_reason_counts_by_event_type": {
+            event_type: dict(sorted(counts.items()))
+            for event_type, counts in sorted(blocking_by_event_type.items())
+        },
+        "readiness_by_contract": readiness_by_contract,
+        "post_roll_contracts": sorted(post_roll_contracts),
         "raw_event_count": raw_count,
         "unique_event_count": len(records),
         "unique_session_count": len(unique_sessions),
     }
+
+
+def _first_event_time(
+    events: Sequence[CandidateEventObservation],
+    predicate: Callable[[CandidateEventObservation], bool],
+) -> str | None:
+    matching = [event.event_time_utc for event in events if predicate(event)]
+    if not matching:
+        return None
+    return min(matching).isoformat().replace("+00:00", "Z")
 
 
 class _AlignableSnapshot(Protocol):
@@ -680,7 +815,7 @@ def _snapshot_is_fresh(
 
 
 def _prefixed_quality(source: str, flag: str) -> str:
-    if flag.startswith(("DATA:", "ROLL:", "SESSION:")):
+    if flag.startswith(("DATA:", "PROVENANCE:", "ROLL:", "SESSION:")):
         return flag
     return f"{source}:{flag}"
 

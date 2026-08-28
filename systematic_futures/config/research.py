@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from systematic_futures.domain.enums import RollState, SessionType
 from systematic_futures.domain.errors import DataQualityError
 
 PROBE_START_DATE = "2024-02-15"
@@ -11,8 +12,16 @@ LIFT2_DEEP_START_DATE = "2024-02-15"
 LIFT2_DEEP_END_DATE = "2024-03-25"
 LIFT2_SMOKE_START_DATE = "2024-03-04"
 LIFT2_SMOKE_END_DATE = "2024-03-06"
+LIFT2_READINESS_START_DATE = "2024-02-15"
+LIFT2_READINESS_END_DATE = "2024-05-31"
 LIFT2_REFERENCE_MARKETS: tuple[str, ...] = ("ES", "ZN", "6E")
 LIFT2_ALL_MARKETS: tuple[str, ...] = ("ES", "NQ", "RTY", "ZT", "ZN", "6E", "6J", "6B")
+LIFT2_MEASUREMENT_ELIGIBLE_ROLL_STATES = frozenset({RollState.NORMAL, RollState.POST_ROLL})
+LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES = frozenset(
+    session_type
+    for session_type in SessionType
+    if session_type not in {SessionType.MAINTENANCE, SessionType.CLOSED, SessionType.UNKNOWN}
+)
 ICM_WINDOWS: Mapping[str, int] = {
     "NQ": 60,
     "ES": 70,
@@ -82,7 +91,7 @@ def lift_2_measurement_configuration() -> Mapping[str, object]:
     """
 
     return {
-        "candidate_event_version": "candidate_event_v1",
+        "candidate_event_version": "candidate_event_v2",
         "measurement_clock_policy": {
             "fast_bar_minutes": MEASUREMENT_CLOCK_POLICY.fast_bar_minutes,
             "medium_state_bar_minutes": MEASUREMENT_CLOCK_POLICY.medium_state_bar_minutes,
@@ -125,6 +134,8 @@ def lift_2_measurement_configuration() -> Mapping[str, object]:
             "version": "volume_profile_math_v2",
         },
         "reference_markets": LIFT2_REFERENCE_MARKETS,
+        "readiness_end_date": LIFT2_READINESS_END_DATE,
+        "readiness_start_date": LIFT2_READINESS_START_DATE,
         "smoke_end_date": LIFT2_SMOKE_END_DATE,
         "smoke_markets": LIFT2_ALL_MARKETS,
         "smoke_start_date": LIFT2_SMOKE_START_DATE,

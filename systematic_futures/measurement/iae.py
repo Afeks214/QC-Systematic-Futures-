@@ -337,6 +337,14 @@ class IAEEngine:
     ) -> IAEStateSnapshot:
         volume_score_input = max(volume_z, _VOLUME_Z_FLOOR) if volume_z is not None else None
         active_gap_count = self.active_gap_count
+        score_ready = (
+            gap is not None
+            and normalization_ready
+            and metrics is not None
+            and metrics.wick is not None
+            and volume_z is not None
+            and metrics.score_effective is not None
+        )
         identity = {
             "active_gap_count": active_gap_count,
             "as_of_utc": bar.end_utc,
@@ -347,6 +355,7 @@ class IAEEngine:
             "root": self.root,
             "session_id": bar.session_id,
             "score_effective": metrics.score_effective if metrics is not None else None,
+            "score_ready": score_ready,
             "version": _VERSION,
         }
         return IAEStateSnapshot(
@@ -376,6 +385,7 @@ class IAEEngine:
             absorption_confirmed=gap is not None and gap.state is IAEGapState.ABSORBED,
             active_gap_count=active_gap_count,
             measurement_ready=gap is not None and normalization_ready,
+            score_ready=score_ready,
             quality_flags=tuple(sorted(flags)),
             version=_VERSION,
         )

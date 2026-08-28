@@ -22,6 +22,7 @@ def _trade(
     *,
     session_id: str,
     contract: str = "ESH24",
+    roll_state: RollState = RollState.NORMAL,
 ) -> TradeObservation:
     return TradeObservation(
         root="ES",
@@ -32,7 +33,7 @@ def _trade(
         quantity=quantity,
         minimum_tick=0.25,
         session_id=session_id,
-        roll_state=RollState.NORMAL,
+        roll_state=roll_state,
     )
 
 
@@ -119,3 +120,55 @@ def test_whole_engine_prefix_equivalence_at_frozen_checkpoints() -> None:
             truncated.on_trade(trade)
         truncated_hashes[checkpoint] = truncated.measurement_hash()
     assert truncated_hashes == full_hashes
+
+
+def test_roll_transition_blocks_but_post_roll_recovers_without_cross_contract_state() -> None:
+    def run_current_session(roll_state: RollState) -> MeasurementStream:
+        sessions = SessionEngine(reference_session_policies())
+        stream = MeasurementStream("ES", "ESH24", 0.25, sessions)
+        prior_time = datetime(2024, 3, 4, 14, 30, 1, tzinfo=UTC)
+        stream.on_trade(
+            _trade(
+                prior_time,
+                5000.0,
+                1.0,
+                session_id=sessions.session_id("ES", prior_time),
+            )
+        )
+        current_start = datetime(2024, 3, 5, 14, 30, 1, tzinfo=UTC)
+        for index in range(26):
+            timestamp = current_start + timedelta(minutes=5 * index)
+            stream.on_trade(
+                _trade(
+                    timestamp,
+                    5000.0 + 0.25 * (index % 3),
+                    1.0,
+                    session_id=sessions.session_id("ES", timestamp),
+                    roll_state=roll_state,
+                )
+            )
+        return stream
+
+    transition = run_current_session(RollState.ROLL_TRANSITION)
+    transition_snapshot = transition.auction_snapshots[-1]
+    assert "ROLL:ROLL_TRANSITION" in transition_snapshot.quality_flags
+    assert not transition_snapshot.measurement_ready
+
+    post_roll = run_current_session(RollState.POST_ROLL)
+    post_roll_snapshot = post_roll.auction_snapshots[-1]
+    assert "ROLL:POST_ROLL" in post_roll_snapshot.quality_flags
+    assert post_roll_snapshot.features.local_price_scale.warmup_complete
+    assert post_roll_snapshot.references.prior_same_session_type_id is not None
+    assert post_roll_snapshot.measurement_ready
+
+    fresh_contract = MeasurementStream(
+        "ES",
+        "ESM24",
+        0.25,
+        SessionEngine(reference_session_policies()),
+    )
+    assert fresh_contract.completed_bars == []
+    assert fresh_contract.profile_snapshots == []
+    assert fresh_contract.imsi_snapshots == []
+    assert fresh_contract.icm_snapshots == []
+    assert fresh_contract.iae_snapshots == []

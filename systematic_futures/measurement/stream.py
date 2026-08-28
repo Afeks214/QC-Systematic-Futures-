@@ -3,7 +3,12 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.research import (
+    LIFT2_MEASUREMENT_ELIGIBLE_ROLL_STATES,
+    LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES,
+    MEASUREMENT_CLOCK_POLICY,
+)
+from systematic_futures.data.quality import blocking_measurement_flags
 from systematic_futures.data.sessions import SessionEngine
 from systematic_futures.domain.enums import (
     ProfileKind,
@@ -439,6 +444,8 @@ class MeasurementStream:
             flags.update(reference_profile.quality_flags)
         if self._last_roll_state is not None:
             flags.add(f"ROLL:{self._last_roll_state.value.upper()}")
+        if session_type not in LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES:
+            flags.add(f"SESSION:{session_type.value.upper()}")
         references = ProfileReferenceSet(
             prior_same_session_type_id=(
                 reference_profile.snapshot_id if reference_profile is not None else None
@@ -472,8 +479,9 @@ class MeasurementStream:
         measurement_ready = (
             reference_profile is not None
             and atr.warmup_complete
-            and not any(flag.startswith("DATA:") for flag in flags)
-            and self._last_roll_state is RollState.NORMAL
+            and not blocking_measurement_flags(flags)
+            and session_type in LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES
+            and self._last_roll_state in LIFT2_MEASUREMENT_ELIGIBLE_ROLL_STATES
         )
         identity = {
             "active_excursion_id": self._transition.active_excursion_id,

@@ -664,3 +664,67 @@ Used in file: `pyproject.toml`, `requirements.txt`, `measurement/imsi.py`, and
 `measurement/icm.py`.
 
 Status: `VERIFIED_SOURCE_AND_EXECUTED_QC_CLOUD_11_RUNS`.
+
+## Lift 2 research-readiness remediation API resolution
+
+Resolution date: **2026-08-28**. The following interfaces are source-resolved for
+`scripts/verify_qc_readiness.py`. They are not marked runtime-qualified until the new
+readiness matrix completes.
+
+### Futures trade source identity capability
+
+Requirement: determine whether the exposed US Futures `Tick` schema supplies a stable
+source trade identifier or source sequence that can support exact deduplication.
+
+Verified schema: LEAN `Tick` exposes trade time/price, quantity, exchange,
+`SaleCondition`, and `Suspicious`. The official class and futures handling documentation
+do not expose a stable source event ID or exchange sequence field. LEAN also groups
+backtest ticks into millisecond buckets, which is not an exchange sequence.
+
+Official source: [LEAN Tick class](https://github.com/QuantConnect/Lean/blob/master/Common/Data/Market/Tick.cs),
+[handling Futures ticks](https://www.quantconnect.com/docs/v2/writing-algorithms/securities/asset-classes/futures/handling-data).
+
+Resolution: `SOURCE_IDENTITY_CAPABILITY = NOT_EXPOSED`. The adapter must not construct an
+ID from visible tick content. Missing source identity is recorded as
+`PROVENANCE:DEDUPLICATION_UNVERIFIABLE`; actual source IDs/sequences remain supported if a
+future verified source supplies them.
+
+Status: `VERIFIED_SOURCE_CAPABILITY_NOT_EXPOSED`; this is a disclosed provenance
+limitation, not a data-failure classification.
+
+### QuantConnect v2 source/build/backtest attestation
+
+Requirement: bind one exact project source tree to one compile and eleven qualifying
+backtests, then read Orders and Insights independently from the algorithm.
+
+Verified REST contract:
+
+- Authentication uses `QC_USER_ID`, `QC_API_TOKEN`, an integer-second `Timestamp`,
+  SHA-256 of `token:timestamp`, and HTTP Basic authentication of `user_id:hash`.
+- `/files/read` returns all project files when only `projectId` is supplied;
+  `/files/create` and `/files/update` accept project ID, name, and UTF-8 content.
+- `/compile/create` accepts `projectId` and returns `compileId`, state, and signature;
+  `/compile/read` accepts `projectId` and `compileId`, with terminal states
+  `BuildSuccess` or `BuildError`.
+- `/backtests/create` accepts the exact `compileId`, name, and parameter mapping;
+  `/backtests/read` returns the selected result and completion/error state.
+- `/backtests/orders/read` and `/backtests/read/insights` accept project/backtest IDs plus
+  `start` and `end`; their returned collections and lengths provide independent zero
+  counts.
+
+Official source: [authentication](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/authentication),
+[read files](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/file-management/read-file),
+[create files](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/file-management/create-file),
+[update files](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/file-management/update-file),
+[create compilation](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/compiling-code/create-compilation-job),
+[read compilation](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/compiling-code/read-compilation-result),
+[create backtest](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/backtest-management/create-backtest),
+[read backtest](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/backtest-management/read-backtest/backtest-statistics),
+[read orders](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/backtest-management/read-backtest/orders),
+[read insights](https://www.quantconnect.com/docs/v2/cloud-platform/api-reference/backtest-management/read-backtest/insights).
+
+Used in file: `scripts/verify_qc_readiness.py`.
+
+Status: `VERIFIED_OFFICIAL_REST_CONTRACT_RUNTIME_QUALIFICATION_PENDING`. No public result
+endpoint for PortfolioTargets was found. PortfolioTarget evidence therefore remains
+`SOURCE-STATIC ZERO`; it must not be labeled QC-independent.

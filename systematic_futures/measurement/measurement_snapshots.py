@@ -14,6 +14,7 @@ from systematic_futures.domain.enums import (
 from systematic_futures.domain.errors import DataQualityError, DataTimingInvariantError
 from systematic_futures.measurement.measurement_records import (
     AuctionFeatureVector,
+    CandidateResearchReadiness,
     ProfileReferenceSet,
     _require_finite,
     _require_flags,
@@ -271,6 +272,7 @@ class IAEStateSnapshot:
     absorption_confirmed: bool
     active_gap_count: int
     measurement_ready: bool
+    score_ready: bool
     quality_flags: tuple[str, ...]
     version: str
 
@@ -313,6 +315,15 @@ class IAEStateSnapshot:
             raise DataQualityError("IAE absorption flag disagrees with gap state")
         if self.measurement_ready and self.gap_id is None:
             raise DataQualityError("IAE measurement_ready requires a gap state")
+        expected_score_ready = (
+            self.measurement_ready
+            and self.retest_depth_ratio is not None
+            and self.wick_rejection_ratio is not None
+            and self.tod_volume_z_raw is not None
+            and self.score_effective is not None
+        )
+        if self.score_ready is not expected_score_ready:
+            raise DataQualityError("IAE score_ready disagrees with exact score inputs")
         _require_flags(self.quality_flags)
 
 
@@ -333,6 +344,10 @@ class IndicatorSynergySnapshot:
     all_required_inputs_present: bool
     all_required_inputs_fresh: bool
     all_required_inputs_ready: bool
+    imsi_ready: bool
+    icm_ready: bool
+    iae_structural_ready: bool
+    iae_score_ready: bool
     component_quality_flags: tuple[str, ...]
     blocking_quality_flags: tuple[str, ...]
     quality_flags: tuple[str, ...]
@@ -359,6 +374,12 @@ class IndicatorSynergySnapshot:
             self.all_required_inputs_present and self.all_required_inputs_fresh
         ):
             raise DataQualityError("ready synergy inputs must also be present and fresh")
+        if self.all_required_inputs_ready and not (
+            self.imsi_ready and self.icm_ready and self.iae_structural_ready
+        ):
+            raise DataQualityError("ready synergy disagrees with component readiness")
+        if self.iae_score_ready and not self.iae_structural_ready:
+            raise DataQualityError("IAE score readiness requires structural readiness")
         _require_flags(self.component_quality_flags)
         _require_flags(self.blocking_quality_flags)
         if self.quality_flags != tuple(
@@ -385,7 +406,7 @@ class CandidateEventObservation:
     synergy_snapshot_id: str
     data_snapshot_hash: str
     feature_version: str
-    research_ready: bool
+    readiness: CandidateResearchReadiness
     quality_flags: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -410,7 +431,15 @@ class CandidateEventObservation:
             raise DataTimingInvariantError("event_time_utc must not exceed available_at_utc")
         if self.direction not in {-1, 1}:
             raise DataQualityError("direction must be +1 or -1")
+        if not isinstance(self.readiness, CandidateResearchReadiness):
+            raise DataQualityError("readiness must be CandidateResearchReadiness")
         _require_flags(self.quality_flags)
+
+    @property
+    def research_ready(self) -> bool:
+        """Return backward-compatible base-event eligibility without duplicate state."""
+
+        return self.readiness.base_event_ready
 
 
 class _IndicatorIdentity(Protocol):

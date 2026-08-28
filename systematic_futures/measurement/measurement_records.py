@@ -426,10 +426,43 @@ class ATRMeasurement:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class CandidateResearchReadiness:
+    """Event-specific Lift 2 research eligibility and optional context readiness."""
+
+    base_event_ready: bool
+    imsi_state_ready: bool
+    icm_state_ready: bool
+    iae_structural_ready: bool
+    iae_score_ready: bool
+    full_context_ready: bool
+
+    def __post_init__(self) -> None:
+        values = (
+            self.base_event_ready,
+            self.imsi_state_ready,
+            self.icm_state_ready,
+            self.iae_structural_ready,
+            self.iae_score_ready,
+            self.full_context_ready,
+        )
+        if any(type(value) is not bool for value in values):
+            raise DataQualityError("Candidate readiness fields must be booleans")
+        expected_full_context = (
+            self.base_event_ready
+            and self.imsi_state_ready
+            and self.icm_state_ready
+            and self.iae_structural_ready
+        )
+        if self.full_context_ready is not expected_full_context:
+            raise DataQualityError("full_context_ready disagrees with required readiness states")
+
+
 __all__ = (
     "ATRMeasurement",
     "AuctionFeatureVector",
     "AuctionTransitionMetrics",
+    "CandidateResearchReadiness",
     "CompletedTradeBar",
     "PriceScale",
     "ProfileDefinition",

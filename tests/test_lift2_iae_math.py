@@ -327,6 +327,8 @@ def test_full_iae_pipeline_is_price_reflection_symmetric_and_absorbs_once() -> N
     assert bull_snapshot is not None and bear_snapshot is not None
     assert bull_snapshot.direction is IAEGapDirection.BULLISH
     assert bear_snapshot.direction is IAEGapDirection.BEARISH
+    assert bull_snapshot.measurement_ready and bear_snapshot.measurement_ready
+    assert not bull_snapshot.score_ready and not bear_snapshot.score_ready
     assert bull_snapshot.formation_quality == pytest.approx(bear_snapshot.formation_quality)
     expected_quality = 2.0**0.4 * 0.5**0.4 * 0.8**0.2
     assert bull_snapshot.formation_quality == pytest.approx(expected_quality)
@@ -368,6 +370,7 @@ def test_full_iae_pipeline_is_price_reflection_symmetric_and_absorbs_once() -> N
     assert bull_snapshot.close_position_score == bear_snapshot.close_position_score == 1.0
     assert bull_snapshot.score_raw == pytest.approx(bear_snapshot.score_raw)
     assert bull_snapshot.score_effective == pytest.approx(bear_snapshot.score_effective)
+    assert bull_snapshot.score_ready and bear_snapshot.score_ready
     prior_slot_three = tuple(13.0 + day for day in range(20))
     prior_mean = sum(prior_slot_three) / len(prior_slot_three)
     prior_variance = sum((value - prior_mean) ** 2 for value in prior_slot_three) / len(
@@ -528,4 +531,6 @@ def test_doji_retest_withholds_wick_and_score_instead_of_fabricating_evidence() 
     assert snapshot.wick_rejection_ratio is None
     assert snapshot.score_raw is None
     assert snapshot.score_effective is None
+    assert snapshot.measurement_ready
+    assert not snapshot.score_ready
     assert "IAE_DEGENERATE_BODY" in snapshot.quality_flags

@@ -328,7 +328,7 @@ def test_runtime_boundary_filters_quotes_and_routes_trade_ticks(monkeypatch) -> 
     assert runtime.runtime_summary["quote_ticks_ignored"] == 1
     assert runtime.runtime_summary["counts"]["trade_ticks"] == 3
     assert runtime.runtime_summary["counts"]["rejected_trade_ticks"] == 1
-    assert runtime.runtime_summary["quality_counts"]["DATA:SOURCE_SUSPICIOUS"] == 1
+    assert runtime.runtime_summary["quality_counts"]["DATA:SOURCE_SUSPICIOUS_EXCLUDED"] == 1
     assert runtime.runtime_summary["mode"] == "deep"
     assert runtime.runtime_summary["period"] == {
         "end": LIFT2_DEEP_END_DATE,

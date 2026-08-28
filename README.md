@@ -87,12 +87,23 @@ artifacts exist. A command that did not execute is never reported as passed.
 `InstitutionalFuturesMeasurementAlgorithm` delegates to `Lift2Runtime`. Parameters:
 
 - `lift2_root`: one of `ES`, `NQ`, `RTY`, `ZT`, `ZN`, `6E`, `6J`, `6B`;
-- `lift2_mode`: `deep` for ES/ZN/6E over 2024-02-15 through 2024-03-25, or `smoke`
-  for the bounded all-market window.
+- `lift2_mode`: `deep` for the historical ES/ZN/6E window, `smoke` for the bounded
+  all-market window, or `readiness` for ES/ZN/6E over 2024-02-15 through 2024-05-31.
 
 The continuous root is used only for mapping and chain identity. Each mapped actual
 contract is explicitly subscribed at tick resolution; only `TickType.TRADE` enters
 measurements. Contract changes finalize old state and create a clean new stream.
+`POST_ROLL` is retained as context but becomes measurement-eligible after the new
+contract's own Profile/ATR warmups; the exact `ROLL_TRANSITION` instant remains blocked.
+
+The independent readiness verifier requires `QC_USER_ID` and `QC_API_TOKEN` in the
+environment. It synchronizes only the authorized runtime files when explicitly asked,
+verifies the QC source hash before and after one compile, launches 3 readiness plus 8
+smoke runs from that compile, and independently reads Orders and Insights:
+
+```bash
+python scripts/verify_qc_readiness.py --upload-source
+```
 
 ## Notebook workflow
 
@@ -112,6 +123,11 @@ private storage and are ignored. Required final artifacts are:
 - `artifacts/certification/lift2_math_certification.json`
 - `artifacts/certification/lift_2_evidence_index.json`
 - `artifacts/manifests/lift_2_manifest.json`
+
+The remediation adds, only after a successful independent QC qualification:
+
+- `artifacts/certification/lift2_readiness_qualification.json`
+- `artifacts/manifests/lift_2_readiness_manifest.json`
 
 The authoritative live plan is `docs/LIFT_2_EXECPLAN.md`; final status and exact QC
 identifiers belong in `docs/LIFT_2_COMPLETION_REPORT.md`.

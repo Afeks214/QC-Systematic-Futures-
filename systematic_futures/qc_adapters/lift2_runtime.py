@@ -12,6 +12,8 @@ from systematic_futures.config.research import (
     LIFT2_ALL_MARKETS,
     LIFT2_DEEP_END_DATE,
     LIFT2_DEEP_START_DATE,
+    LIFT2_READINESS_END_DATE,
+    LIFT2_READINESS_START_DATE,
     LIFT2_REFERENCE_MARKETS,
     LIFT2_SMOKE_END_DATE,
     LIFT2_SMOKE_START_DATE,
@@ -84,12 +86,16 @@ class Lift2Runtime:
         mode = str(host.get_parameter("lift2_mode", "deep")).strip().lower()
         if root not in LIFT2_ALL_MARKETS:
             raise MarketConfigurationError(f"lift2_root must be one of {LIFT2_ALL_MARKETS}")
-        if mode not in {"deep", "smoke"}:
-            raise MarketConfigurationError("lift2_mode must be 'deep' or 'smoke'")
-        if mode == "deep" and root not in LIFT2_REFERENCE_MARKETS:
-            raise MarketConfigurationError("deep mode is restricted to ES, ZN, and 6E")
-        start = LIFT2_DEEP_START_DATE if mode == "deep" else LIFT2_SMOKE_START_DATE
-        end = LIFT2_DEEP_END_DATE if mode == "deep" else LIFT2_SMOKE_END_DATE
+        if mode not in {"deep", "smoke", "readiness"}:
+            raise MarketConfigurationError("lift2_mode must be 'deep', 'smoke', or 'readiness'")
+        if mode in {"deep", "readiness"} and root not in LIFT2_REFERENCE_MARKETS:
+            raise MarketConfigurationError(f"{mode} mode is restricted to ES, ZN, and 6E")
+        periods = {
+            "deep": (LIFT2_DEEP_START_DATE, LIFT2_DEEP_END_DATE),
+            "smoke": (LIFT2_SMOKE_START_DATE, LIFT2_SMOKE_END_DATE),
+            "readiness": (LIFT2_READINESS_START_DATE, LIFT2_READINESS_END_DATE),
+        }
+        start, end = periods[mode]
         start_date = datetime.fromisoformat(start)
         end_date = datetime.fromisoformat(end)
         host.set_time_zone("UTC")
@@ -273,6 +279,11 @@ class Lift2Runtime:
             "ICMSnapshots": counts["icm_snapshots"],
             "IAERetestEvents": counts["iae_retest_events"],
             "CandidateEvents": counts["candidate_events"],
+            "CandidateBaseReady": coverage["candidate_events_base_ready"],
+            "CandidateIMSIReady": coverage["candidate_events_imsi_ready"],
+            "CandidateICMReady": coverage["candidate_events_icm_ready"],
+            "CandidateIAEStructuralReady": coverage["candidate_events_iae_structural_ready"],
+            "CandidateIAEScoreReady": coverage["candidate_events_iae_score_ready"],
             "UniqueSessions": len(session_types),
             "ContractCount": len(self._contracts),
             "RollCount": self._roll_count,
