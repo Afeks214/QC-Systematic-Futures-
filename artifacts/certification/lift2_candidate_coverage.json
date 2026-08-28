@@ -1,0 +1,541 @@
+{
+  "schema_version": "lift2-candidate-coverage-v1",
+  "source_git_sha": "ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5",
+  "qc_project_id": "35697180",
+  "runs": [
+    {
+      "mode": "deep",
+      "root": "ES",
+      "backtest_id": "21ff0c9f0cac03d13b33befc122aa917",
+      "coverage_hash": "b594ec4b200589086f304dddf79eae06e28fb94d402ec7ad6c27b0ed8c8f4012",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-02": 265,
+          "2024-03": 320
+        },
+        "by_contract": {
+          "ES YGT6HGVF2SQP": 419,
+          "ES YJHOAMPYKQGX": 166
+        },
+        "by_event_type": {
+          "iae_retest_bear": 70,
+          "iae_retest_bull": 47,
+          "poc_migration_above_prior_vah": 33,
+          "poc_migration_below_prior_val": 29,
+          "value_exit_down": 115,
+          "value_exit_up": 114,
+          "value_reentry_from_above": 93,
+          "value_reentry_from_below": 84
+        },
+        "by_root": {
+          "ES": 585
+        },
+        "by_session_type": {
+          "eth": 507,
+          "maintenance": 2,
+          "rth": 76
+        },
+        "candidate_events_inputs_present": 534,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 51,
+        "candidate_events_missing_imsi": 23,
+        "candidate_events_not_ready": 585,
+        "candidate_events_total": 585,
+        "events_per_session": 10.833333333333334,
+        "events_with_IAE": 585,
+        "events_with_ICM": 534,
+        "events_with_IMSI": 562,
+        "events_with_all_three": 534,
+        "parent_excursion_count": 314,
+        "quality_blocked_events": 585,
+        "raw_event_count": 585,
+        "unique_event_count": 585,
+        "unique_session_count": 54
+      }
+    },
+    {
+      "mode": "deep",
+      "root": "ZN",
+      "backtest_id": "c15ae044a2f962388a9f175e1af29bc0",
+      "coverage_hash": "7003a48dd02dc96956a82485646a5c995fcb380081c003a3f7065d663e24a0ed",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-02": 220,
+          "2024-03": 270
+        },
+        "by_contract": {
+          "ZN YGX49UC3DS85": 133,
+          "ZN YJEPYCMGCFTX": 357
+        },
+        "by_event_type": {
+          "iae_retest_bear": 42,
+          "iae_retest_bull": 43,
+          "poc_migration_above_prior_vah": 25,
+          "poc_migration_below_prior_val": 17,
+          "value_exit_down": 100,
+          "value_exit_up": 99,
+          "value_reentry_from_above": 81,
+          "value_reentry_from_below": 83
+        },
+        "by_root": {
+          "ZN": 490
+        },
+        "by_session_type": {
+          "eth": 441,
+          "maintenance": 2,
+          "us_cash_hours": 47
+        },
+        "candidate_events_inputs_present": 344,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 146,
+        "candidate_events_missing_imsi": 21,
+        "candidate_events_not_ready": 490,
+        "candidate_events_total": 490,
+        "events_per_session": 10,
+        "events_with_IAE": 490,
+        "events_with_ICM": 344,
+        "events_with_IMSI": 469,
+        "events_with_all_three": 344,
+        "parent_excursion_count": 263,
+        "quality_blocked_events": 490,
+        "raw_event_count": 490,
+        "unique_event_count": 490,
+        "unique_session_count": 49
+      }
+    },
+    {
+      "mode": "deep",
+      "root": "6E",
+      "backtest_id": "d716f44851474e4511d43a6c346c47c8",
+      "coverage_hash": "2b4d826f342d64f3088eae927f56a72c381fb98addbf4f27ddbd2d302989c1b3",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-02": 208,
+          "2024-03": 143
+        },
+        "by_contract": {
+          "6E YGW4TQYXB281": 337,
+          "6E YHNPCD7NG6PT": 14
+        },
+        "by_event_type": {
+          "iae_retest_bear": 50,
+          "iae_retest_bull": 49,
+          "poc_migration_above_prior_vah": 15,
+          "poc_migration_below_prior_val": 8,
+          "value_exit_down": 49,
+          "value_exit_up": 80,
+          "value_reentry_from_above": 64,
+          "value_reentry_from_below": 36
+        },
+        "by_root": {
+          "6E": 351
+        },
+        "by_session_type": {
+          "asia": 142,
+          "london": 95,
+          "maintenance": 3,
+          "new_york": 111
+        },
+        "candidate_events_inputs_present": 293,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 58,
+        "candidate_events_missing_imsi": 12,
+        "candidate_events_not_ready": 351,
+        "candidate_events_total": 351,
+        "events_per_session": 5.014285714285714,
+        "events_with_IAE": 351,
+        "events_with_ICM": 293,
+        "events_with_IMSI": 339,
+        "events_with_all_three": 293,
+        "parent_excursion_count": 206,
+        "quality_blocked_events": 351,
+        "raw_event_count": 351,
+        "unique_event_count": 351,
+        "unique_session_count": 70
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "ES",
+      "backtest_id": "396c13acd52ad20d76ec6025f24d3119",
+      "coverage_hash": "552373707da3c5e49a34cc760ea61a8ee8c66ae169ffe4c29890d9a6991d63db",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 56
+        },
+        "by_contract": {
+          "ES YGT6HGVF2SQP": 56
+        },
+        "by_event_type": {
+          "iae_retest_bear": 8,
+          "iae_retest_bull": 4,
+          "poc_migration_above_prior_vah": 1,
+          "poc_migration_below_prior_val": 2,
+          "value_exit_down": 11,
+          "value_exit_up": 11,
+          "value_reentry_from_above": 9,
+          "value_reentry_from_below": 10
+        },
+        "by_root": {
+          "ES": 56
+        },
+        "by_session_type": {
+          "eth": 55,
+          "rth": 1
+        },
+        "candidate_events_inputs_present": 17,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 39,
+        "candidate_events_missing_imsi": 0,
+        "candidate_events_not_ready": 56,
+        "candidate_events_total": 56,
+        "events_per_session": 14,
+        "events_with_IAE": 56,
+        "events_with_ICM": 17,
+        "events_with_IMSI": 56,
+        "events_with_all_three": 17,
+        "parent_excursion_count": 32,
+        "quality_blocked_events": 56,
+        "raw_event_count": 56,
+        "unique_event_count": 56,
+        "unique_session_count": 4
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "NQ",
+      "backtest_id": "2daca214cf256dffc1988c6615c9429e",
+      "coverage_hash": "f688b7527aac936693d3ca73d18cf2b95caea8ed064da26f47bea701ec7d9174",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 42
+        },
+        "by_contract": {
+          "NQ YGT6HGVF2SQP": 42
+        },
+        "by_event_type": {
+          "iae_retest_bear": 3,
+          "iae_retest_bull": 4,
+          "poc_migration_below_prior_val": 3,
+          "value_exit_down": 9,
+          "value_exit_up": 9,
+          "value_reentry_from_above": 8,
+          "value_reentry_from_below": 6
+        },
+        "by_root": {
+          "NQ": 42
+        },
+        "by_session_type": {
+          "eth": 35,
+          "rth": 7
+        },
+        "candidate_events_inputs_present": 12,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 30,
+        "candidate_events_missing_imsi": 2,
+        "candidate_events_not_ready": 42,
+        "candidate_events_total": 42,
+        "events_per_session": 10.5,
+        "events_with_IAE": 42,
+        "events_with_ICM": 12,
+        "events_with_IMSI": 40,
+        "events_with_all_three": 12,
+        "parent_excursion_count": 24,
+        "quality_blocked_events": 42,
+        "raw_event_count": 42,
+        "unique_event_count": 42,
+        "unique_session_count": 4
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "RTY",
+      "backtest_id": "8c9fd19f6479bacc778ade7e2845a273",
+      "coverage_hash": "94a8a81197bed76cf83f4f8f6bad48184382ca8749434dbc86daa4c5706d0db9",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 74
+        },
+        "by_contract": {
+          "RTY YGT6HGVF2SQP": 74
+        },
+        "by_event_type": {
+          "iae_retest_bear": 8,
+          "iae_retest_bull": 7,
+          "poc_migration_above_prior_vah": 3,
+          "poc_migration_below_prior_val": 4,
+          "value_exit_down": 15,
+          "value_exit_up": 13,
+          "value_reentry_from_above": 12,
+          "value_reentry_from_below": 12
+        },
+        "by_root": {
+          "RTY": 74
+        },
+        "by_session_type": {
+          "eth": 72,
+          "rth": 2
+        },
+        "candidate_events_inputs_present": 27,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 47,
+        "candidate_events_missing_imsi": 1,
+        "candidate_events_not_ready": 74,
+        "candidate_events_total": 74,
+        "events_per_session": 14.8,
+        "events_with_IAE": 74,
+        "events_with_ICM": 27,
+        "events_with_IMSI": 73,
+        "events_with_all_three": 27,
+        "parent_excursion_count": 40,
+        "quality_blocked_events": 74,
+        "raw_event_count": 74,
+        "unique_event_count": 74,
+        "unique_session_count": 5
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "ZT",
+      "backtest_id": "54ea7f6530e098c5cc6d1504b3fa5078",
+      "coverage_hash": "0783e00a8656a073942871aa966661440f137bb6534dc9b9fe6042e3187db832",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 57
+        },
+        "by_contract": {
+          "ZT YJOKFAA53ZFP": 57
+        },
+        "by_event_type": {
+          "iae_retest_bear": 7,
+          "iae_retest_bull": 15,
+          "poc_migration_above_prior_vah": 2,
+          "poc_migration_below_prior_val": 2,
+          "value_exit_down": 13,
+          "value_exit_up": 4,
+          "value_reentry_from_above": 3,
+          "value_reentry_from_below": 11
+        },
+        "by_root": {
+          "ZT": 57
+        },
+        "by_session_type": {
+          "eth": 49,
+          "maintenance": 1,
+          "us_cash_hours": 7
+        },
+        "candidate_events_inputs_present": 0,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 57,
+        "candidate_events_missing_imsi": 5,
+        "candidate_events_not_ready": 57,
+        "candidate_events_total": 57,
+        "events_per_session": 8.142857142857142,
+        "events_with_IAE": 57,
+        "events_with_ICM": 0,
+        "events_with_IMSI": 52,
+        "events_with_all_three": 0,
+        "parent_excursion_count": 37,
+        "quality_blocked_events": 57,
+        "raw_event_count": 57,
+        "unique_event_count": 57,
+        "unique_session_count": 7
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "ZN",
+      "backtest_id": "28c8ff85490944cb2ea87691fb596015",
+      "coverage_hash": "9c96d9c9375127bce501034aad77be0035572843a95e5203e2cbfad7d23d2c37",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 43
+        },
+        "by_contract": {
+          "ZN YJEPYCMGCFTX": 43
+        },
+        "by_event_type": {
+          "iae_retest_bear": 5,
+          "iae_retest_bull": 8,
+          "poc_migration_above_prior_vah": 1,
+          "poc_migration_below_prior_val": 3,
+          "value_exit_down": 10,
+          "value_exit_up": 4,
+          "value_reentry_from_above": 3,
+          "value_reentry_from_below": 9
+        },
+        "by_root": {
+          "ZN": 43
+        },
+        "by_session_type": {
+          "eth": 41,
+          "us_cash_hours": 2
+        },
+        "candidate_events_inputs_present": 0,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 43,
+        "candidate_events_missing_imsi": 2,
+        "candidate_events_not_ready": 43,
+        "candidate_events_total": 43,
+        "events_per_session": 8.6,
+        "events_with_IAE": 43,
+        "events_with_ICM": 0,
+        "events_with_IMSI": 41,
+        "events_with_all_three": 0,
+        "parent_excursion_count": 26,
+        "quality_blocked_events": 43,
+        "raw_event_count": 43,
+        "unique_event_count": 43,
+        "unique_session_count": 5
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "6E",
+      "backtest_id": "4ab79439f117c3d67b72d84cc42309ca",
+      "coverage_hash": "7b30c98c6736fb74fdbd94af10ffcb1d3bd1e0162bf6d5bad1691bf155efc497",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 30
+        },
+        "by_contract": {
+          "6E YGW4TQYXB281": 30
+        },
+        "by_event_type": {
+          "iae_retest_bear": 9,
+          "iae_retest_bull": 6,
+          "poc_migration_above_prior_vah": 1,
+          "poc_migration_below_prior_val": 1,
+          "value_exit_down": 5,
+          "value_exit_up": 3,
+          "value_reentry_from_above": 2,
+          "value_reentry_from_below": 3
+        },
+        "by_root": {
+          "6E": 30
+        },
+        "by_session_type": {
+          "asia": 14,
+          "london": 6,
+          "new_york": 10
+        },
+        "candidate_events_inputs_present": 1,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 29,
+        "candidate_events_missing_imsi": 2,
+        "candidate_events_not_ready": 30,
+        "candidate_events_total": 30,
+        "events_per_session": 3.3333333333333335,
+        "events_with_IAE": 30,
+        "events_with_ICM": 1,
+        "events_with_IMSI": 28,
+        "events_with_all_three": 1,
+        "parent_excursion_count": 21,
+        "quality_blocked_events": 30,
+        "raw_event_count": 30,
+        "unique_event_count": 30,
+        "unique_session_count": 9
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "6J",
+      "backtest_id": "d6a7274b5418553ad826dfee1c8930c8",
+      "coverage_hash": "68910f5f2c61f7c4d6dbd1f7968f770bee4886b14c37a8f96470fa6131500e4f",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 14
+        },
+        "by_contract": {
+          "6J YGW4TQYXB281": 14
+        },
+        "by_event_type": {
+          "iae_retest_bear": 5,
+          "iae_retest_bull": 8,
+          "value_exit_up": 1
+        },
+        "by_root": {
+          "6J": 14
+        },
+        "by_session_type": {
+          "asia": 10,
+          "london": 3,
+          "new_york": 1
+        },
+        "candidate_events_inputs_present": 2,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 12,
+        "candidate_events_missing_imsi": 0,
+        "candidate_events_not_ready": 14,
+        "candidate_events_total": 14,
+        "events_per_session": 2.3333333333333335,
+        "events_with_IAE": 14,
+        "events_with_ICM": 2,
+        "events_with_IMSI": 14,
+        "events_with_all_three": 2,
+        "parent_excursion_count": 13,
+        "quality_blocked_events": 14,
+        "raw_event_count": 14,
+        "unique_event_count": 14,
+        "unique_session_count": 6
+      }
+    },
+    {
+      "mode": "smoke",
+      "root": "6B",
+      "backtest_id": "e76194f4e91cfecbd655f6beaf0ea457",
+      "coverage_hash": "6f4c2f2640694ecf73ef2867a82b8a7369291dff241156a49d1d667f21f53177",
+      "coverage": {
+        "by_calendar_month": {
+          "2024-03": 29
+        },
+        "by_contract": {
+          "6B YGW4TQYXB281": 29
+        },
+        "by_event_type": {
+          "iae_retest_bear": 7,
+          "iae_retest_bull": 7,
+          "poc_migration_above_prior_vah": 1,
+          "value_exit_up": 9,
+          "value_reentry_from_above": 5
+        },
+        "by_root": {
+          "6B": 29
+        },
+        "by_session_type": {
+          "asia": 14,
+          "london": 10,
+          "new_york": 5
+        },
+        "candidate_events_inputs_present": 6,
+        "candidate_events_inputs_ready": 0,
+        "candidate_events_missing_iae": 0,
+        "candidate_events_missing_icm": 23,
+        "candidate_events_missing_imsi": 3,
+        "candidate_events_not_ready": 29,
+        "candidate_events_total": 29,
+        "events_per_session": 4.142857142857143,
+        "events_with_IAE": 29,
+        "events_with_ICM": 6,
+        "events_with_IMSI": 26,
+        "events_with_all_three": 6,
+        "parent_excursion_count": 20,
+        "quality_blocked_events": 29,
+        "raw_event_count": 29,
+        "unique_event_count": 29,
+        "unique_session_count": 7
+      }
+    }
+  ],
+  "content_hash": "682414b7b919b4d9be8f178bb59b004148bf56589fe5830ef472593f02252b3e"
+}

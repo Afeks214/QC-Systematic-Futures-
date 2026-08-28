@@ -1,0 +1,658 @@
+{
+  "schema_version": "lift2-runtime-measurement-v1",
+  "source_git_sha": "ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5",
+  "qc_project_id": "35697180",
+  "lean_version": "2.5.0.0.18039",
+  "python_version": "3.11.14",
+  "numpy_version": "1.26.4",
+  "runtime_source_tree_hash": "cb48ca4b995bbb28f579fee1542076465308792105cc56a2d0f9b16f4d7d0f32",
+  "qc_build_ids": [
+    "0a7efa-9f6d2a",
+    "0c71f2-9f6d2a",
+    "210344-9f6d2a",
+    "3d5184-9f6d2a",
+    "41268e-9f6d2a",
+    "5c2681-9f6d2a",
+    "5e83ab-9f6d2a",
+    "939fe8-9f6d2a",
+    "ac7eda-9f6d2a",
+    "c8e086-9f6d2a",
+    "cc0106-9f6d2a"
+  ],
+  "qc_backtest_ids": [
+    "21ff0c9f0cac03d13b33befc122aa917",
+    "28c8ff85490944cb2ea87691fb596015",
+    "2daca214cf256dffc1988c6615c9429e",
+    "396c13acd52ad20d76ec6025f24d3119",
+    "4ab79439f117c3d67b72d84cc42309ca",
+    "54ea7f6530e098c5cc6d1504b3fa5078",
+    "8c9fd19f6479bacc778ade7e2845a273",
+    "c15ae044a2f962388a9f175e1af29bc0",
+    "d6a7274b5418553ad826dfee1c8930c8",
+    "d716f44851474e4511d43a6c346c47c8",
+    "e76194f4e91cfecbd655f6beaf0ea457"
+  ],
+  "runs": [
+    {
+      "status": "COMPLETED",
+      "build_id": "3d5184-9f6d2a",
+      "backtest_id": "21ff0c9f0cac03d13b33befc122aa917",
+      "backtest_name": "Energetic Light Brown Scorpion",
+      "completion": "Algorithm Id:(21ff0c9f0cac03d13b33befc122aa917) completed in 3467.68 seconds at 41k data points per second. Processing total of 141,651,187 data points.",
+      "chain_observations": 135298764,
+      "contract_count": 2,
+      "contracts": [
+        "ES YGT6HGVF2SQP",
+        "ES YJHOAMPYKQGX"
+      ],
+      "counts": {
+        "auction_snapshots": 7692,
+        "candidate_events": 585,
+        "developing_profiles": 7692,
+        "final_profiles": 120,
+        "five_minute_bars": 7692,
+        "iae_retest_events": 117,
+        "iae_retest_snapshots": 117,
+        "iae_snapshots": 7708,
+        "icm_ready": 1039,
+        "icm_snapshots": 1144,
+        "imsi_snapshots": 1280,
+        "rolling_profiles": 23076,
+        "thirty_minute_bars": 1282,
+        "trade_ticks": 9448992,
+        "unique_sessions": 120
+      },
+      "coverage_hash": "b594ec4b200589086f304dddf79eae06e28fb94d402ec7ad6c27b0ed8c8f4012",
+      "measurement_hash": "c6a4f64d551e8b9a77101d04d27baab2b1c3ca5aedbb3826cc25ac155ecd0290",
+      "mode": "deep",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-25",
+        "start": "2024-02-15"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 48,
+        "IAE_BAR_GAP_RESET": 21,
+        "IAE_DEGENERATE_BODY": 49,
+        "IAE_FORMATION_GATED": 1161,
+        "IAE_SCORE_TOD_UNAVAILABLE": 713,
+        "IAE_TOD_WARMUP": 7452,
+        "ICM_REGIME_GUARD": 105,
+        "ICM_WINDOW_WARMUP": 138
+      },
+      "quote_ticks_ignored": 124416766,
+      "roll_count": 1,
+      "root": "ES",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "5c2681-9f6d2a",
+      "backtest_id": "c15ae044a2f962388a9f175e1af29bc0",
+      "backtest_name": "Hyper Active Fluorescent Pink Tapir",
+      "completion": "Algorithm Id:(c15ae044a2f962388a9f175e1af29bc0) completed in 1147.95 seconds at 43k data points per second. Processing total of 49,248,976 data points.",
+      "chain_observations": 47901061,
+      "contract_count": 2,
+      "contracts": [
+        "ZN YGX49UC3DS85",
+        "ZN YJEPYCMGCFTX"
+      ],
+      "counts": {
+        "auction_snapshots": 7457,
+        "candidate_events": 490,
+        "developing_profiles": 7457,
+        "final_profiles": 117,
+        "five_minute_bars": 7457,
+        "iae_retest_events": 85,
+        "iae_retest_snapshots": 85,
+        "iae_snapshots": 7460,
+        "icm_ready": 936,
+        "icm_snapshots": 966,
+        "imsi_snapshots": 1242,
+        "rolling_profiles": 22371,
+        "thirty_minute_bars": 1244,
+        "trade_ticks": 2211398,
+        "unique_sessions": 117
+      },
+      "coverage_hash": "7003a48dd02dc96956a82485646a5c995fcb380081c003a3f7065d663e24a0ed",
+      "measurement_hash": "d5c8f9519e57215386e9aabee9157a6a9b5195277c84ef8930aeab82129bb14a",
+      "mode": "deep",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-25",
+        "start": "2024-02-15"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 48,
+        "IAE_BAR_GAP_RESET": 27,
+        "IAE_DEGENERATE_BODY": 216,
+        "IAE_FORMATION_DEGENERATE": 4,
+        "IAE_FORMATION_GATED": 393,
+        "IAE_SCORE_TOD_UNAVAILABLE": 430,
+        "IAE_TOD_WARMUP": 6766,
+        "ICM_LOCAL_SCALE_UNAVAILABLE": 22,
+        "ICM_REGIME_GUARD": 30,
+        "ICM_WINDOW_WARMUP": 278,
+        "incomplete_30m_session_tail": 56243
+      },
+      "quote_ticks_ignored": 42236870,
+      "roll_count": 1,
+      "root": "ZN",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "5e83ab-9f6d2a",
+      "backtest_id": "d716f44851474e4511d43a6c346c47c8",
+      "backtest_name": "Measured Light Brown Manatee",
+      "completion": "Algorithm Id:(d716f44851474e4511d43a6c346c47c8) completed in 704.52 seconds at 47k data points per second. Processing total of 33,115,011 data points.",
+      "chain_observations": 32200111,
+      "contract_count": 2,
+      "contracts": [
+        "6E YGW4TQYXB281",
+        "6E YHNPCD7NG6PT"
+      ],
+      "counts": {
+        "auction_snapshots": 6839,
+        "candidate_events": 351,
+        "developing_profiles": 6839,
+        "final_profiles": 120,
+        "five_minute_bars": 6839,
+        "iae_retest_events": 99,
+        "iae_retest_snapshots": 99,
+        "iae_snapshots": 6852,
+        "icm_ready": 981,
+        "icm_snapshots": 1042,
+        "imsi_snapshots": 1258,
+        "rolling_profiles": 20517,
+        "thirty_minute_bars": 1260,
+        "trade_ticks": 893808,
+        "unique_sessions": 120
+      },
+      "coverage_hash": "2b4d826f342d64f3088eae927f56a72c381fb98addbf4f27ddbd2d302989c1b3",
+      "measurement_hash": "61e21f1b4cb42b7e054e45676e2c1689d2ff1565614301d05112f3ad2cebeb6f",
+      "mode": "deep",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-25",
+        "start": "2024-02-15"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 48,
+        "IAE_BAR_GAP_RESET": 325,
+        "IAE_DEGENERATE_BODY": 84,
+        "IAE_FORMATION_DEGENERATE": 82,
+        "IAE_FORMATION_GATED": 857,
+        "IAE_SCORE_TOD_UNAVAILABLE": 481,
+        "IAE_TOD_WARMUP": 6293,
+        "ICM_LOCAL_SCALE_UNAVAILABLE": 63,
+        "ICM_REGIME_GUARD": 61,
+        "ICM_WINDOW_WARMUP": 218
+      },
+      "quote_ticks_ignored": 31477218,
+      "roll_count": 1,
+      "root": "6E",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "41268e-9f6d2a",
+      "backtest_id": "396c13acd52ad20d76ec6025f24d3119",
+      "backtest_name": "Energetic Fluorescent Pink Termite",
+      "completion": "Algorithm Id:(396c13acd52ad20d76ec6025f24d3119) completed in 418.62 seconds at 40k data points per second. Processing total of 16,673,720 data points.",
+      "chain_observations": 15910399,
+      "contract_count": 1,
+      "contracts": [
+        "ES YGT6HGVF2SQP"
+      ],
+      "counts": {
+        "auction_snapshots": 828,
+        "candidate_events": 56,
+        "developing_profiles": 828,
+        "final_profiles": 13,
+        "five_minute_bars": 828,
+        "iae_retest_events": 12,
+        "iae_retest_snapshots": 12,
+        "iae_snapshots": 828,
+        "icm_ready": 59,
+        "icm_snapshots": 69,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2484,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 1223512,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "552373707da3c5e49a34cc760ea61a8ee8c66ae169ffe4c29890d9a6991d63db",
+      "measurement_hash": "ecb0c2e155a94798a09e40d77f543d360f72135fad16bc424ea4eaef72011eaa",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 3,
+        "IAE_DEGENERATE_BODY": 8,
+        "IAE_FORMATION_GATED": 109,
+        "IAE_SCORE_TOD_UNAVAILABLE": 62,
+        "IAE_TOD_WARMUP": 828,
+        "ICM_REGIME_GUARD": 10,
+        "ICM_WINDOW_WARMUP": 69
+      },
+      "quote_ticks_ignored": 15404411,
+      "roll_count": 0,
+      "root": "ES",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "0a7efa-9f6d2a",
+      "backtest_id": "2daca214cf256dffc1988c6615c9429e",
+      "backtest_name": "Measured Red Orange Seahorse",
+      "completion": "Algorithm Id:(2daca214cf256dffc1988c6615c9429e) completed in 473.22 seconds at 40k data points per second. Processing total of 18,841,760 data points.",
+      "chain_observations": 18087861,
+      "contract_count": 1,
+      "contracts": [
+        "NQ YGT6HGVF2SQP"
+      ],
+      "counts": {
+        "auction_snapshots": 828,
+        "candidate_events": 42,
+        "developing_profiles": 828,
+        "final_profiles": 13,
+        "five_minute_bars": 828,
+        "iae_retest_events": 7,
+        "iae_retest_snapshots": 7,
+        "iae_snapshots": 828,
+        "icm_ready": 58,
+        "icm_snapshots": 79,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2484,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 1325986,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "f688b7527aac936693d3ca73d18cf2b95caea8ed064da26f47bea701ec7d9174",
+      "measurement_hash": "d3fb03940737c448c9eed7e96d6d3518a58a7092c7e806eebf067c2fca5cfe2f",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 3,
+        "IAE_DEGENERATE_BODY": 1,
+        "IAE_FORMATION_GATED": 134,
+        "IAE_SCORE_TOD_UNAVAILABLE": 26,
+        "IAE_TOD_WARMUP": 828,
+        "ICM_REGIME_GUARD": 21,
+        "ICM_WINDOW_WARMUP": 59
+      },
+      "quote_ticks_ignored": 17469981,
+      "roll_count": 0,
+      "root": "NQ",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "210344-9f6d2a",
+      "backtest_id": "8c9fd19f6479bacc778ade7e2845a273",
+      "backtest_name": "Crawling Fluorescent Pink Mule",
+      "completion": "Algorithm Id:(8c9fd19f6479bacc778ade7e2845a273) completed in 144.35 seconds at 46k data points per second. Processing total of 6,687,462 data points.",
+      "chain_observations": 6471386,
+      "contract_count": 1,
+      "contracts": [
+        "RTY YGT6HGVF2SQP"
+      ],
+      "counts": {
+        "auction_snapshots": 828,
+        "candidate_events": 74,
+        "developing_profiles": 828,
+        "final_profiles": 13,
+        "five_minute_bars": 828,
+        "iae_retest_events": 15,
+        "iae_retest_snapshots": 15,
+        "iae_snapshots": 830,
+        "icm_ready": 69,
+        "icm_snapshots": 69,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2484,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 268350,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "94a8a81197bed76cf83f4f8f6bad48184382ca8749434dbc86daa4c5706d0db9",
+      "measurement_hash": "92ded0dff71a8ced2dc67f4b391d214de4a17a06963edf64a5a9b41b9626b791",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 3,
+        "IAE_DEGENERATE_BODY": 2,
+        "IAE_FORMATION_GATED": 126,
+        "IAE_SCORE_TOD_UNAVAILABLE": 90,
+        "IAE_TOD_WARMUP": 828,
+        "ICM_WINDOW_WARMUP": 69
+      },
+      "quote_ticks_ignored": 6373328,
+      "roll_count": 0,
+      "root": "RTY",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "0c71f2-9f6d2a",
+      "backtest_id": "54ea7f6530e098c5cc6d1504b3fa5078",
+      "backtest_name": "Pensive Orange Buffalo",
+      "completion": "Algorithm Id:(54ea7f6530e098c5cc6d1504b3fa5078) completed in 51.87 seconds at 42k data points per second. Processing total of 2,153,627 data points.",
+      "chain_observations": 2081725,
+      "contract_count": 1,
+      "contracts": [
+        "ZT YJOKFAA53ZFP"
+      ],
+      "counts": {
+        "auction_snapshots": 809,
+        "candidate_events": 57,
+        "developing_profiles": 809,
+        "final_profiles": 13,
+        "five_minute_bars": 809,
+        "iae_retest_events": 22,
+        "iae_retest_snapshots": 22,
+        "iae_snapshots": 811,
+        "imsi_snapshots": 138,
+        "rolling_profiles": 2427,
+        "thirty_minute_bars": 139,
+        "trade_ticks": 94752,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "0783e00a8656a073942871aa966661440f137bb6534dc9b9fe6042e3187db832",
+      "measurement_hash": "84af03fe11e808c2ca52e4364199f6435f8c4201b65d51742b92eba54bcdcf61",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 18,
+        "IAE_DEGENERATE_BODY": 68,
+        "IAE_FORMATION_DEGENERATE": 6,
+        "IAE_FORMATION_GATED": 64,
+        "IAE_SCORE_TOD_UNAVAILABLE": 88,
+        "IAE_TOD_WARMUP": 809,
+        "ICM_WINDOW_WARMUP": 139,
+        "incomplete_30m_session_tail": 2111
+      },
+      "quote_ticks_ignored": 2013171,
+      "roll_count": 0,
+      "root": "ZT",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "cc0106-9f6d2a",
+      "backtest_id": "28c8ff85490944cb2ea87691fb596015",
+      "backtest_name": "Creative Red Albatross",
+      "completion": "Algorithm Id:(28c8ff85490944cb2ea87691fb596015) completed in 146.63 seconds at 36k data points per second. Processing total of 5,269,368 data points.",
+      "chain_observations": 5130783,
+      "contract_count": 1,
+      "contracts": [
+        "ZN YJEPYCMGCFTX"
+      ],
+      "counts": {
+        "auction_snapshots": 826,
+        "candidate_events": 43,
+        "developing_profiles": 826,
+        "final_profiles": 13,
+        "five_minute_bars": 826,
+        "iae_retest_events": 13,
+        "iae_retest_snapshots": 13,
+        "iae_snapshots": 826,
+        "imsi_snapshots": 138,
+        "rolling_profiles": 2478,
+        "thirty_minute_bars": 139,
+        "trade_ticks": 259897,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "9c96d9c9375127bce501034aad77be0035572843a95e5203e2cbfad7d23d2c37",
+      "measurement_hash": "96c5f69793c1a2cc0ae7cc42f1e55a9127cb3e97f0d5be2d0da968b74f025960",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 5,
+        "IAE_DEGENERATE_BODY": 49,
+        "IAE_FORMATION_DEGENERATE": 1,
+        "IAE_FORMATION_GATED": 41,
+        "IAE_SCORE_TOD_UNAVAILABLE": 93,
+        "IAE_TOD_WARMUP": 826,
+        "ICM_WINDOW_WARMUP": 139,
+        "incomplete_30m_session_tail": 6772
+      },
+      "quote_ticks_ignored": 4963691,
+      "roll_count": 0,
+      "root": "ZN",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "ac7eda-9f6d2a",
+      "backtest_id": "4ab79439f117c3d67b72d84cc42309ca",
+      "backtest_name": "Adaptable Blue Camel",
+      "completion": "Algorithm Id:(4ab79439f117c3d67b72d84cc42309ca) completed in 88.52 seconds at 47k data points per second. Processing total of 4,149,445 data points.",
+      "chain_observations": 4047559,
+      "contract_count": 1,
+      "contracts": [
+        "6E YGW4TQYXB281"
+      ],
+      "counts": {
+        "auction_snapshots": 828,
+        "candidate_events": 30,
+        "developing_profiles": 828,
+        "final_profiles": 13,
+        "five_minute_bars": 828,
+        "iae_retest_events": 15,
+        "iae_retest_snapshots": 15,
+        "iae_snapshots": 832,
+        "icm_ready": 23,
+        "icm_snapshots": 29,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2484,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 111926,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "7b30c98c6736fb74fdbd94af10ffcb1d3bd1e0162bf6d5bad1691bf155efc497",
+      "measurement_hash": "52b2ddd0d2b0ed1e11e5554d4e994be9f52f59e6c2b82acb758cc725a21040d3",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 3,
+        "IAE_DEGENERATE_BODY": 23,
+        "IAE_FORMATION_DEGENERATE": 1,
+        "IAE_FORMATION_GATED": 83,
+        "IAE_SCORE_TOD_UNAVAILABLE": 126,
+        "IAE_TOD_WARMUP": 828,
+        "ICM_REGIME_GUARD": 6,
+        "ICM_WINDOW_WARMUP": 109
+      },
+      "quote_ticks_ignored": 3962982,
+      "roll_count": 0,
+      "root": "6E",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "939fe8-9f6d2a",
+      "backtest_id": "d6a7274b5418553ad826dfee1c8930c8",
+      "backtest_name": "Sleepy Fluorescent Yellow Camel",
+      "completion": "Algorithm Id:(d6a7274b5418553ad826dfee1c8930c8) completed in 62.70 seconds at 32k data points per second. Processing total of 1,994,218 data points.",
+      "chain_observations": 1900510,
+      "contract_count": 1,
+      "contracts": [
+        "6J YGW4TQYXB281"
+      ],
+      "counts": {
+        "auction_snapshots": 828,
+        "candidate_events": 14,
+        "developing_profiles": 828,
+        "final_profiles": 13,
+        "five_minute_bars": 828,
+        "iae_retest_events": 13,
+        "iae_retest_snapshots": 13,
+        "iae_snapshots": 829,
+        "icm_ready": 19,
+        "icm_snapshots": 19,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2484,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 93967,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "68910f5f2c61f7c4d6dbd1f7968f770bee4886b14c37a8f96470fa6131500e4f",
+      "measurement_hash": "9c5a4d11417be9df06bb2c2d8e1189165b9deaa1aeaf1dbb6eee9419552a1de2",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 3,
+        "IAE_DEGENERATE_BODY": 8,
+        "IAE_FORMATION_GATED": 103,
+        "IAE_SCORE_TOD_UNAVAILABLE": 44,
+        "IAE_TOD_WARMUP": 828,
+        "ICM_WINDOW_WARMUP": 119
+      },
+      "quote_ticks_ignored": 1825340,
+      "roll_count": 0,
+      "root": "6J",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    },
+    {
+      "status": "COMPLETED",
+      "build_id": "c8e086-9f6d2a",
+      "backtest_id": "e76194f4e91cfecbd655f6beaf0ea457",
+      "backtest_name": "Ugly Asparagus Fish",
+      "completion": "Algorithm Id:(e76194f4e91cfecbd655f6beaf0ea457) completed in 43.44 seconds at 40k data points per second. Processing total of 1,724,267 data points.",
+      "chain_observations": 1634107,
+      "contract_count": 1,
+      "contracts": [
+        "6B YGW4TQYXB281"
+      ],
+      "counts": {
+        "auction_snapshots": 826,
+        "candidate_events": 29,
+        "developing_profiles": 826,
+        "final_profiles": 13,
+        "five_minute_bars": 826,
+        "iae_retest_events": 14,
+        "iae_retest_snapshots": 14,
+        "iae_snapshots": 826,
+        "icm_ready": 29,
+        "icm_snapshots": 29,
+        "imsi_snapshots": 137,
+        "rolling_profiles": 2478,
+        "thirty_minute_bars": 138,
+        "trade_ticks": 57790,
+        "unique_sessions": 13
+      },
+      "coverage_hash": "6f4c2f2640694ecf73ef2867a82b8a7369291dff241156a49d1d667f21f53177",
+      "measurement_hash": "74bb9701e3760e0c35c8f123f97592d3636bad5e4068099630de769fa7438db0",
+      "mode": "smoke",
+      "numpy_version": "1.26.4",
+      "period": {
+        "end": "2024-03-06",
+        "start": "2024-03-04"
+      },
+      "python_version": "3.11.14",
+      "quality_counts": {
+        "IAE_ATR_WARMUP": 24,
+        "IAE_BAR_GAP_RESET": 5,
+        "IAE_DEGENERATE_BODY": 16,
+        "IAE_FORMATION_GATED": 46,
+        "IAE_SCORE_TOD_UNAVAILABLE": 86,
+        "IAE_TOD_WARMUP": 826,
+        "ICM_WINDOW_WARMUP": 109
+      },
+      "quote_ticks_ignored": 1588559,
+      "roll_count": 0,
+      "root": "6B",
+      "zero_actions": {
+        "insights": 0,
+        "orders": 0,
+        "portfolio_targets": 0
+      }
+    }
+  ],
+  "content_hash": "541652c4b027be483b8f6b0b90a88db0365766359b2833f4220a103d745f4298"
+}

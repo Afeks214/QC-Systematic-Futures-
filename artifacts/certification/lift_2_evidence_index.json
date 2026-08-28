@@ -1,0 +1,15 @@
+{
+  "schema_version": "lift2-evidence-index-v1",
+  "source_git_sha": "ba11355a2dd8f150ad4c7a1a4ff5c457cabfc4c5",
+  "qc_project_id": "35697180",
+  "lean_version": "2.5.0.0.18039",
+  "python_version": "3.11.14",
+  "numpy_version": "1.26.4",
+  "final_readiness_decision": "LIFT_2_COMPLETE_MEASUREMENT_ONLY",
+  "artifact_hashes": {
+    "lift2_candidate_coverage.json": "682414b7b919b4d9be8f178bb59b004148bf56589fe5830ef472593f02252b3e",
+    "lift2_math_certification.json": "e82dfaf8eb6a40b3226e12169aa8a77c4e6b27646da9050ecf6ba589d74ebf7f",
+    "lift2_runtime_measurement.json": "541652c4b027be483b8f6b0b90a88db0365766359b2833f4220a103d745f4298"
+  },
+  "content_hash": "a0383505db948cc01f5fe290f54fcf35c8fea0c62078cf55647a4f32f6ea9c1c"
+}
