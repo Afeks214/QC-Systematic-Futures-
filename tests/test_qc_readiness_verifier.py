@@ -64,3 +64,13 @@ def test_qc_credentials_fail_closed(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
     with pytest.raises(verify_qc_readiness.ExternalQCCredentialRequired):
         verify_qc_readiness._load_qc_credentials()
+
+
+def test_authorized_runtime_files_fit_qc_cloud_limit() -> None:
+    oversized = {
+        name: (verify_qc_readiness.PROJECT_ROOT / name).stat().st_size
+        for name in verify_qc_readiness._runtime_file_names()
+        if (verify_qc_readiness.PROJECT_ROOT / name).stat().st_size > 32_000
+    }
+
+    assert oversized == {}
