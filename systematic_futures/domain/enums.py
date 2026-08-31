@@ -79,6 +79,47 @@ class AuctionLocationState(str, Enum):
     NO_REFERENCE = "no_reference"
 
 
+class AuctionPhase(str, Enum):
+    """Economic phase of one actual-contract auction excursion."""
+
+    NOT_READY = "not_ready"
+    BALANCE = "balance"
+    INITIATIVE = "initiative"
+    ACCEPTED = "accepted"
+    FAILED = "failed"
+    PULLBACK = "pullback"
+    ROTATION = "rotation"
+    LIQUIDITY_VACUUM = "liquidity_vacuum"
+    ROLL_TRANSITION = "roll_transition"
+
+
+class AuctionTransitionType(str, Enum):
+    """Legal state transition emitted by the ASR v2 state machine."""
+
+    NONE = "none"
+    SESSION_RESET = "session_reset"
+    BALANCE_TO_INITIATIVE = "balance_to_initiative"
+    INITIATIVE_TO_ACCEPTANCE = "initiative_to_acceptance"
+    INITIATIVE_TO_FAILURE = "initiative_to_failure"
+    INITIATIVE_EXPIRED = "initiative_expired"
+    ACCEPTANCE_TO_PULLBACK = "acceptance_to_pullback"
+    ROLL_TRANSITION = "roll_transition"
+
+
+class BookType(str, Enum):
+    CORE_THESIS = "core_thesis"
+    TACTICAL_ALPHA = "tactical_alpha"
+    HEDGE = "hedge"
+
+
+class HorizonFamily(str, Enum):
+    MICRO_EXECUTION = "micro_execution"
+    INTRADAY = "intraday"
+    SHORT_SWING = "short_swing"
+    CORE = "core"
+    HEDGE = "hedge"
+
+
 class IAEGapDirection(str, Enum):
     BULLISH = "bullish"
     BEARISH = "bearish"
@@ -105,9 +146,13 @@ class CandidateEventType(str, Enum):
 __all__ = (
     "AssetClassGroup",
     "AuctionLocationState",
+    "AuctionPhase",
+    "AuctionTransitionType",
+    "BookType",
     "CandidateEventType",
     "DataQualityStatus",
     "EvidenceAvailability",
+    "HorizonFamily",
     "IAEGapDirection",
     "IAEGapState",
     "MarketCertificationStatus",
