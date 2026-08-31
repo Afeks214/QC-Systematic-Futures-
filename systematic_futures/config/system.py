@@ -45,7 +45,7 @@ class StructuralFeatureConfig:
             )
         if self.carry_minimum_history > self.carry_normalization_window_sessions:
             raise DataQualityError("carry minimum history cannot exceed its rolling window")
-        if not isinstance(self.feature_version, str) or not self.feature_version.strip():
+        if not self.feature_version.strip():
             raise DataQualityError("feature_version must be a non-blank string")
 
     @property
