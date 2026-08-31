@@ -152,11 +152,11 @@ def test_session_close_builder_emits_only_exact_completed_session() -> None:
         source_lineage_hash=sha256_hex("second"),
     )
     assert builder.update(first) is None
-    assert builder.update(second) is None
-    close = builder.finalize(session_end)
+    close = builder.update(second)
     assert close is not None
     assert close.close == 101.5
     assert close.source_lineage_hashes == (sha256_hex("first"), sha256_hex("second"))
+    assert builder.finalize(session_end) is None
 
 
 def test_session_close_builder_withholds_incomplete_session() -> None:
