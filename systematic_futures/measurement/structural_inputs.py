@@ -2,14 +2,9 @@ from __future__ import annotations
 
 import math
 import re
-from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from statistics import median
 
-import numpy as np
-
-from systematic_futures.config.system import StructuralFeatureConfig
 from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -17,11 +12,8 @@ from systematic_futures.domain.errors import (
     DataTimingInvariantError,
     TimeSemanticsError,
 )
-from systematic_futures.domain.serialization import sha256_hex
 
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
-_ROBUST_SCALE_CONSTANT = 1.4826
-_EPSILON = 1e-12
 
 
 def _require_text(value: str, field_name: str) -> None:
