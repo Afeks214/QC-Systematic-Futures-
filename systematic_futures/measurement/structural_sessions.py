@@ -13,7 +13,7 @@ from systematic_futures.measurement.structural_inputs import (
 
 
 class ContinuousSessionCloseBuilder:
-    """Convert ordered continuous minute bars into completed semantic-session closes."""
+    """Convert ordered continuous bars into completed semantic-session closes."""
 
     def __init__(self, root: str, continuous_symbol: str) -> None:
         _require_text(root, "root")
@@ -28,12 +28,11 @@ class ContinuousSessionCloseBuilder:
         self.incomplete_session_count = 0
 
     def update(self, bar: ContinuousBarObservation) -> ContinuousSessionCloseObservation | None:
-        """Consume one completed bar and emit the prior session only after its exact close."""
+        """Consume one bar and publish state at the exact completed-session frontier."""
 
         self._validate_identity_and_order(bar)
-        emitted: ContinuousSessionCloseObservation | None = None
         if self._current_session_id is not None and bar.session_id != self._current_session_id:
-            emitted = self._build_current_session_close(bar.available_at_utc)
+            self._build_current_session_close(bar.available_at_utc)
             self._reset_session_state()
         if self._current_session_id is None:
             self._current_session_id = bar.session_id
@@ -43,10 +42,14 @@ class ContinuousSessionCloseBuilder:
         self._lineage_hashes.append(bar.source_lineage_hash)
         self._quality_flags.update(bar.quality_flags)
         self._last_bar_end_utc = bar.end_utc
+        if bar.end_utc != bar.session_end_utc:
+            return None
+        emitted = self._build_current_session_close(bar.available_at_utc)
+        self._reset_session_state()
         return emitted
 
     def finalize(self, available_at_utc: datetime) -> ContinuousSessionCloseObservation | None:
-        """Emit the current session only if the last bar reaches the declared session end."""
+        """Emit a pending close only when its last bar reached the declared session end."""
 
         _require_utc(available_at_utc, "available_at_utc")
         emitted = self._build_current_session_close(available_at_utc)
