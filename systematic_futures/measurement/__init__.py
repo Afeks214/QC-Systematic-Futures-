@@ -1,33 +1,3 @@
-from systematic_futures.measurement.state_models import (
-    AuctionFeatureVector,
-    AuctionStateSnapshot,
-    CandidateEventObservation,
-    CandidateResearchReadiness,
-    CompletedTradeBar,
-    IAEStateSnapshot,
-    ICMStateSnapshot,
-    IMSIStateSnapshot,
-    IndicatorSynergySnapshot,
-    PriceScale,
-    ProfileDefinition,
-    ProfileReferenceSet,
-    TradeObservation,
-    VolumeProfileSnapshot,
-)
+"""Measurement package with side-effect-free initialization."""
 
-__all__ = (
-    "AuctionFeatureVector",
-    "AuctionStateSnapshot",
-    "CandidateEventObservation",
-    "CandidateResearchReadiness",
-    "CompletedTradeBar",
-    "IAEStateSnapshot",
-    "ICMStateSnapshot",
-    "IMSIStateSnapshot",
-    "IndicatorSynergySnapshot",
-    "PriceScale",
-    "ProfileDefinition",
-    "ProfileReferenceSet",
-    "TradeObservation",
-    "VolumeProfileSnapshot",
-)
+__all__: tuple[str, ...] = ()

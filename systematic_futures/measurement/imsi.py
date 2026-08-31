@@ -6,7 +6,7 @@ from datetime import datetime
 import numpy as np
 import numpy.typing as npt
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import SessionType
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -56,6 +56,7 @@ class IMSIStateCore:
         self._ema_up = 0.0
         self._ema_down = 0.0
         self._last_bar_end: datetime | None = None
+        self._last_available_at: datetime | None = None
         self._bar_sequence = 0
         self._seasonal: dict[tuple[SessionType, int], deque[tuple[str, float]]] = defaultdict(
             lambda: deque(maxlen=_MAX_TOD_SESSIONS)
@@ -84,6 +85,7 @@ class IMSIStateCore:
 
         self._validate_bar(bar, session_type, session_start_utc)
         self._last_bar_end = bar.end_utc
+        self._last_available_at = bar.available_at_utc
         self._bar_sequence += 1
         if bar.session_id != self._session_id:
             self._session_id = bar.session_id
@@ -118,7 +120,7 @@ class IMSIStateCore:
             vwrsi - float(np.median(prior_tod)) if len(prior_tod) >= _MIN_TOD_OBSERVATIONS else None
         )
 
-        flags: set[str] = {"IMSI_FULL_MODEL_DEFERRED_LIFT3"}
+        flags: set[str] = {"IMSI_FULL_MODEL_DEFERRED"}
         if adjusted is None:
             flags.add("IMSI_TOD_WARMUP")
         distance: float | None = None
@@ -171,8 +173,10 @@ class IMSIStateCore:
 
         prior_bucket.append((bar.session_id, vwrsi))
         warmup_complete = distance is not None and rarity is not None
+        quality_flags = tuple(sorted(flags))
         identity = {
             "as_of_utc": bar.end_utc,
+            "available_at_utc": bar.available_at_utc,
             "contract_symbol": self.contract_symbol,
             "covariance_condition_number": condition,
             "covariance_effective_sample_size": effective_sample_size,
@@ -186,6 +190,9 @@ class IMSIStateCore:
             "session_id": bar.session_id,
             "session_vwap": session_vwap,
             "state_rarity_percentile": rarity,
+            "warmup_complete": warmup_complete,
+            "measurement_ready": warmup_complete,
+            "quality_flags": quality_flags,
             "version": _VERSION,
             "vwrsi_raw": vwrsi,
             "vwrsi_tod_adjusted": adjusted,
@@ -211,7 +218,7 @@ class IMSIStateCore:
             covariance_condition_number=condition,
             warmup_complete=warmup_complete,
             measurement_ready=warmup_complete,
-            quality_flags=tuple(sorted(flags)),
+            quality_flags=quality_flags,
             version=_VERSION,
         )
 
@@ -229,6 +236,8 @@ class IMSIStateCore:
             raise DataQualityError("session_type must be a SessionType")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("IMSI bars must arrive in increasing end-time order")
+        if self._last_available_at is not None and bar.available_at_utc < self._last_available_at:
+            raise DataTimingInvariantError("IMSI availability frontier cannot move backward")
         if bar.start_utc < session_start_utc:
             raise DataTimingInvariantError("IMSI bar starts before its semantic session")
 

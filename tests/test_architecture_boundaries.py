@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CORE_DIRECTORIES = (
     PROJECT_ROOT / "systematic_futures/domain",
     PROJECT_ROOT / "systematic_futures/data",
-    PROJECT_ROOT / "systematic_futures/ledger",
+    PROJECT_ROOT / "systematic_futures/measurement",
 )
 PROHIBITED_CORE_NAMES = {
     "AlgorithmImports",
@@ -19,7 +19,7 @@ PROHIBITED_CORE_NAMES = {
     "Insight",
     "PortfolioTarget",
 }
-PROHIBITED_MAIN_TOKENS = (
+PROHIBITED_BOUNDARY_TOKENS = (
     "market_order",
     "limit_order",
     "stop_market_order",
@@ -53,14 +53,37 @@ def test_core_has_no_quantconnect_imports() -> None:
     assert violations == []
 
 
-def test_main_contains_no_trading_api() -> None:
-    source = (PROJECT_ROOT / "main.py").read_text(encoding="utf-8")
-    found = [token for token in PROHIBITED_MAIN_TOKENS if token in source]
-    assert found == []
+def test_executable_qc_boundary_contains_no_trading_api() -> None:
+    paths = (
+        PROJECT_ROOT / "main.py",
+        *sorted((PROJECT_ROOT / "systematic_futures/qc_adapters").glob("*.py")),
+    )
+    violations: list[str] = []
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        found = [token for token in PROHIBITED_BOUNDARY_TOKENS if token in source]
+        if found:
+            violations.append(f"{path.name}: {', '.join(found)}")
+    assert violations == []
 
 
-def test_notebooks_parse_and_preserve_lift_1_scope() -> None:
+def test_notebook_is_a_valid_thin_client() -> None:
     assert validate_notebooks() == ()
+
+
+def test_one_semantic_runtime_and_no_phase_debris() -> None:
+    adapters = PROJECT_ROOT / "systematic_futures/qc_adapters"
+    runtime_files = tuple(path.name for path in adapters.glob("*runtime*.py"))
+    assert runtime_files == ("runtime.py",)
+    assert not (PROJECT_ROOT / "systematic_futures/research_h1").exists()
+    assert not (PROJECT_ROOT / "docs/xray").exists()
+    assert not (PROJECT_ROOT / "artifacts/h1").exists()
+    active_names = tuple(
+        str(path.relative_to(PROJECT_ROOT)).lower()
+        for root in (PROJECT_ROOT / "systematic_futures", PROJECT_ROOT / "tests")
+        for path in root.rglob("*.py")
+    )
+    assert all("lift1" not in name and "lift2" not in name for name in active_names)
 
 
 def test_executable_python_contains_no_prohibited_ml_imports() -> None:

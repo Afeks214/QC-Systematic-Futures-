@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from itertools import pairwise
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import AuctionLocationState, ProfileKind
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -33,7 +33,6 @@ DEFAULT_PROFILE_DEFINITION = ProfileDefinition(
     rolling_windows_minutes=(30, 60, 120),
     version="volume_profile_math_v2",
 )
-ATR_NORMALIZATION_VERSION = ATR_5M_24_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,10 +78,11 @@ def select_poc(volume_by_tick: Mapping[int, float]) -> int:
     """
 
     histogram = _validated_histogram(volume_by_tick)
+    ordered = tuple(sorted(histogram.items()))
     maximum = max(histogram.values())
-    candidates = tuple(tick for tick, volume in histogram.items() if volume == maximum)
-    total = sum(histogram.values())
-    weighted_mean = sum(tick * volume for tick, volume in histogram.items()) / total
+    candidates = tuple(tick for tick, volume in ordered if volume == maximum)
+    total = math.fsum(volume for _, volume in ordered)
+    weighted_mean = math.fsum(tick * volume for tick, volume in ordered) / total
     return min(candidates, key=lambda tick: (abs(tick - weighted_mean), tick))
 
 
@@ -103,7 +103,7 @@ def select_value_area(
         raise DataQualityError("poc_tick must be occupied")
     if not math.isfinite(fraction) or not 0 < fraction <= 1:
         raise DataQualityError("value-area fraction must be in (0, 1]")
-    target = fraction * sum(histogram.values())
+    target = fraction * math.fsum(histogram[tick] for tick in sorted(histogram))
     cumulative = histogram[poc_tick]
     lower = poc_tick
     upper = poc_tick
@@ -118,20 +118,20 @@ def select_value_area(
             if next_upper is None:
                 raise DataQualityError("Value Area expansion has no remaining side")
             upper = next_upper
-            cumulative += max(upper_volume, 0.0)
+            cumulative = math.fsum((cumulative, max(upper_volume, 0.0)))
         elif next_upper is None:
             lower = next_lower
-            cumulative += max(lower_volume, 0.0)
+            cumulative = math.fsum((cumulative, max(lower_volume, 0.0)))
         elif lower_volume == upper_volume:
             lower = next_lower
             upper = next_upper
-            cumulative += lower_volume + upper_volume
+            cumulative = math.fsum((cumulative, lower_volume, upper_volume))
         elif lower_volume > upper_volume:
             lower = next_lower
-            cumulative += lower_volume
+            cumulative = math.fsum((cumulative, lower_volume))
         else:
             upper = next_upper
-            cumulative += upper_volume
+            cumulative = math.fsum((cumulative, upper_volume))
     return lower, upper
 
 
@@ -159,17 +159,18 @@ class VolumeProfileEngine:
         if not math.isfinite(tick_size) or tick_size <= 0:
             raise DataQualityError("tick_size must be finite and positive")
         if definition != DEFAULT_PROFILE_DEFINITION:
-            raise DataQualityError("Lift 2 requires the frozen mathematical Profile definition")
+            raise DataQualityError("the frozen mathematical Profile definition is required")
         self.root = root
         self.contract_symbol = contract_symbol
         self.session_id = session_id
         self.tick_size = tick_size
         self.definition = definition
-        self._session_histogram: dict[int, float] = defaultdict(float)
-        self._minute_histogram: dict[int, float] = defaultdict(float)
+        self._session_histogram: dict[int, list[float]] = defaultdict(list)
+        self._minute_histogram: dict[int, list[float]] = defaultdict(list)
         self._minute_end_utc: datetime | None = None
         self._minute_buckets: deque[MinuteVolumeBucket] = deque()
         self._last_trade_time_utc: datetime | None = None
+        self._last_observation_time_utc: datetime | None = None
         self._last_available_at_utc: datetime | None = None
         self._last_price_tick: int | None = None
         self._last_finalized_minute_end: datetime | None = None
@@ -179,7 +180,7 @@ class VolumeProfileEngine:
         self._seen_source_event_ids: set[str] = set()
         self._seen_source_sequences: set[int] = set()
         self.rejection_counts: Counter[str] = Counter()
-        self._admitted_volume = 0.0
+        self._admitted_volume_partials: list[float] = []
         self.late_trade_count = 0
 
     @property
@@ -205,46 +206,49 @@ class VolumeProfileEngine:
 
         self._validate_trade_identity(trade)
         self._last_rejection_flags = ()
+        if (
+            self._last_available_at_utc is not None
+            and trade.available_at_utc < self._last_available_at_utc
+        ):
+            raise DataTimingInvariantError("Profile availability frontier cannot move backward")
         if "SOURCE_SUSPICIOUS" in trade.source_quality_flags:
-            return self._reject_trade("DATA:SOURCE_SUSPICIOUS_EXCLUDED")
+            return self._reject_trade(trade, "DATA:SOURCE_SUSPICIOUS_EXCLUDED")
         if trade.price <= 0:
-            return self._reject_trade("DATA:NON_POSITIVE_PRICE_EXCLUDED")
+            return self._reject_trade(trade, "DATA:NON_POSITIVE_PRICE_EXCLUDED")
         if trade.quantity <= 0:
-            return self._reject_trade("DATA:NON_POSITIVE_QUANTITY_EXCLUDED")
+            return self._reject_trade(trade, "DATA:NON_POSITIVE_QUANTITY_EXCLUDED")
         if (
             trade.source_event_id is not None
             and trade.source_event_id in self._seen_source_event_ids
         ):
-            return self._reject_trade("DATA:DUPLICATE_SOURCE_ID_EXCLUDED")
+            return self._reject_trade(trade, "DATA:DUPLICATE_SOURCE_ID_EXCLUDED")
         if (
             trade.source_sequence is not None
             and trade.source_sequence in self._seen_source_sequences
         ):
-            return self._reject_trade("DATA:DUPLICATE_SOURCE_SEQUENCE_EXCLUDED")
-        if trade.source_event_id is None and trade.source_sequence is None:
-            self._quality_flags.add("PROVENANCE:DEDUPLICATION_UNVERIFIABLE")
+            return self._reject_trade(trade, "DATA:DUPLICATE_SOURCE_SEQUENCE_EXCLUDED")
         if self._final_snapshot is not None:
             self._quality_flags.add("DATA:LATE_TRADE_AFTER_FINAL_PROFILE")
             self.late_trade_count += 1
-            return self._reject_trade("DATA:LATE")
+            return self._reject_trade(trade, "DATA:LATE")
         if (
             self._last_finalized_minute_end is not None
             and trade.exchange_time_utc < self._last_finalized_minute_end
         ):
             self._quality_flags.add("DATA:LATE_TRADE_IGNORED")
             self.late_trade_count += 1
-            return self._reject_trade("DATA:LATE")
+            return self._reject_trade(trade, "DATA:LATE")
         if (
             self._last_trade_time_utc is not None
             and trade.exchange_time_utc < self._last_trade_time_utc
         ):
             self._quality_flags.add("DATA:OUT_OF_ORDER_TRADE_IGNORED")
             self.late_trade_count += 1
-            return self._reject_trade("DATA:OUT_OF_ORDER")
+            return self._reject_trade(trade, "DATA:OUT_OF_ORDER")
         try:
             tick = price_to_tick(trade.price, trade.minimum_tick)
         except DataQualityError:
-            return self._reject_trade("DATA:OFF_TICK_GRID_EXCLUDED")
+            return self._reject_trade(trade, "DATA:OFF_TICK_GRID_EXCLUDED")
         minute_end = trade.exchange_time_utc.replace(second=0, microsecond=0) + timedelta(minutes=1)
         if self._minute_end_utc is None:
             self._minute_end_utc = minute_end
@@ -252,11 +256,17 @@ class VolumeProfileEngine:
             raise DataTimingInvariantError(
                 "elapsed minute must be finalized before trade ingestion"
             )
-        self._session_histogram[tick] += trade.quantity
-        self._minute_histogram[tick] += trade.quantity
-        self._admitted_volume += trade.quantity
-        self._last_trade_time_utc = trade.exchange_time_utc
         self._last_available_at_utc = trade.available_at_utc
+        if trade.source_event_id is None and trade.source_sequence is None:
+            self._quality_flags.add("PROVENANCE:DEDUPLICATION_UNVERIFIABLE")
+        accumulate_fsum_partial(self._session_histogram[tick], trade.quantity)
+        accumulate_fsum_partial(self._minute_histogram[tick], trade.quantity)
+        accumulate_fsum_partial(self._admitted_volume_partials, trade.quantity)
+        self._last_trade_time_utc = trade.exchange_time_utc
+        self._last_observation_time_utc = max(
+            trade.exchange_time_utc,
+            self._last_observation_time_utc or trade.exchange_time_utc,
+        )
         self._last_price_tick = tick
         if trade.source_event_id is not None:
             self._seen_source_event_ids.add(trade.source_event_id)
@@ -264,7 +274,12 @@ class VolumeProfileEngine:
             self._seen_source_sequences.add(trade.source_sequence)
         return True
 
-    def _reject_trade(self, *flags: str) -> bool:
+    def _reject_trade(self, trade: TradeObservation, *flags: str) -> bool:
+        self._last_available_at_utc = trade.available_at_utc
+        self._last_observation_time_utc = max(
+            trade.exchange_time_utc,
+            self._last_observation_time_utc or trade.exchange_time_utc,
+        )
         normalized = tuple(sorted(set(flags)))
         self._last_rejection_flags = normalized
         self._quality_flags.update(normalized)
@@ -287,13 +302,16 @@ class VolumeProfileEngine:
             raise DataTimingInvariantError("minute finalization clock cannot move backward")
         finalized: list[MinuteVolumeBucket] = []
         if self._minute_end_utc is not None and self._minute_end_utc <= as_of_utc:
-            pairs = tuple(sorted(self._minute_histogram.items()))
-            total = sum(volume for _, volume in pairs)
+            pairs = tuple(
+                (tick, math.fsum(partials))
+                for tick, partials in sorted(self._minute_histogram.items())
+            )
+            total = math.fsum(volume for _, volume in pairs)
             bucket = MinuteVolumeBucket(self._minute_end_utc, pairs, total)
             self._minute_buckets.append(bucket)
             finalized.append(bucket)
             self._last_finalized_minute_end = self._minute_end_utc
-            self._minute_histogram = defaultdict(float)
+            self._minute_histogram = defaultdict(list)
             self._minute_end_utc = None
         horizon_start = as_of_utc - timedelta(minutes=max(self.definition.rolling_windows_minutes))
         while self._minute_buckets and self._minute_buckets[0].minute_end_utc <= horizon_start:
@@ -318,17 +336,36 @@ class VolumeProfileEngine:
 
         if as_of_utc > available_at_utc:
             raise DataTimingInvariantError("Profile as-of time must not exceed availability")
-        if self._last_trade_time_utc is not None and self._last_trade_time_utc > as_of_utc:
+        if (
+            self._last_available_at_utc is not None
+            and available_at_utc < self._last_available_at_utc
+        ):
             raise DataTimingInvariantError(
-                "Profile snapshot cannot be backdated before admitted data"
+                "Profile availability cannot precede a processed observation's availability"
+            )
+        if (
+            self._last_observation_time_utc is not None
+            and self._last_observation_time_utc > as_of_utc
+        ):
+            raise DataTimingInvariantError(
+                "Profile snapshot cannot be backdated before processed observations"
             )
         if self._last_price_tick is None:
             raise DataQualityError("cannot snapshot an empty Profile")
         if profile_kind is ProfileKind.FINAL_SESSION and self._final_snapshot is not None:
+            if (
+                as_of_utc < self._final_snapshot.as_of_utc
+                or available_at_utc < self._final_snapshot.available_at_utc
+            ):
+                raise DataTimingInvariantError(
+                    "Profile request cannot precede cached final snapshot clocks"
+                )
             return self._final_snapshot
         if profile_kind in {ProfileKind.DEVELOPING_SESSION, ProfileKind.FINAL_SESSION}:
-            histogram = dict(self._session_histogram)
-            expected_total_volume = self._admitted_volume
+            histogram = {
+                tick: math.fsum(partials) for tick, partials in self._session_histogram.items()
+            }
+            expected_total_volume = math.fsum(self._admitted_volume_partials)
         else:
             minutes = _rolling_minutes(profile_kind)
             histogram, expected_total_volume = self._rolling_histogram(minutes, as_of_utc)
@@ -356,14 +393,15 @@ class VolumeProfileEngine:
         as_of_utc: datetime,
     ) -> tuple[dict[int, float], float]:
         start = as_of_utc - timedelta(minutes=minutes)
-        histogram: dict[int, float] = defaultdict(float)
-        admitted_volume = 0.0
+        partials_by_tick: dict[int, list[float]] = defaultdict(list)
+        admitted_volume_partials: list[float] = []
         for bucket in self._minute_buckets:
             if start < bucket.minute_end_utc <= as_of_utc:
-                admitted_volume += bucket.total_volume
+                accumulate_fsum_partial(admitted_volume_partials, bucket.total_volume)
                 for tick, volume in bucket.volume_by_tick:
-                    histogram[tick] += volume
-        return dict(histogram), admitted_volume
+                    accumulate_fsum_partial(partials_by_tick[tick], volume)
+        histogram = {tick: math.fsum(partials) for tick, partials in partials_by_tick.items()}
+        return histogram, math.fsum(admitted_volume_partials)
 
     def _validate_trade_identity(self, trade: TradeObservation) -> None:
         if trade.root != self.root:
@@ -374,6 +412,22 @@ class VolumeProfileEngine:
             raise SessionBoundaryError("Profile cannot mix semantic sessions")
         if not math.isclose(trade.minimum_tick, self.tick_size, rel_tol=0, abs_tol=1e-15):
             raise DataQualityError("minimum tick changed inside a Profile")
+
+
+def accumulate_fsum_partial(partials: list[float], value: float) -> None:
+    """Accumulate one finite value while retaining low-order roundoff terms."""
+
+    insertion_index = 0
+    for partial in partials:
+        if abs(value) < abs(partial):
+            value, partial = partial, value
+        high = value + partial
+        low = partial - (high - value)
+        if low:
+            partials[insertion_index] = low
+            insertion_index += 1
+        value = high
+    partials[insertion_index:] = (value,)
 
 
 def build_profile_snapshot(
@@ -399,7 +453,8 @@ def build_profile_snapshot(
     """
 
     histogram = _validated_histogram(volume_by_tick)
-    histogram_total = sum(histogram.values())
+    pairs = tuple(sorted(histogram.items()))
+    histogram_total = math.fsum(volume for _, volume in pairs)
     if not math.isfinite(expected_total_volume) or expected_total_volume <= 0:
         raise DataQualityError("expected_total_volume must be finite and positive")
     if not math.isclose(
@@ -411,7 +466,7 @@ def build_profile_snapshot(
         raise DataQualityError("Profile admitted volume does not equal histogram volume")
     poc = select_poc(histogram)
     val, vah = select_value_area(histogram, poc, definition.value_area_fraction)
-    pairs = tuple(sorted(histogram.items()))
+    normalized_quality_flags = tuple(sorted(set(quality_flags)))
     identity = {
         "as_of_utc": as_of_utc,
         "available_at_utc": available_at_utc,
@@ -419,9 +474,11 @@ def build_profile_snapshot(
         "current_price_tick": current_price_tick,
         "definition_version": definition.version,
         "profile_kind": profile_kind,
+        "quality_flags": normalized_quality_flags,
         "root": root,
         "session_id": session_id,
         "tick_size": tick_size,
+        "total_volume": histogram_total,
         "value_area": (val, vah),
         "volume_by_tick": pairs,
     }
@@ -442,7 +499,7 @@ def build_profile_snapshot(
         val_tick=val,
         current_price_tick=current_price_tick,
         volume_by_tick=pairs,
-        quality_flags=tuple(sorted(set(quality_flags))),
+        quality_flags=normalized_quality_flags,
     )
 
 
@@ -490,8 +547,12 @@ def auction_features(
             raise DataQualityError("prior Profile tick size differs from current Profile")
         if prior.as_of_utc >= current.as_of_utc:
             raise DataTimingInvariantError("prior Profile must precede current Profile")
+        if prior.available_at_utc > current.available_at_utc:
+            raise DataTimingInvariantError("prior Profile is unavailable at current Profile time")
     if atr.root != current.root or atr.contract_symbol != current.contract_symbol:
         raise ContractBoundaryError("ATR identity differs from current Profile")
+    if atr.version != ATR_5M_24_VERSION:
+        raise DataQualityError("Auction ATR version is unsupported")
     if atr.as_of_utc != current.as_of_utc or atr.available_at_utc > current.available_at_utc:
         raise DataTimingInvariantError("ATR clock is not aligned with current Profile")
     if transitions.root != current.root or transitions.contract_symbol != current.contract_symbol:
@@ -666,10 +727,10 @@ def _profile_moments(
 
 
 __all__ = (
-    "ATR_NORMALIZATION_VERSION",
     "DEFAULT_PROFILE_DEFINITION",
     "MinuteVolumeBucket",
     "VolumeProfileEngine",
+    "accumulate_fsum_partial",
     "auction_features",
     "auction_location",
     "build_profile_snapshot",

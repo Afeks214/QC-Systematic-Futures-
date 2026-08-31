@@ -18,10 +18,6 @@ class DuplicateIdentifierError(SystematicFuturesError):
     """Raised when an immutable identifier is reused."""
 
 
-class LedgerIntegrityError(SystematicFuturesError):
-    """Raised when append-only ledger verification fails."""
-
-
 class MarketConfigurationError(SystematicFuturesError):
     """Raised when a market definition is incomplete or inconsistent."""
 
@@ -43,7 +39,6 @@ __all__ = (
     "DataQualityError",
     "DataTimingInvariantError",
     "DuplicateIdentifierError",
-    "LedgerIntegrityError",
     "MarketConfigurationError",
     "SessionBoundaryError",
     "SystematicFuturesError",

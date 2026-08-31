@@ -3,8 +3,9 @@ import math
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime
+from statistics import median
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     CandidateEventType,
     IAEGapDirection,
@@ -22,18 +23,19 @@ from systematic_futures.measurement.state_models import (
     CompletedTradeBar,
     IAEStateSnapshot,
 )
+from systematic_futures.measurement.volatility import ATR_5M_24_VERSION, true_range
 
-_VERSION = "iae_l1_absorption_math_v2"
+_VERSION = "iae_l1_vector_mad_signed_v3"
+_DESCRIPTIVE_SCORE_VERSION = "iae_l1_descriptive_signed_log_v1"
 _MAX_GAP_AGE_BARS = 48
 _MAX_TOD_SESSIONS = 30
 _MIN_TOD_OBSERVATIONS = 20
 _MIN_Z_DISPLACEMENT = 1.5
 _MIN_DISPLACEMENT_EFFICIENCY = 0.6
 _MIN_Z_GAP = 0.3
-_MIN_WICK_ABSORPTION = 0.5
-_SCORE_THRESHOLD = 2.1
 _TIME_DECAY = 0.05
-_VOLUME_Z_FLOOR = 0.1
+_MAD_NORMALIZATION = 1.4826
+_REJECTION_CAP = 1.0
 _WEIGHT_DISPLACEMENT = 0.4
 _WEIGHT_GAP = 0.4
 _WEIGHT_EFFICIENCY = 0.2
@@ -97,6 +99,8 @@ class _Gap:
 @dataclass(frozen=True, slots=True)
 class _RetestMetrics:
     depth: float
+    rejection_length_raw: float
+    rejection_range_denominator: float
     wick: float | None
     close_position_raw: float
     close_position_score: float
@@ -107,7 +111,7 @@ class _RetestMetrics:
 
 
 class IAEEngine:
-    """Symmetric L1 structural-gap formation, test, and absorption measurement."""
+    """Symmetric L1 structural-gap formation and descriptive reaction measurement."""
 
     def __init__(self, root: str, contract_symbol: str, minimum_tick: float) -> None:
         """Create empty contract-local IAE state.
@@ -127,6 +131,7 @@ class IAEEngine:
         self._bars: deque[CompletedTradeBar] = deque(maxlen=3)
         self._gaps: list[_Gap] = []
         self._last_bar_end: datetime | None = None
+        self._last_available_at: datetime | None = None
         self._session_id: str | None = None
         self._seasonal: dict[tuple[SessionType, int], deque[tuple[str, float]]] = defaultdict(
             lambda: deque(maxlen=_MAX_TOD_SESSIONS)
@@ -205,22 +210,19 @@ class IAEEngine:
                 continue
             gap.retest_count += 1
             gap.state = IAEGapState.TESTED
-            metrics = retest_geometry(gap, bar, volume_z)
+            if not self._bars:
+                raise DataQualityError("IAE retest has no prior completed bar")
+            metrics = retest_geometry(
+                gap,
+                bar,
+                volume_z,
+                previous_close=self._bars[-1].close,
+                minimum_tick=self.minimum_tick,
+            )
             retest_flags = set(flags)
             if metrics.guard is not None:
                 flags.add(metrics.guard)
                 retest_flags.add(metrics.guard)
-            directional_confirmation = (
-                gap.direction is IAEGapDirection.BULLISH and bar.close > bar.open
-            ) or (gap.direction is IAEGapDirection.BEARISH and bar.close < bar.open)
-            if (
-                metrics.score_effective is not None
-                and metrics.score_effective > _SCORE_THRESHOLD
-                and metrics.wick is not None
-                and metrics.wick > _MIN_WICK_ABSORPTION
-                and directional_confirmation
-            ):
-                gap.state = IAEGapState.ABSORBED
             selected = gap
             selected_metrics = metrics
             if gap.retest_count == 1:
@@ -335,7 +337,7 @@ class IAEEngine:
         *,
         normalization_ready: bool,
     ) -> IAEStateSnapshot:
-        volume_score_input = max(volume_z, _VOLUME_Z_FLOOR) if volume_z is not None else None
+        volume_score_input = volume_z
         active_gap_count = self.active_gap_count
         score_ready = (
             gap is not None
@@ -345,17 +347,45 @@ class IAEEngine:
             and volume_z is not None
             and metrics.score_effective is not None
         )
+        measurement_ready = gap is not None and normalization_ready
+        quality_flags = tuple(sorted(flags))
+        descriptive_score_version = (
+            _DESCRIPTIVE_SCORE_VERSION
+            if metrics is not None and metrics.score_effective is not None
+            else None
+        )
         identity = {
             "active_gap_count": active_gap_count,
             "as_of_utc": bar.end_utc,
+            "available_at_utc": bar.available_at_utc,
+            "close_position_score": (metrics.close_position_score if metrics is not None else None),
             "contract_symbol": self.contract_symbol,
+            "descriptive_score_version": descriptive_score_version,
+            "direction": gap.direction if gap is not None else None,
+            "displacement_efficiency": (gap.displacement_efficiency if gap is not None else None),
+            "formation_quality": gap.formation_quality if gap is not None else None,
+            "gap_age_bars": gap.age if gap is not None else None,
             "gap_id": gap.gap_id if gap is not None else None,
             "gap_state": gap.state if gap is not None else None,
-            "quality_flags": tuple(sorted(flags)),
+            "gap_width_atr": gap.z_gap if gap is not None else None,
+            "impulse_body_atr": gap.z_displacement if gap is not None else None,
+            "measurement_ready": measurement_ready,
+            "quality_flags": quality_flags,
             "root": self.root,
             "session_id": bar.session_id,
             "score_effective": metrics.score_effective if metrics is not None else None,
+            "score_raw": metrics.score_raw if metrics is not None else None,
             "score_ready": score_ready,
+            "time_decay": metrics.time_decay if metrics is not None else None,
+            "tod_volume_z_raw": volume_z,
+            "tod_volume_score_input": volume_score_input,
+            "retest_depth_ratio": metrics.depth if metrics is not None else None,
+            "rejection_length_raw": (metrics.rejection_length_raw if metrics is not None else None),
+            "rejection_range_denominator": (
+                metrics.rejection_range_denominator if metrics is not None else None
+            ),
+            "wick_rejection_ratio": metrics.wick if metrics is not None else None,
+            "close_position_raw": (metrics.close_position_raw if metrics is not None else None),
             "version": _VERSION,
         }
         return IAEStateSnapshot(
@@ -382,12 +412,16 @@ class IAEEngine:
             tod_volume_score_input=volume_score_input,
             score_raw=metrics.score_raw if metrics is not None else None,
             score_effective=metrics.score_effective if metrics is not None else None,
-            absorption_confirmed=gap is not None and gap.state is IAEGapState.ABSORBED,
             active_gap_count=active_gap_count,
-            measurement_ready=gap is not None and normalization_ready,
+            measurement_ready=measurement_ready,
             score_ready=score_ready,
-            quality_flags=tuple(sorted(flags)),
+            quality_flags=quality_flags,
             version=_VERSION,
+            rejection_length_raw=(metrics.rejection_length_raw if metrics is not None else None),
+            rejection_range_denominator=(
+                metrics.rejection_range_denominator if metrics is not None else None
+            ),
+            descriptive_score_version=descriptive_score_version,
         )
 
     def _validate_inputs(
@@ -403,8 +437,12 @@ class IAEEngine:
             raise DataQualityError("IAE requires completed fast-clock bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("IAE bars must arrive in increasing end-time order")
+        if self._last_available_at is not None and bar.available_at_utc < self._last_available_at:
+            raise DataTimingInvariantError("IAE availability frontier cannot move backward")
         if atr.root != self.root or atr.contract_symbol != self.contract_symbol:
             raise ContractBoundaryError("IAE ATR identity differs")
+        if atr.version != ATR_5M_24_VERSION:
+            raise DataQualityError("IAE ATR version is unsupported")
         if atr.as_of_utc != bar.end_utc or atr.available_at_utc > bar.available_at_utc:
             raise DataTimingInvariantError("IAE ATR clock is not aligned with the bar")
         if not isinstance(session_type, SessionType):
@@ -412,10 +450,11 @@ class IAEEngine:
         if bar.start_utc < session_start_utc:
             raise DataTimingInvariantError("IAE bar starts before its semantic session")
         self._last_bar_end = bar.end_utc
+        self._last_available_at = bar.available_at_utc
 
 
 def prior_volume_z(current: float, prior: tuple[float, ...]) -> tuple[float | None, str | None]:
-    """Return a prior-only population Z-score for one time-of-day volume slot."""
+    """Return a prior-only robust median/MAD Z-score for one TOD slot."""
 
     if not math.isfinite(current) or current <= 0:
         raise DataQualityError("IAE current volume must be finite and positive")
@@ -423,11 +462,12 @@ def prior_volume_z(current: float, prior: tuple[float, ...]) -> tuple[float | No
         return None, "IAE_TOD_WARMUP"
     if any(not math.isfinite(value) or value <= 0 for value in prior):
         raise DataQualityError("IAE prior TOD volumes must be finite and positive")
-    mean = sum(prior) / len(prior)
-    variance = sum((value - mean) ** 2 for value in prior) / len(prior)
-    if variance <= _EPSILON:
-        return None, "IAE_TOD_DEGENERATE"
-    return (current - mean) / (math.sqrt(variance) + _EPSILON), None
+    center = float(median(prior))
+    mad = float(median(tuple(abs(value - center) for value in prior)))
+    scale = _MAD_NORMALIZATION * mad
+    if scale <= _EPSILON:
+        return None, "IAE_TOD_DEGENERATE_MAD"
+    return (current - center) / scale, None
 
 
 def formation_quality(z_displacement: float, z_gap: float, efficiency: float) -> float:
@@ -454,14 +494,18 @@ def formation_is_eligible(z_displacement: float, z_gap: float, efficiency: float
     )
 
 
-def absorption_score(
+def descriptive_reaction_score(
     quality: float,
     wick: float,
     volume_z: float,
     close_position: float,
     age: int,
 ) -> float:
-    """Return the exact full-bracket IAE score after exponential age decay."""
+    """Return a versioned signed descriptive composite after age decay.
+
+    This compatibility scalar is not a state transition, approval, or trading policy.
+    The signed-log volume transform preserves below-baseline evidence as negative.
+    """
 
     if any(not math.isfinite(value) for value in (quality, wick, volume_z, close_position)):
         raise DataQualityError("IAE score inputs must be finite")
@@ -469,17 +513,20 @@ def absorption_score(
         raise DataQualityError("IAE quality, wick, and close position must be non-negative")
     if isinstance(age, bool) or not isinstance(age, int) or age < 0:
         raise DataQualityError("IAE score age must be a non-negative integer")
-    volume_contribution = max(volume_z, _VOLUME_Z_FLOOR)
     bracket = (
         math.log1p(quality)
         + _WEIGHT_WICK * math.log1p(wick)
-        + _WEIGHT_VOLUME * math.log1p(volume_contribution)
+        + _WEIGHT_VOLUME * _signed_log1p(volume_z)
         + _WEIGHT_CLOSE * close_position
     )
     score = bracket * math.exp(-_TIME_DECAY * age)
     if not math.isfinite(score):
         raise DataQualityError("IAE score produced a non-finite value")
     return score
+
+
+def _signed_log1p(value: float) -> float:
+    return math.copysign(math.log1p(abs(value)), value)
 
 
 def detect_gap_geometry(
@@ -525,38 +572,34 @@ def retest_geometry(
     gap: _Gap,
     bar: CompletedTradeBar,
     volume_z: float | None,
+    *,
+    previous_close: float,
+    minimum_tick: float,
 ) -> _RetestMetrics:
-    """Return exact direction-normalized retest geometry and full-bracket score."""
+    """Return side-normalized retest vector and optional descriptive score."""
 
     width = gap.gap_top - gap.gap_bot
     if width <= 0:
         raise DataQualityError("IAE gap width must be positive")
     overlap = max(0.0, min(bar.high, gap.gap_top) - max(bar.low, gap.gap_bot))
     depth = overlap / width
-    body = abs(bar.close - bar.open)
     decay = math.exp(-_TIME_DECAY * gap.age)
     if gap.direction is IAEGapDirection.BULLISH:
-        wick_length = min(bar.open, bar.close) - bar.low
         close_position_raw = (bar.close - gap.gap_bot) / (width + _EPSILON)
     else:
-        wick_length = bar.high - max(bar.open, bar.close)
         close_position_raw = (gap.gap_top - bar.close) / (width + _EPSILON)
     close_position_score = min(1.0, max(0.0, close_position_raw))
-    if body <= 0:
-        return _RetestMetrics(
-            depth,
-            None,
-            close_position_raw,
-            close_position_score,
-            decay,
-            None,
-            None,
-            "IAE_DEGENERATE_BODY",
-        )
-    wick = wick_length / (body + _EPSILON)
+    rejection_length, rejection_denominator, wick = bounded_rejection_ratio(
+        bar,
+        side=1 if gap.direction is IAEGapDirection.BULLISH else -1,
+        previous_close=previous_close,
+        minimum_tick=minimum_tick,
+    )
     if volume_z is None:
         return _RetestMetrics(
             depth,
+            rejection_length,
+            rejection_denominator,
             wick,
             close_position_raw,
             close_position_score,
@@ -565,7 +608,7 @@ def retest_geometry(
             None,
             "IAE_SCORE_TOD_UNAVAILABLE",
         )
-    score = absorption_score(
+    score = descriptive_reaction_score(
         gap.formation_quality,
         wick,
         volume_z,
@@ -574,6 +617,8 @@ def retest_geometry(
     )
     return _RetestMetrics(
         depth,
+        rejection_length,
+        rejection_denominator,
         wick,
         close_position_raw,
         close_position_score,
@@ -582,6 +627,34 @@ def retest_geometry(
         score,
         None,
     )
+
+
+def bounded_rejection_ratio(
+    bar: CompletedTradeBar,
+    *,
+    side: int,
+    previous_close: float,
+    minimum_tick: float,
+) -> tuple[float, float, float]:
+    """Return raw rejection, true-range/tick denominator, and bounded ratio.
+
+    Units: raw length and denominator are native price; ratio is dimensionless in
+    ``[0, 1]``. Time semantics: ``previous_close`` is the immediately prior completed
+    same-contract bar. Missingness: none; invalid side/tick/close fails closed.
+    """
+
+    if side not in {-1, 1}:
+        raise DataQualityError("IAE rejection side must be -1 or +1")
+    if not math.isfinite(minimum_tick) or minimum_tick <= 0:
+        raise DataQualityError("IAE rejection minimum_tick must be positive")
+    if side == 1:
+        raw = min(bar.open, bar.close) - bar.low
+    else:
+        raw = bar.high - max(bar.open, bar.close)
+    raw = max(0.0, raw)
+    denominator = max(true_range(bar, previous_close), minimum_tick)
+    ratio = min(_REJECTION_CAP, max(0.0, raw / denominator))
+    return raw, denominator, ratio
 
 
 def _is_retest(gap: _Gap, bar: CompletedTradeBar) -> bool:
@@ -594,7 +667,8 @@ __all__ = (
     "IAEEngine",
     "IAERetestObservation",
     "IAEUpdate",
-    "absorption_score",
+    "bounded_rejection_ratio",
+    "descriptive_reaction_score",
     "detect_gap_geometry",
     "formation_is_eligible",
     "formation_quality",

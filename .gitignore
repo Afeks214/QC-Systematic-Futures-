@@ -10,6 +10,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .pyright/
+.tmp/
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
 
@@ -24,11 +25,3 @@ lean.json
 **/backtests/
 local-data/
 bulk-data/
-
-# Generated quality-check scratch output is not immutable certification evidence.
-artifacts/manifests/lift_1_rebuild_check.json
-artifacts/manifests/lift_2_rebuild_check.json
-
-# Full Lift 2 tick/candidate panels are private research data, never Git evidence.
-artifacts/private/
-artifacts/candidates/

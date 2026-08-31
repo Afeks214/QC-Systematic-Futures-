@@ -6,7 +6,7 @@ from datetime import datetime
 import numpy as np
 import numpy.typing as npt
 
-from systematic_futures.config.research import ICM_WINDOWS, MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import ICM_WINDOWS, MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -15,10 +15,11 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.serialization import sha256_hex
 from systematic_futures.measurement.state_models import (
+    ATRMeasurement,
     CompletedTradeBar,
     ICMStateSnapshot,
-    PriceScale,
 )
+from systematic_futures.measurement.volatility import ATR_5M_24_VERSION
 
 _VERSION = "icm_quadratic_geometry_math_v3|pinv_solver_v1"
 _EPSILON = 1e-12
@@ -47,6 +48,7 @@ class ICMEngine:
         self._pseudoinverse = np.asarray(np.linalg.pinv(self._design), dtype=np.float64)
         self._bars: deque[CompletedTradeBar] = deque(maxlen=self.window_size)
         self._last_bar_end: datetime | None = None
+        self._last_available_at: datetime | None = None
         self.last_quality_flags: tuple[str, ...] = ("ICM_WINDOW_WARMUP",)
         self.degenerate_count = 0
 
@@ -59,7 +61,7 @@ class ICMEngine:
     def on_bar(
         self,
         bar: CompletedTradeBar,
-        local_price_scale: PriceScale | None = None,
+        local_atr: ATRMeasurement | None = None,
     ) -> ICMStateSnapshot | None:
         """Update one completed 30-minute bar and emit full-window geometry.
 
@@ -70,7 +72,19 @@ class ICMEngine:
         """
 
         self._validate_bar(bar)
+        if local_atr is not None:
+            if local_atr.root != self.root or local_atr.contract_symbol != self.contract_symbol:
+                raise ContractBoundaryError("ICM local ATR identity differs")
+            if local_atr.version != ATR_5M_24_VERSION:
+                raise DataQualityError("ICM local ATR version is unsupported")
+            if (
+                local_atr.as_of_utc != bar.end_utc
+                or local_atr.available_at_utc > bar.available_at_utc
+            ):
+                raise DataTimingInvariantError("ICM local ATR is unavailable for the bar")
+        local_price_scale = local_atr.as_price_scale() if local_atr is not None else None
         self._last_bar_end = bar.end_utc
+        self._last_available_at = bar.available_at_utc
         self._bars.append(bar)
         if len(self._bars) < self.window_size:
             self.last_quality_flags = ("ICM_WINDOW_WARMUP",)
@@ -124,19 +138,29 @@ class ICMEngine:
             z_capped = None
         z_effective = z_capped if z_capped is not None and not blocking_guard else None
         self.last_quality_flags = tuple(sorted(flags))
+        measurement_ready = z_effective is not None
         identity = {
             "as_of_utc": bar.end_utc,
+            "available_at_utc": bar.available_at_utc,
             "coefficients": (beta0, beta1, beta2),
             "contract_symbol": self.contract_symbol,
+            "curvature_normalized": curvature_normalized,
             "curvature_per_bar2": curvature_per_bar2,
+            "fair_value": fair_value,
             "quality_flags": self.last_quality_flags,
             "root": self.root,
             "session_id": bar.session_id,
             "fair_value_distance_vol": fair_value_distance_vol,
+            "measurement_ready": measurement_ready,
             "residual_autocorrelation": residual_autocorrelation,
             "sigma_blend": sigma_blend,
+            "sigma_mad": sigma_mad,
+            "sigma_ols": sigma_ols,
+            "slope_normalized": slope_normalized,
             "slope_per_bar": slope_per_bar,
+            "r_ratio": r_ratio,
             "version": _VERSION,
+            "warmup_complete": True,
             "window_size": self.window_size,
             "z_capped": z_capped,
             "z_effective": z_effective,
@@ -165,7 +189,7 @@ class ICMEngine:
             residual_autocorrelation=residual_autocorrelation,
             window_size=self.window_size,
             warmup_complete=True,
-            measurement_ready=z_effective is not None,
+            measurement_ready=measurement_ready,
             quality_flags=self.last_quality_flags,
             version=_VERSION,
         )
@@ -177,6 +201,8 @@ class ICMEngine:
             raise DataQualityError("ICM requires completed medium-state bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("ICM bars must arrive in increasing end-time order")
+        if self._last_available_at is not None and bar.available_at_utc < self._last_available_at:
+            raise DataTimingInvariantError("ICM availability frontier cannot move backward")
 
 
 def quadratic_design(window_size: int) -> npt.NDArray[np.float64]:

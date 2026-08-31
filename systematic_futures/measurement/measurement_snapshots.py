@@ -1,4 +1,4 @@
-"""Immutable Lift 2 state snapshots and candidate-event records."""
+"""Immutable state snapshots and candidate-event records."""
 
 # pyright: reportPrivateUsage=false, reportUnnecessaryIsInstance=false
 from dataclasses import dataclass
@@ -244,7 +244,7 @@ class ICMStateSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class IAEStateSnapshot:
-    """Symmetric structural gap/retest geometry with no order-book inference."""
+    """Symmetric descriptive level/retest vector with no decision authority."""
 
     snapshot_id: str
     root: str
@@ -269,12 +269,14 @@ class IAEStateSnapshot:
     tod_volume_score_input: float | None
     score_raw: float | None
     score_effective: float | None
-    absorption_confirmed: bool
     active_gap_count: int
     measurement_ready: bool
     score_ready: bool
     quality_flags: tuple[str, ...]
     version: str
+    rejection_length_raw: float | None = None
+    rejection_range_denominator: float | None = None
+    descriptive_score_version: str | None = None
 
     def __post_init__(self) -> None:
         _validate_indicator_identity(self)
@@ -297,6 +299,8 @@ class IAEStateSnapshot:
             ("tod_volume_score_input", self.tod_volume_score_input),
             ("score_raw", self.score_raw),
             ("score_effective", self.score_effective),
+            ("rejection_length_raw", self.rejection_length_raw),
+            ("rejection_range_denominator", self.rejection_range_denominator),
         ):
             _require_optional_finite(value, field_name)
         if self.gap_age_bars is not None and self.gap_age_bars < 0:
@@ -307,12 +311,14 @@ class IAEStateSnapshot:
             raise DataQualityError("time_decay must be in (0, 1]")
         if self.close_position_score is not None and not 0 <= self.close_position_score <= 1:
             raise DataQualityError("close_position_score must be in [0, 1]")
-        if self.tod_volume_score_input is not None and self.tod_volume_score_input < 0:
-            raise DataQualityError("tod_volume_score_input must be non-negative")
+        if self.wick_rejection_ratio is not None and not 0 <= self.wick_rejection_ratio <= 1:
+            raise DataQualityError("wick_rejection_ratio must be bounded in [0, 1]")
+        if self.rejection_length_raw is not None and self.rejection_length_raw < 0:
+            raise DataQualityError("rejection_length_raw must be non-negative")
+        if self.rejection_range_denominator is not None and self.rejection_range_denominator <= 0:
+            raise DataQualityError("rejection_range_denominator must be positive")
         if self.score_effective is not None and self.score_raw != self.score_effective:
             raise DataQualityError("effective IAE score must equal raw score when unguarded")
-        if self.absorption_confirmed != (self.gap_state is IAEGapState.ABSORBED):
-            raise DataQualityError("IAE absorption flag disagrees with gap state")
         if self.measurement_ready and self.gap_id is None:
             raise DataQualityError("IAE measurement_ready requires a gap state")
         expected_score_ready = (
@@ -324,7 +330,20 @@ class IAEStateSnapshot:
         )
         if self.score_ready is not expected_score_ready:
             raise DataQualityError("IAE score_ready disagrees with exact score inputs")
+        if "vector_mad_signed_v3" in self.version:
+            if self.wick_rejection_ratio is not None and (
+                self.rejection_length_raw is None or self.rejection_range_denominator is None
+            ):
+                raise DataQualityError("v3 rejection ratio requires auditable raw components")
+            if self.score_ready and not self.descriptive_score_version:
+                raise DataQualityError("v3 descriptive score requires an explicit version")
         _require_flags(self.quality_flags)
+
+    @property
+    def descriptive_score_ready(self) -> bool:
+        """Return compatibility score readiness without implying a decision."""
+
+        return self.score_ready
 
 
 @dataclass(frozen=True, slots=True)

@@ -7,13 +7,27 @@ class AssetClassGroup(str, Enum):
     FX = "fx"
 
 
-class DatasetCertificationStatus(str, Enum):
-    PROPOSED = "proposed"
-    UNDER_REVIEW = "under_review"
-    CERTIFIED_CONTEXT = "certified_context"
-    CERTIFIED_SIGNAL = "certified_signal"
-    QUARANTINED = "quarantined"
-    RETIRED = "retired"
+class RevisionMetadataPolicy(str, Enum):
+    """Dataset-specific requirement for source revision identity."""
+
+    NOT_APPLICABLE = "not_applicable"
+    OPTIONAL = "optional"
+    REQUIRED = "required"
+    UNVERIFIED = "unverified"
+
+
+class MarketCertificationStatus(str, Enum):
+    """Certification state of one immutable Market Master record."""
+
+    NOT_VERIFIED = "not_verified"
+    CERTIFIED_CURRENT_LEAN_REFERENCE = "certified_current_lean_reference"
+
+
+class EvidenceAvailability(str, Enum):
+    """Whether a named roll input was actually present in the observation."""
+
+    AVAILABLE = "available"
+    NOT_AVAILABLE = "not_available"
 
 
 class DataQualityStatus(str, Enum):
@@ -50,20 +64,6 @@ class SessionType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ResearchEnvironment(str, Enum):
-    LOCAL = "local"
-    QC_RESEARCH = "qc_research"
-    QC_BACKTEST = "qc_backtest"
-
-
-class ExperimentDecision(str, Enum):
-    PENDING = "pending"
-    PASS = "pass"
-    FAIL = "fail"
-    RETEST = "retest"
-    KILL = "kill"
-
-
 class ProfileKind(str, Enum):
     DEVELOPING_SESSION = "developing_session"
     FINAL_SESSION = "final_session"
@@ -87,7 +87,6 @@ class IAEGapDirection(str, Enum):
 class IAEGapState(str, Enum):
     OPEN = "open"
     TESTED = "tested"
-    ABSORBED = "absorbed"
     INVALIDATED = "invalidated"
     EXPIRED = "expired"
 
@@ -108,13 +107,13 @@ __all__ = (
     "AuctionLocationState",
     "CandidateEventType",
     "DataQualityStatus",
-    "DatasetCertificationStatus",
-    "ExperimentDecision",
+    "EvidenceAvailability",
     "IAEGapDirection",
     "IAEGapState",
+    "MarketCertificationStatus",
     "MeasurementQualitySeverity",
     "ProfileKind",
-    "ResearchEnvironment",
+    "RevisionMetadataPolicy",
     "RollState",
     "SessionType",
 )

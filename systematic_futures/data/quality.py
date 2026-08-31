@@ -5,7 +5,7 @@ from systematic_futures.domain.errors import DataQualityError
 
 _MEASUREMENT_QUALITY_SEVERITY = {
     # Source capability and deterministically excluded observations.
-    "PROVENANCE:DEDUPLICATION_UNVERIFIABLE": MeasurementQualitySeverity.INFORMATIONAL,
+    "PROVENANCE:DEDUPLICATION_UNVERIFIABLE": MeasurementQualitySeverity.BLOCKING,
     "DATA:SOURCE_SUSPICIOUS_EXCLUDED": MeasurementQualitySeverity.WARNING,
     "DATA:DUPLICATE_SOURCE_ID_EXCLUDED": MeasurementQualitySeverity.INFORMATIONAL,
     "DATA:DUPLICATE_SOURCE_SEQUENCE_EXCLUDED": MeasurementQualitySeverity.INFORMATIONAL,
@@ -52,7 +52,7 @@ _MEASUREMENT_QUALITY_SEVERITY = {
     "IMSI:IMSI_COVARIANCE_UNSTABLE": MeasurementQualitySeverity.WARNING,
     "IMSI:IMSI_RARITY_WARMUP": MeasurementQualitySeverity.INFORMATIONAL,
     "IMSI:IMSI_COVARIANCE_WARMUP": MeasurementQualitySeverity.INFORMATIONAL,
-    "IMSI:IMSI_FULL_MODEL_DEFERRED_LIFT3": MeasurementQualitySeverity.INFORMATIONAL,
+    "IMSI:IMSI_FULL_MODEL_DEFERRED": MeasurementQualitySeverity.INFORMATIONAL,
     "ICM:ICM_FLAT_SCALE_GUARD": MeasurementQualitySeverity.WARNING,
     "ICM:ICM_REGIME_GUARD": MeasurementQualitySeverity.WARNING,
     "ICM:ICM_RESIDUAL_AUTOCORRELATION_DEGENERATE": MeasurementQualitySeverity.WARNING,
@@ -63,14 +63,13 @@ _MEASUREMENT_QUALITY_SEVERITY = {
     "IAE:IAE_FORMATION_DEGENERATE": MeasurementQualitySeverity.INFORMATIONAL,
     "IAE:IAE_FORMATION_GATED": MeasurementQualitySeverity.INFORMATIONAL,
     "IAE:IAE_TOD_WARMUP": MeasurementQualitySeverity.INFORMATIONAL,
-    "IAE:IAE_TOD_DEGENERATE": MeasurementQualitySeverity.WARNING,
-    "IAE:IAE_DEGENERATE_BODY": MeasurementQualitySeverity.WARNING,
+    "IAE:IAE_TOD_DEGENERATE_MAD": MeasurementQualitySeverity.WARNING,
     "IAE:IAE_SCORE_TOD_UNAVAILABLE": MeasurementQualitySeverity.INFORMATIONAL,
 }
 
 
 def measurement_quality_severity(flag: str) -> MeasurementQualitySeverity:
-    """Return the explicit Lift 2 measurement severity for one exact flag.
+    """Return the explicit measurement severity for one exact flag.
 
     Units: not applicable. Time semantics: none. Missingness: no prefix or default
     inference is permitted. Raises: ``DataQualityError`` for blank or unclassified flags.

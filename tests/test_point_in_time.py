@@ -4,16 +4,17 @@ from datetime import UTC, datetime
 
 import pytest
 
-from systematic_futures.data.point_in_time import PointInTimeNormalizer, ensure_aware_utc
-from systematic_futures.domain.enums import DatasetCertificationStatus
+from systematic_futures.data.point_in_time import PointInTimeNormalizer
+from systematic_futures.domain.enums import RevisionMetadataPolicy
 from systematic_futures.domain.errors import DataTimingInvariantError, TimeSemanticsError
 from systematic_futures.domain.schemas import RawSourceRecord
+from systematic_futures.domain.time_semantics import ensure_aware_utc
 
 
 class _InvalidTimingPolicy:
     dataset_id = "synthetic.invalid_timing"
     schema_version = "1.0"
-    certification_status = DatasetCertificationStatus.UNDER_REVIEW
+    revision_policy = RevisionMetadataPolicy.NOT_APPLICABLE
 
     def compute_usable_from(self, record: RawSourceRecord) -> datetime:
         return record.observation_time_utc

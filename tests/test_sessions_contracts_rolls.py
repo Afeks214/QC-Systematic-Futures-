@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from systematic_futures.data.rolls import MappingObservation, RollManager
+from systematic_futures.data.rolls import RollManager, make_mapping_observation
 from systematic_futures.data.sessions import (
     SessionCalendarException,
     SessionClosureWindow,
@@ -140,24 +140,34 @@ def test_future_mapping_observation_does_not_change_earlier_roll_state() -> None
     future_time = datetime(2024, 3, 14, 12, 0, tzinfo=UTC)
     earlier_time = datetime(2024, 3, 1, 12, 0, tzinfo=UTC)
     manager.observe_mapping(
-        MappingObservation(
+        make_mapping_observation(
             root="ES",
-            old_mapped_symbol=None,
-            new_mapped_symbol="ESH24",
-            observed_at_utc=initial_time,
-            effective_at_utc=initial_time,
+            continuous_symbol="/ES",
+            old_mapped_contract=None,
+            new_mapped_contract="ESH24",
+            actual_contract="ESH24",
+            event_time_utc=initial_time,
+            available_time_utc=initial_time,
+            mapping_mode="OPEN_INTEREST",
+            source="test-fixture",
+            roll_state=RollState.NORMAL,
         )
     )
     immediate_state = manager.observe_mapping(
-        MappingObservation(
+        make_mapping_observation(
             root="ES",
-            old_mapped_symbol="ESH24",
-            new_mapped_symbol="ESM24",
-            observed_at_utc=earlier_time,
-            effective_at_utc=future_time,
+            continuous_symbol="/ES",
+            old_mapped_contract="ESH24",
+            new_mapped_contract="ESM24",
+            actual_contract="ESM24",
+            event_time_utc=future_time,
+            available_time_utc=earlier_time,
+            mapping_mode="OPEN_INTEREST",
+            source="test-fixture",
+            roll_state=RollState.ROLL_TRANSITION,
         )
     )
 
-    assert immediate_state is RollState.NORMAL
-    assert manager.current_roll_state("ES", earlier_time) is RollState.NORMAL
+    assert immediate_state is RollState.PRE_ROLL
+    assert manager.current_roll_state("ES", earlier_time) is RollState.PRE_ROLL
     assert manager.current_roll_state("ES", future_time) is RollState.ROLL_TRANSITION

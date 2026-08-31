@@ -2,7 +2,7 @@ import math
 from collections import deque
 from datetime import datetime
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -56,6 +56,7 @@ class ATR5m24:
         self._ranges: deque[float] = deque(maxlen=_WINDOW)
         self._previous_close: float | None = None
         self._last_bar_end: datetime | None = None
+        self._last_available_at: datetime | None = None
 
     def on_bar(self, bar: CompletedTradeBar) -> ATRMeasurement:
         """Advance with one completed bar and return the point-in-time ATR state.
@@ -72,10 +73,13 @@ class ATR5m24:
             raise DataQualityError("ATR requires completed fast-clock bars")
         if self._last_bar_end is not None and bar.end_utc <= self._last_bar_end:
             raise DataTimingInvariantError("ATR bars must arrive in increasing end-time order")
+        if self._last_available_at is not None and bar.available_at_utc < self._last_available_at:
+            raise DataTimingInvariantError("ATR availability frontier cannot move backward")
         if self._previous_close is not None:
             self._ranges.append(true_range(bar, self._previous_close))
         self._previous_close = bar.close
         self._last_bar_end = bar.end_utc
+        self._last_available_at = bar.available_at_utc
         observation_count = len(self._ranges)
         ready = observation_count == _WINDOW
         atr = max(sum(self._ranges) / _WINDOW, _ATR_FLOOR) if ready else None

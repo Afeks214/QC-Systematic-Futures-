@@ -1,11 +1,11 @@
-"""Immutable Lift 2 measurement records and validation invariants."""
+"""Immutable measurement records and validation invariants."""
 
 # pyright: reportUnnecessaryIsInstance=false
 import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     ProfileKind,
     RollState,
@@ -231,7 +231,7 @@ class VolumeProfileSnapshot:
                 raise DataQualityError("profile tick keys must be integers")
             _require_positive(volume, "bin volume")
         if not math.isclose(
-            sum(volume for _, volume in self.volume_by_tick),
+            math.fsum(volume for _, volume in self.volume_by_tick),
             self.total_volume,
             rel_tol=1e-12,
             abs_tol=1e-12,
@@ -239,6 +239,14 @@ class VolumeProfileSnapshot:
             raise DataQualityError("profile volume is not conserved")
         if self.poc_tick not in set(ticks):
             raise DataQualityError("poc_tick must be occupied")
+        for field_name, value in (
+            ("poc_tick", self.poc_tick),
+            ("vah_tick", self.vah_tick),
+            ("val_tick", self.val_tick),
+            ("current_price_tick", self.current_price_tick),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise DataQualityError(f"{field_name} must be an integer tick")
         if not self.val_tick <= self.poc_tick <= self.vah_tick:
             raise DataQualityError("Value Area must contain POC")
         _require_flags(self.quality_flags)
@@ -428,7 +436,7 @@ class ATRMeasurement:
 
 @dataclass(frozen=True, slots=True)
 class CandidateResearchReadiness:
-    """Event-specific Lift 2 research eligibility and optional context readiness."""
+    """Event-specific measurement eligibility and optional context readiness."""
 
     base_event_ready: bool
     imsi_state_ready: bool

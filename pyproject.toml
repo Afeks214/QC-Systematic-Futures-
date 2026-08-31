@@ -1,5 +1,5 @@
 [project]
-name = "systematic-futures-lift-2"
+name = "systematic-futures-measurement"
 version = "0.2.0"
 description = "Deterministic point-in-time futures auction-state measurement"
 requires-python = ">=3.11,<3.12"
@@ -20,7 +20,7 @@ markers = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["*.ipynb", "upload"]
+extend-exclude = ["*.ipynb", "upload", ".tmp"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "DTZ", "PTH", "RUF"]
@@ -33,7 +33,6 @@ line-ending = "lf"
 
 [tool.pyright]
 include = ["systematic_futures", "scripts"]
-exclude = ["systematic_futures/qc_adapters"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.11"

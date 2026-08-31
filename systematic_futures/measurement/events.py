@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol, TypeVar
 
-from systematic_futures.config.research import MEASUREMENT_CLOCK_POLICY
+from systematic_futures.config.measurement import MEASUREMENT_CLOCK_POLICY
 from systematic_futures.domain.enums import (
     AuctionLocationState,
     CandidateEventType,
@@ -16,7 +16,6 @@ from systematic_futures.domain.errors import (
     DuplicateIdentifierError,
 )
 from systematic_futures.domain.serialization import sha256_hex
-from systematic_futures.measurement.coverage import candidate_coverage
 from systematic_futures.measurement.state_models import (
     AuctionStateSnapshot,
     AuctionTransitionMetrics,
@@ -29,7 +28,7 @@ from systematic_futures.measurement.state_models import (
     VolumeProfileSnapshot,
 )
 
-_FEATURE_VERSION = "feature_semantics_math_v5"
+AUCTION_FEATURE_VERSION = "auction_measurement_math_v6"
 _SYNERGY_VERSION = "indicator_alignment_v3"
 _MAX_ALIGNMENT_HISTORY = 512
 _AUCTION_TRANSITION_VERSION = "auction_transition_metrics_v2"
@@ -46,6 +45,35 @@ class EventTrigger:
     direction: int
     parent_event_id: str | None
 
+    def __post_init__(self) -> None:
+        expected_directions = {
+            CandidateEventType.VALUE_EXIT_UP: 1,
+            CandidateEventType.VALUE_EXIT_DOWN: -1,
+            CandidateEventType.VALUE_REENTRY_FROM_ABOVE: -1,
+            CandidateEventType.VALUE_REENTRY_FROM_BELOW: 1,
+            CandidateEventType.POC_MIGRATION_ABOVE_PRIOR_VAH: 1,
+            CandidateEventType.POC_MIGRATION_BELOW_PRIOR_VAL: -1,
+            CandidateEventType.IAE_RETEST_BULL: 1,
+            CandidateEventType.IAE_RETEST_BEAR: -1,
+        }
+        expected_direction = expected_directions.get(self.event_type)
+        if expected_direction is None:
+            raise DataQualityError("event_type must be a CandidateEventType")
+        if self.direction != expected_direction:
+            raise DataQualityError("candidate event direction disagrees with event type")
+        if not self.session_id.strip():
+            raise DataQualityError("candidate event session_id must be non-blank")
+        for field_name, value in (
+            ("event_time_utc", self.event_time_utc),
+            ("available_at_utc", self.available_at_utc),
+        ):
+            if value.tzinfo is None or value.utcoffset() != timedelta(0):
+                raise DataTimingInvariantError(f"{field_name} must be aware UTC")
+        if self.event_time_utc > self.available_at_utc:
+            raise DataTimingInvariantError("candidate event time cannot exceed availability")
+        if self.parent_event_id is not None and not self.parent_event_id.strip():
+            raise DataQualityError("parent_event_id must be non-blank when supplied")
+
 
 def candidate_event_id(
     *,
@@ -54,7 +82,7 @@ def candidate_event_id(
     event_type: CandidateEventType,
     event_time_utc: datetime,
     parent_event_id: str | None,
-    feature_version: str = _FEATURE_VERSION,
+    feature_version: str = AUCTION_FEATURE_VERSION,
 ) -> str:
     """Return the deterministic ID from the six frozen identity components.
 
@@ -355,6 +383,7 @@ class SnapshotAligner:
             root=auction.root,
             contract_symbol=auction.contract_symbol,
             session_id=auction.session_id,
+            as_of_utc=auction.as_of_utc,
             available_at_utc=available_at_utc,
         )
         icm = _latest_eligible(
@@ -362,6 +391,7 @@ class SnapshotAligner:
             root=auction.root,
             contract_symbol=auction.contract_symbol,
             session_id=auction.session_id,
+            as_of_utc=auction.as_of_utc,
             available_at_utc=available_at_utc,
         )
         if iae_override is not None:
@@ -370,6 +400,7 @@ class SnapshotAligner:
                 root=auction.root,
                 contract_symbol=auction.contract_symbol,
                 session_id=auction.session_id,
+                as_of_utc=auction.as_of_utc,
                 available_at_utc=available_at_utc,
             ):
                 raise DataTimingInvariantError("IAE override is ineligible for Auction alignment")
@@ -380,6 +411,7 @@ class SnapshotAligner:
                 root=auction.root,
                 contract_symbol=auction.contract_symbol,
                 session_id=auction.session_id,
+                as_of_utc=auction.as_of_utc,
                 available_at_utc=available_at_utc,
             )
         components = (("IMSI", imsi), ("ICM", icm), ("IAE", iae))
@@ -430,6 +462,9 @@ class SnapshotAligner:
             "as_of_utc": auction.as_of_utc,
             "auction_snapshot_id": auction.snapshot_id,
             "available_at_utc": available_at_utc,
+            "blocking_quality_flags": blocking_quality_flags,
+            "component_quality_flags": component_quality_flags,
+            "contract_symbol": auction.contract_symbol,
             "icm_snapshot_id": icm.snapshot_id if icm is not None else None,
             "iae_snapshot_id": iae.snapshot_id if iae is not None else None,
             "imsi_snapshot_id": imsi.snapshot_id if imsi is not None else None,
@@ -442,6 +477,7 @@ class SnapshotAligner:
             "iae_structural_ready": iae_structural_ready,
             "iae_score_ready": iae_score_ready,
             "quality_flags": quality_flags,
+            "root": auction.root,
             "version": _SYNERGY_VERSION,
         }
         return IndicatorSynergySnapshot(
@@ -504,6 +540,10 @@ class CandidateEventGenerator:
             raise DataTimingInvariantError("Auction snapshot is unavailable for event")
         if synergy.available_at_utc > trigger.available_at_utc:
             raise DataTimingInvariantError("Synergy snapshot is unavailable for event")
+        if auction.as_of_utc > trigger.event_time_utc:
+            raise DataTimingInvariantError("Auction snapshot is later than the event")
+        if synergy.as_of_utc > trigger.event_time_utc:
+            raise DataTimingInvariantError("Synergy snapshot is later than the event")
         event_id = candidate_event_id(
             root=auction.root,
             contract_symbol=auction.contract_symbol,
@@ -556,7 +596,7 @@ class CandidateEventGenerator:
             auction_snapshot_id=auction.snapshot_id,
             synergy_snapshot_id=synergy.snapshot_id,
             data_snapshot_hash=data_hash,
-            feature_version=_FEATURE_VERSION,
+            feature_version=AUCTION_FEATURE_VERSION,
             readiness=readiness,
             quality_flags=synergy.quality_flags,
         )
@@ -599,6 +639,7 @@ def _latest_eligible(
     root: str,
     contract_symbol: str,
     session_id: str,
+    as_of_utc: datetime,
     available_at_utc: datetime,
 ) -> _SnapshotT | None:
     eligible = [
@@ -609,10 +650,19 @@ def _latest_eligible(
             root=root,
             contract_symbol=contract_symbol,
             session_id=session_id,
+            as_of_utc=as_of_utc,
             available_at_utc=available_at_utc,
         )
     ]
-    return max(eligible, key=lambda snapshot: snapshot.available_at_utc, default=None)
+    return max(
+        eligible,
+        key=lambda snapshot: (
+            snapshot.available_at_utc,
+            snapshot.as_of_utc,
+            snapshot.snapshot_id,
+        ),
+        default=None,
+    )
 
 
 def _snapshot_is_eligible(
@@ -621,12 +671,14 @@ def _snapshot_is_eligible(
     root: str,
     contract_symbol: str,
     session_id: str,
+    as_of_utc: datetime,
     available_at_utc: datetime,
 ) -> bool:
     return (
         snapshot.root == root
         and snapshot.contract_symbol == contract_symbol
         and snapshot.session_id == session_id
+        and snapshot.as_of_utc <= as_of_utc
         and snapshot.available_at_utc <= available_at_utc
     )
 
@@ -647,10 +699,10 @@ def _prefixed_quality(source: str, flag: str) -> str:
 
 
 __all__ = (
+    "AUCTION_FEATURE_VERSION",
     "AuctionTransitionEngine",
     "CandidateEventGenerator",
     "EventTrigger",
     "SnapshotAligner",
-    "candidate_coverage",
     "candidate_event_id",
 )

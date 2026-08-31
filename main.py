@@ -1,15 +1,15 @@
 from AlgorithmImports import QCAlgorithm, Slice, SymbolChangedEvents
 
-from systematic_futures.qc_adapters.lift2_runtime import Lift2Runtime
+from systematic_futures.qc_adapters.runtime import MeasurementRuntime
 
 
 class InstitutionalFuturesMeasurementAlgorithm(QCAlgorithm):
-    """Read-only QuantConnect composition root for Lift 2 measurement."""
+    """Read-only QuantConnect composition root for futures measurement."""
 
     def initialize(self) -> None:
-        """Delegate all verified subscription and state construction to Lift2Runtime."""
+        """Delegate verified subscription and state construction to the runtime."""
 
-        self._runtime = Lift2Runtime.create(self)
+        self._runtime = MeasurementRuntime.create(self)
 
     def on_data(self, slice: Slice) -> None:  # noqa: A002
         """Delegate one QC Slice without embedding measurement formulas."""

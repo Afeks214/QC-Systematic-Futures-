@@ -3,7 +3,6 @@ from __future__ import annotations
 import heapq
 from datetime import datetime
 
-from systematic_futures.data.point_in_time import ensure_aware_utc
 from systematic_futures.data.quality import ensure_quality_not_upgraded
 from systematic_futures.domain.errors import DuplicateIdentifierError
 from systematic_futures.domain.schemas import (
@@ -12,6 +11,7 @@ from systematic_futures.domain.schemas import (
     validate_certified_market_event,
     validate_point_in_time_datum,
 )
+from systematic_futures.domain.time_semantics import ensure_aware_utc
 
 _TieKey = tuple[str, str, str, str, str, str]
 _HeapEntry = tuple[datetime, _TieKey, PointInTimeDatum]
@@ -70,8 +70,11 @@ class AvailabilityGate:
                 market=datum.market,
                 instrument_id=datum.instrument_id,
                 event_time_utc=datum.observation_time_utc,
+                source_release_time_utc=datum.source_release_time_utc,
                 usable_from_utc=datum.usable_from_utc,
                 released_at_utc=now,
+                revision_id=datum.revision_id,
+                source_version=datum.source_version,
                 schema_version=datum.schema_version,
                 quality_status=datum.quality_status,
                 quality_flags=datum.quality_flags,

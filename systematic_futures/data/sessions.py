@@ -5,7 +5,6 @@ from itertools import pairwise
 from types import MappingProxyType
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from systematic_futures.data.point_in_time import ensure_aware_utc
 from systematic_futures.domain.enums import SessionType
 from systematic_futures.domain.errors import (
     MarketConfigurationError,
@@ -13,11 +12,20 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.schemas import SessionWindow, validate_session_window
 from systematic_futures.domain.serialization import sha256_hex
+from systematic_futures.domain.time_semantics import ensure_aware_utc
 
 _SECONDS_PER_DAY = 86_400.0
-_REFERENCE_POLICY_VERSION = "lift1-semantic-v1"
+_REFERENCE_POLICY_VERSION = "semantic-sessions-v2"
 _CHICAGO_TIMEZONE = "America/Chicago"
 _NEW_YORK_TIMEZONE = "America/New_York"
+_LEAN_CURRENT_COMMIT = "b692bf4788e8b54fc23bdcb5659666bf055ce89f"
+_LEAN_MARKET_HOURS_SHA256 = "d93f0b417cc9df618da4548f78157fd2b49515e0999f16e83ffddcffd54eef41"
+_LEAN_CALENDAR_VERSION = "lean-market-hours-b692bf4"
+_LEAN_SOURCE_LABEL = (
+    f"QuantConnect/Lean {_LEAN_CURRENT_COMMIT} "
+    "Data/market-hours/market-hours-database.json "
+    f"sha256:{_LEAN_MARKET_HOURS_SHA256} retrieved:2026-08-30"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,11 +63,13 @@ class SessionEngine:
 
         Units: local wall-clock windows. Time semantics: each market must use
         one resolvable IANA timezone and one policy version; overlap is rejected.
-        Date-specific closures are optional and do not alter ordinary behavior
-        when omitted. Missingness: blank roots and empty window sets are
-        invalid. Raises: ``MarketConfigurationError`` for invalid policy
-        structure or timezone, or ``SessionBoundaryError`` for an invalid
-        individual window or calendar exception.
+        Reference policies derive the regular Friday-close-to-Sunday-reopen
+        interval from their maintenance window. Date-specific closures are
+        optional and do not alter other ordinary behavior when omitted.
+        Missingness: blank roots and empty window sets are invalid. Raises:
+        ``MarketConfigurationError`` for invalid policy structure or timezone,
+        or ``SessionBoundaryError`` for an invalid individual window or calendar
+        exception.
         """
         copied: dict[str, tuple[SessionWindow, ...]] = {}
         for root, windows in policies.items():
@@ -94,7 +104,8 @@ class SessionEngine:
         """
         local_timestamp, matches = self._matching_windows(root, timestamp_utc)
         closure = self._matching_calendar_closure(root, local_timestamp)
-        if closure is not None:
+        weekly_closure = self._matching_weekly_closure(root, local_timestamp)
+        if closure is not None or weekly_closure is not None:
             return SessionType.CLOSED
         if len(matches) != 1:
             raise SessionBoundaryError(
@@ -112,7 +123,8 @@ class SessionEngine:
         """
         local_timestamp, matches = self._matching_windows(root, timestamp_utc)
         closure = self._matching_calendar_closure(root, local_timestamp)
-        if closure is None:
+        weekly_anchor = self._matching_weekly_closure(root, local_timestamp)
+        if closure is None and weekly_anchor is None:
             if len(matches) != 1:
                 raise SessionBoundaryError(
                     f"expected exactly one session match for {root!r}; found {len(matches)}"
@@ -122,13 +134,20 @@ class SessionEngine:
             session_type = window.session_type
             policy_version = window.policy_version
             anchor_date = _session_anchor_date(window, local_timestamp)
-        else:
+        elif closure is not None:
             exception, closure_name = closure
             session_name = f"calendar_exception:{exception.exception_name}:{closure_name}"
             session_type = SessionType.CLOSED
             ordinary_version = self.windows_for_market(root)[0].policy_version
             policy_version = f"{ordinary_version}|{exception.calendar_version}"
             anchor_date = exception.local_date
+        else:
+            session_name = "weekly_closure"
+            session_type = SessionType.CLOSED
+            policy_version = self.windows_for_market(root)[0].policy_version
+            if weekly_anchor is None:
+                raise SessionBoundaryError("weekly closure unexpectedly lacks an anchor date")
+            anchor_date = weekly_anchor
         digest = sha256_hex(
             {
                 "root": root.strip().upper(),
@@ -161,6 +180,8 @@ class SessionEngine:
             )
         if self._matching_calendar_closure(root, local_timestamp) is not None:
             raise SessionBoundaryError(f"timestamp for {root!r} falls inside a calendar closure")
+        if self._matching_weekly_closure(root, local_timestamp) is not None:
+            raise SessionBoundaryError(f"timestamp for {root!r} falls inside the weekly closure")
         window = matches[0]
         timezone = ZoneInfo(window.timezone_name)
         anchor_date = _session_anchor_date(window, local_timestamp)
@@ -185,6 +206,25 @@ class SessionEngine:
         if not segment_start <= local_timestamp < segment_end:
             raise SessionBoundaryError(f"no open semantic segment for {root!r}")
         return segment_start.astimezone(ZoneInfo("UTC")), segment_end.astimezone(ZoneInfo("UTC"))
+
+    def is_session_complete(
+        self,
+        root: str,
+        session_instant_utc: datetime,
+        as_of_utc: datetime,
+    ) -> bool:
+        """Return whether the open semantic segment is complete at ``as_of_utc``.
+
+        Units: aware UTC datetimes. Time semantics: completion occurs at the effective
+        segment end after holiday and early-close clipping; equality is complete.
+        Missingness: closed, unknown, or ambiguous instants are rejected rather than
+        treated as complete. Raises: ``TimeSemanticsError`` or
+        ``SessionBoundaryError``.
+        """
+
+        _, session_end = self.session_bounds(root, session_instant_utc)
+        as_of = ensure_aware_utc(as_of_utc, "as_of_utc")
+        return as_of >= session_end
 
     def windows_for_market(self, root: str) -> tuple[SessionWindow, ...]:
         """Return immutable semantic windows for ``root``.
@@ -245,6 +285,34 @@ class SessionEngine:
                 f"multiple calendar closures match {root!r} at {local_timestamp.isoformat()}"
             )
         return matches[0] if matches else None
+
+    def _matching_weekly_closure(
+        self,
+        root: str,
+        local_timestamp: datetime,
+    ) -> date | None:
+        windows = self.windows_for_market(root)
+        if windows[0].policy_version != _REFERENCE_POLICY_VERSION:
+            return None
+        maintenance = tuple(
+            window for window in windows if window.session_type is SessionType.MAINTENANCE
+        )
+        if len(maintenance) != 1 or maintenance[0].crosses_midnight:
+            raise SessionBoundaryError(
+                f"reference policy for {root!r} requires one intraday maintenance window"
+            )
+        close_time = maintenance[0].start_local_time
+        reopen_time = maintenance[0].end_local_time
+        local_date = local_timestamp.date()
+        local_time = local_timestamp.time().replace(tzinfo=None)
+        weekday = local_date.weekday()
+        if weekday == 4 and local_time >= close_time:
+            return local_date
+        if weekday == 5:
+            return local_date - timedelta(days=1)
+        if weekday == 6 and local_time < reopen_time:
+            return local_date - timedelta(days=2)
+        return None
 
     def _closure_intervals(
         self,
@@ -328,9 +396,10 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
     """Return the versioned semantic windows for all eight registered roots.
 
     Units: exchange-local wall-clock times. Time semantics: these versioned
-    ordinary-day semantic partitions use each registry market's named timezone;
-    they do not certify holidays or early closes. Missingness: no fallback
-    market is supplied. Raises: none.
+    ordinary-day semantic partitions use each registry market's named timezone.
+    Their maintenance boundary also determines the regular Friday close and
+    Sunday reopen. They do not certify holidays or early closes. Missingness: no
+    fallback market is supplied. Raises: none.
     """
     policies: dict[str, tuple[SessionWindow, ...]] = {}
     for root in ("ES", "NQ", "RTY"):
@@ -442,6 +511,59 @@ def reference_session_policies() -> Mapping[str, tuple[SessionWindow, ...]]:
             ),
         )
     return MappingProxyType(policies)
+
+
+def reference_session_calendar_exceptions() -> Mapping[str, tuple[SessionCalendarException, ...]]:
+    """Return versioned LEAN-derived exception fixtures for all eight roots.
+
+    Units: exchange-local dates and wall-clock intervals. Time semantics: the
+    fixtures preserve one official holiday and one official early-close/late-open
+    interval from the pinned current LEAN market-hours database. Missingness: this is
+    representative deterministic coverage, not a fabricated perpetual calendar; QC
+    runtime remains the authority outside the pinned fixtures. Raises: none.
+    """
+
+    configurations = {
+        "ES": (_NEW_YORK_TIMEZONE, time(13), time(18)),
+        "NQ": (_NEW_YORK_TIMEZONE, time(13), time(18)),
+        "RTY": (_NEW_YORK_TIMEZONE, time(13), time(18)),
+        "ZT": (_CHICAGO_TIMEZONE, time(12), time(17)),
+        "ZN": (_CHICAGO_TIMEZONE, time(12), time(17)),
+        "6E": (_CHICAGO_TIMEZONE, time(16), time(17)),
+        "6J": (_CHICAGO_TIMEZONE, time(16), time(17)),
+        "6B": (_CHICAGO_TIMEZONE, time(16), time(17)),
+    }
+    exceptions: dict[str, tuple[SessionCalendarException, ...]] = {}
+    for root, (timezone_name, close_time, reopen_time) in configurations.items():
+        lower = root.lower()
+        exceptions[root] = (
+            SessionCalendarException(
+                exception_name=f"{lower}_2024_memorial_day_early_close",
+                local_date=date(2024, 5, 27),
+                timezone_name=timezone_name,
+                all_day_closed=False,
+                closed_windows=(
+                    SessionClosureWindow(
+                        closure_name="closed_until_lean_late_open",
+                        start_local_time=close_time,
+                        end_local_time=reopen_time,
+                        crosses_midnight=False,
+                    ),
+                ),
+                calendar_version=_LEAN_CALENDAR_VERSION,
+                source_label=_LEAN_SOURCE_LABEL,
+            ),
+            SessionCalendarException(
+                exception_name=f"{lower}_2026_christmas_holiday",
+                local_date=date(2026, 12, 25),
+                timezone_name=timezone_name,
+                all_day_closed=True,
+                closed_windows=(),
+                calendar_version=_LEAN_CALENDAR_VERSION,
+                source_label=_LEAN_SOURCE_LABEL,
+            ),
+        )
+    return MappingProxyType(exceptions)
 
 
 def _window(

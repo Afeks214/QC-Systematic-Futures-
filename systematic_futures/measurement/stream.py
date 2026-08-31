@@ -3,10 +3,10 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from systematic_futures.config.research import (
-    LIFT2_MEASUREMENT_ELIGIBLE_ROLL_STATES,
-    LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES,
+from systematic_futures.config.measurement import (
     MEASUREMENT_CLOCK_POLICY,
+    MEASUREMENT_ELIGIBLE_ROLL_STATES,
+    MEASUREMENT_ELIGIBLE_SESSION_TYPES,
 )
 from systematic_futures.data.quality import blocking_measurement_flags
 from systematic_futures.data.sessions import SessionEngine
@@ -23,6 +23,7 @@ from systematic_futures.domain.errors import (
 )
 from systematic_futures.domain.serialization import sha256_hex
 from systematic_futures.measurement.events import (
+    AUCTION_FEATURE_VERSION,
     AuctionTransitionEngine,
     CandidateEventGenerator,
     EventTrigger,
@@ -48,11 +49,10 @@ from systematic_futures.measurement.volatility import ATR5m24
 from systematic_futures.measurement.volume_profile import (
     DEFAULT_PROFILE_DEFINITION,
     VolumeProfileEngine,
+    accumulate_fsum_partial,
     auction_features,
     auction_location,
 )
-
-_FEATURE_VERSION = "feature_semantics_math_v5"
 
 
 @dataclass(slots=True)
@@ -64,10 +64,13 @@ class _BarBuilder:
     high: float
     low: float
     close: float
-    volume: float
+    volume_partials: list[float]
+    maximum_available_at_utc: datetime
 
 
 class _TradeBarAggregator:
+    """Aggregate the supplied chronological order; equal timestamps keep delivery order."""
+
     def __init__(self, root: str, contract_symbol: str, period_minutes: int) -> None:
         self.root = root
         self.contract_symbol = contract_symbol
@@ -82,6 +85,10 @@ class _TradeBarAggregator:
         builder = self._builder
         if builder is None or builder.end_utc > exchange_time_utc:
             return None
+        if available_at_utc < builder.maximum_available_at_utc:
+            raise DataTimingInvariantError(
+                "bar release frontier precedes a constituent trade's availability"
+            )
         self._builder = None
         return CompletedTradeBar(
             root=self.root,
@@ -94,7 +101,7 @@ class _TradeBarAggregator:
             high=builder.high,
             low=builder.low,
             close=builder.close,
-            volume=builder.volume,
+            volume=math.fsum(builder.volume_partials),
             session_id=builder.session_id,
         )
 
@@ -124,7 +131,8 @@ class _TradeBarAggregator:
                 trade.price,
                 trade.price,
                 trade.price,
-                trade.quantity,
+                [trade.quantity],
+                trade.available_at_utc,
             )
             return True
         if builder.session_id != trade.session_id:
@@ -134,12 +142,16 @@ class _TradeBarAggregator:
         builder.high = max(builder.high, trade.price)
         builder.low = min(builder.low, trade.price)
         builder.close = trade.price
-        builder.volume += trade.quantity
+        accumulate_fsum_partial(builder.volume_partials, trade.quantity)
+        builder.maximum_available_at_utc = max(
+            builder.maximum_available_at_utc,
+            trade.available_at_utc,
+        )
         return True
 
 
 class MeasurementStream:
-    """One deterministic actual-contract coordinator for all Lift 2 measurements."""
+    """One deterministic actual-contract coordinator for all measurements."""
 
     def __init__(
         self,
@@ -188,6 +200,8 @@ class MeasurementStream:
         self._iae_snapshots_by_id: dict[str, IAEStateSnapshot] = {}
         self._five_bars: deque[CompletedTradeBar] = deque(maxlen=300)
         self._last_trade_time: datetime | None = None
+        self._last_observation_time: datetime | None = None
+        self._last_observation_available_at: datetime | None = None
         self._last_roll_state: RollState | None = None
         self.profile_snapshots: list[VolumeProfileSnapshot] = []
         self.completed_bars: list[CompletedTradeBar] = []
@@ -225,6 +239,8 @@ class MeasurementStream:
         )
         if session_id != trade.session_id:
             raise SessionBoundaryError("trade session_id disagrees with SessionEngine")
+        self._last_observation_time = trade.exchange_time_utc
+        self._last_observation_available_at = trade.available_at_utc
         before = len(self._generator.events)
         due = tuple(
             bar
@@ -259,6 +275,8 @@ class MeasurementStream:
                 self.quality_counts[flag] += 1
             self.counts["rejected_trade_ticks"] += 1
             return self._generator.events[before:]
+        if trade.source_event_id is None and trade.source_sequence is None:
+            self.quality_counts["PROVENANCE:DEDUPLICATION_UNVERIFIABLE"] += 1
         five_admitted = self._five.ingest(trade, session_start, session_end)
         thirty_admitted = self._thirty.ingest(trade, session_start, session_end)
         if not five_admitted:
@@ -284,6 +302,14 @@ class MeasurementStream:
 
         if as_of_utc > available_at_utc:
             raise DataTimingInvariantError("finalization as-of must not exceed availability")
+        if (
+            self._last_observation_available_at is not None
+            and available_at_utc < self._last_observation_available_at
+        ):
+            raise DataTimingInvariantError(
+                "finalization availability frontier cannot move backward"
+            )
+        self._last_observation_available_at = available_at_utc
         before = len(self._generator.events)
         due = tuple(
             bar
@@ -370,7 +396,7 @@ class MeasurementStream:
                 atr_for_boundary = atr_by_end.get(bar.end_utc)
                 icm = self._icm.on_bar(
                     bar,
-                    atr_for_boundary.as_price_scale() if atr_for_boundary is not None else None,
+                    atr_for_boundary,
                 )
                 if icm is not None:
                     self.icm_snapshots.append(icm)
@@ -444,7 +470,7 @@ class MeasurementStream:
             flags.update(reference_profile.quality_flags)
         if self._last_roll_state is not None:
             flags.add(f"ROLL:{self._last_roll_state.value.upper()}")
-        if session_type not in LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES:
+        if session_type not in MEASUREMENT_ELIGIBLE_SESSION_TYPES:
             flags.add(f"SESSION:{session_type.value.upper()}")
         references = ProfileReferenceSet(
             prior_same_session_type_id=(
@@ -480,21 +506,26 @@ class MeasurementStream:
             reference_profile is not None
             and atr.warmup_complete
             and not blocking_measurement_flags(flags)
-            and session_type in LIFT2_MEASUREMENT_ELIGIBLE_SESSION_TYPES
-            and self._last_roll_state in LIFT2_MEASUREMENT_ELIGIBLE_ROLL_STATES
+            and session_type in MEASUREMENT_ELIGIBLE_SESSION_TYPES
+            and self._last_roll_state in MEASUREMENT_ELIGIBLE_ROLL_STATES
         )
         identity = {
             "active_excursion_id": self._transition.active_excursion_id,
             "as_of_utc": bar.end_utc,
+            "available_at_utc": bar.available_at_utc,
+            "contract_symbol": self.contract_symbol,
             "developing_profile_id": developing.snapshot_id,
-            "feature_version": _FEATURE_VERSION,
+            "feature_version": AUCTION_FEATURE_VERSION,
             "features": features,
             "location_state": location,
+            "quality_flags": tuple(sorted(flags)),
             "references": references,
             "migration_reference_profile_id": (
                 reference_profile.snapshot_id if reference_profile is not None else None
             ),
             "measurement_ready": measurement_ready,
+            "root": self.root,
+            "session_id": bar.session_id,
         }
         auction = AuctionStateSnapshot(
             snapshot_id=f"auction_{sha256_hex(identity)}",
@@ -513,7 +544,7 @@ class MeasurementStream:
             active_excursion_id=self._transition.active_excursion_id,
             measurement_ready=measurement_ready,
             quality_flags=tuple(sorted(flags)),
-            feature_version=_FEATURE_VERSION,
+            feature_version=AUCTION_FEATURE_VERSION,
         )
         self.auction_snapshots.append(auction)
         self.counts["auction_snapshots"] += 1
@@ -555,7 +586,12 @@ class MeasurementStream:
             return
         if self._last_trade_time is None:
             return
-        final_as_of = max(self._last_trade_time, as_of_utc)
+        if self._session_end_utc is None:
+            raise DataQualityError("active Profile session end is unavailable")
+        if as_of_utc < self._session_end_utc or available_at_utc < self._session_end_utc:
+            self.quality_counts["incomplete_session_profile_not_finalized"] += 1
+            return
+        final_as_of = self._session_end_utc
         profile.finalize_minutes_through(final_as_of)
         final = profile.snapshot(ProfileKind.FINAL_SESSION, final_as_of, available_at_utc)
         self.profile_snapshots.append(final)
@@ -580,8 +616,18 @@ class MeasurementStream:
             raise ContractBoundaryError("measurement stream cannot cross actual contracts")
         if not math.isclose(trade.minimum_tick, self.minimum_tick, rel_tol=0, abs_tol=1e-15):
             raise DataQualityError("minimum tick changed inside measurement stream")
-        if self._last_trade_time is not None and trade.exchange_time_utc < self._last_trade_time:
+        if (
+            self._last_observation_time is not None
+            and trade.exchange_time_utc < self._last_observation_time
+        ):
             raise DataTimingInvariantError("measurement trades must arrive chronologically")
+        if (
+            self._last_observation_available_at is not None
+            and trade.available_at_utc < self._last_observation_available_at
+        ):
+            raise DataTimingInvariantError(
+                "measurement trade availability frontier cannot move backward"
+            )
 
     def _require_profile(self) -> VolumeProfileEngine:
         if self._profile is None:
