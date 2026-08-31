@@ -190,8 +190,7 @@ def test_structural_trend_math_matches_direct_oracle() -> None:
     engine = StructuralStateEngine("ES", "ES-CONT", _config())
     closes = (100.0, 101.0, 99.0, 102.0)
     snapshots = [
-        engine.update_session_close(_close(index + 1, value))
-        for index, value in enumerate(closes)
+        engine.update_session_close(_close(index + 1, value)) for index, value in enumerate(closes)
     ]
     snapshot = snapshots[-1]
     returns = np.diff(np.log(np.asarray(closes, dtype=np.float64)))
