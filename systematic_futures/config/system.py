@@ -24,9 +24,7 @@ class StructuralFeatureConfig:
     def __post_init__(self) -> None:
         if not self.trend_lookbacks_sessions:
             raise DataQualityError("trend_lookbacks_sessions must not be empty")
-        if self.trend_lookbacks_sessions != tuple(
-            sorted(set(self.trend_lookbacks_sessions))
-        ):
+        if self.trend_lookbacks_sessions != tuple(sorted(set(self.trend_lookbacks_sessions))):
             raise DataQualityError("trend_lookbacks_sessions must be sorted and unique")
         if any(type(value) is not int or value <= 0 for value in self.trend_lookbacks_sessions):
             raise DataQualityError("trend lookbacks must be positive integers")

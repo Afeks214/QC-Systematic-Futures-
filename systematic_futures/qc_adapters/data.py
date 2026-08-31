@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 from datetime import UTC, date, datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Any, cast
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import (
@@ -38,8 +38,7 @@ def _qc_datetime_to_utc(
             source_zone = ZoneInfo(naive_source_timezone)
         except ZoneInfoNotFoundError as error:
             raise TimeSemanticsError(
-                f"{field_name} source timezone is not resolvable: "
-                f"{naive_source_timezone}"
+                f"{field_name} source timezone is not resolvable: {naive_source_timezone}"
             ) from error
         return value.replace(tzinfo=source_zone).astimezone(UTC)
     return value.astimezone(UTC)

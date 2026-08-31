@@ -11,6 +11,7 @@ from systematic_futures.measurement.structural_inputs import (
     _require_utc,
 )
 
+
 class ContinuousSessionCloseBuilder:
     """Convert ordered continuous minute bars into completed semantic-session closes."""
 
@@ -88,7 +89,6 @@ class ContinuousSessionCloseBuilder:
         self._last_bar = None
         self._lineage_hashes = []
         self._quality_flags = set()
-
 
 
 __all__ = ("ContinuousSessionCloseBuilder",)

@@ -1,7 +1,7 @@
 # pyright: reportPrivateUsage=false
+import math
 from dataclasses import dataclass
 from datetime import date, datetime
-import math
 
 from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import (
@@ -13,10 +13,10 @@ from systematic_futures.measurement.structural_inputs import (
     _require_flags,
     _require_hash,
     _require_non_negative_optional,
-    _require_positive,
     _require_text,
     _require_utc,
 )
+
 
 @dataclass(frozen=True, slots=True)
 class TrendComponent:
@@ -159,7 +159,6 @@ class StructuralStateSnapshot:
             raise DataQualityError("measurement_ready disagrees with trend readiness")
         _require_flags(self.quality_flags)
         _require_hash(self.lineage_hash, "lineage_hash")
-
 
 
 __all__ = (

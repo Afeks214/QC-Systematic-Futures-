@@ -10,6 +10,7 @@ from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import DataQualityError
 from systematic_futures.domain.serialization import sha256_hex
 from systematic_futures.measurement.structural import (
+    CarryComponent,
     ContinuousBarObservation,
     ContinuousSessionCloseBuilder,
     ContinuousSessionCloseObservation,
@@ -18,7 +19,6 @@ from systematic_futures.measurement.structural import (
     StructuralStateEngine,
     StructuralStateSnapshot,
     TrendComponent,
-    CarryComponent,
 )
 from systematic_futures.qc_adapters.data import (
     curve_observation_from_chain,
@@ -79,7 +79,6 @@ def _curve(
     )
 
 
-
 def test_structural_contracts_are_frozen_slotted_dataclasses() -> None:
     for data_type in (
         ContinuousBarObservation,
@@ -94,6 +93,7 @@ def test_structural_contracts_are_frozen_slotted_dataclasses() -> None:
         assert data_type.__dataclass_params__.frozen
         assert hasattr(data_type, "__slots__")
         assert tuple(field.name for field in fields(data_type))
+
 
 def test_structural_config_rejects_unsorted_or_overstated_windows() -> None:
     with pytest.raises(DataQualityError, match="sorted and unique"):
