@@ -1,10 +1,9 @@
 import platform
 from collections import Counter
 from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
+from datetime import datetime
 from types import MappingProxyType
 from typing import Any, cast
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
 
@@ -31,7 +30,6 @@ from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
     MarketConfigurationError,
-    TimeSemanticsError,
     UnverifiedQuantConnectApiError,
 )
 from systematic_futures.domain.serialization import canonical_json_bytes, sha256_hex
@@ -74,7 +72,9 @@ class MeasurementRuntime:
                 "runtime roots must be a non-empty canonical-order subset of ALL_MARKETS"
             )
         if set(continuous_subscriptions) != set(roots):
-            raise MarketConfigurationError("every runtime root requires one continuous subscription")
+            raise MarketConfigurationError(
+                "every runtime root requires one continuous subscription"
+            )
         self.roots = roots
         self.mode = mode
         self._period_start = period_start
@@ -208,17 +208,18 @@ class MeasurementRuntime:
                     observed_at_utc=observed_at,
                 )
             ticks = self._ticks_for_contract(data, actual_contract)
+            minimum_tick = (
+                activation.minimum_tick
+                if activation is not None
+                else self._required_minimum_tick(pipeline)
+            )
             quote = latest_quote_from_ticks(
                 root=root,
                 actual_contract=actual_contract,
                 ticks=ticks,
                 quote_tick_type=tick_type.QUOTE,
                 observed_at_utc=observed_at,
-                minimum_tick=(
-                    activation.minimum_tick
-                    if activation is not None
-                    else self._required_minimum_tick(pipeline)
-                ),
+                minimum_tick=minimum_tick,
             )
             trades = trade_observations_from_ticks(
                 root=root,
@@ -226,11 +227,7 @@ class MeasurementRuntime:
                 ticks=ticks,
                 trade_tick_type=tick_type.TRADE,
                 observed_at_utc=observed_at,
-                minimum_tick=(
-                    activation.minimum_tick
-                    if activation is not None
-                    else self._required_minimum_tick(pipeline)
-                ),
+                minimum_tick=minimum_tick,
                 session_engine=self._sessions,
                 roll_state=roll_state,
             )
@@ -264,9 +261,7 @@ class MeasurementRuntime:
                             None if activation is None else activation.mapping.lineage_hash
                         ),
                         "continuous_bar": (
-                            None
-                            if continuous_bar is None
-                            else continuous_bar.source_lineage_hash
+                            None if continuous_bar is None else continuous_bar.source_lineage_hash
                         ),
                         "curve": None if curve is None else curve.source_lineage_hash,
                         "quote": None if quote is None else quote.source_lineage_hash,
@@ -307,7 +302,9 @@ class MeasurementRuntime:
                 and str(old_symbol).strip()
                 and str(old_symbol).strip() != pipeline.actual_contract
             ):
-                raise ContractBoundaryError("mapping event old contract differs from active contract")
+                raise ContractBoundaryError(
+                    "mapping event old contract differs from active contract"
+                )
             new_symbol = getattr(changed_event, "new_symbol", None)
             if new_symbol is None or not str(new_symbol).strip():
                 raise ContractBoundaryError("mapping event has no new actual contract")
