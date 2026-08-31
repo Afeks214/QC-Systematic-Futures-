@@ -14,19 +14,19 @@ from systematic_futures.config.markets import (
     get_market_definition,
 )
 from systematic_futures.config.measurement import (
-    MEASUREMENT_ELIGIBLE_ROLL_STATES,
     REFERENCE_END_DATE,
     REFERENCE_START_DATE,
     SMOKE_END_DATE,
     SMOKE_START_DATE,
 )
-from systematic_futures.data.rolls import RollManager, make_mapping_observation
+from systematic_futures.config.system import DEFAULT_STRUCTURAL_FEATURE_CONFIG
+from systematic_futures.data.rolls import make_mapping_observation
 from systematic_futures.data.sessions import (
     SessionEngine,
     reference_session_calendar_exceptions,
     reference_session_policies,
 )
-from systematic_futures.domain.enums import RollState, SessionType
+from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
     DataQualityError,
@@ -35,13 +35,18 @@ from systematic_futures.domain.errors import (
     UnverifiedQuantConnectApiError,
 )
 from systematic_futures.domain.serialization import canonical_json_bytes, sha256_hex
-from systematic_futures.measurement.coverage import candidate_coverage
-from systematic_futures.measurement.state_models import (
-    CandidateEventObservation,
-    IndicatorSynergySnapshot,
-    TradeObservation,
+from systematic_futures.measurement.market_pipeline import (
+    ActualContractActivation,
+    MarketInputBatch,
+    MarketPipeline,
 )
-from systematic_futures.measurement.stream import MeasurementStream
+from systematic_futures.qc_adapters.data import (
+    continuous_bar_from_slice,
+    curve_observation_from_chain,
+    latest_quote_from_ticks,
+    qc_datetime_to_utc,
+    trade_observations_from_ticks,
+)
 from systematic_futures.qc_adapters.futures_registration import register_measurement_future
 
 
@@ -51,82 +56,72 @@ def _load_qc_api() -> tuple[Any, Any]:
     return Resolution, TickType
 
 
-def qc_datetime_to_utc(
-    value: object,
-    field_name: str,
-    *,
-    naive_source_timezone: str | None = None,
-) -> datetime:
-    """Normalize one QC boundary timestamp with explicit timezone provenance."""
-
-    if not isinstance(value, datetime):
-        raise TimeSemanticsError(f"{field_name} must be a datetime")
-    if value.tzinfo is None or value.utcoffset() is None:
-        if naive_source_timezone is None or not naive_source_timezone.strip():
-            raise TimeSemanticsError(
-                f"{field_name} is naive and requires an explicit source timezone"
-            )
-        try:
-            source_zone = ZoneInfo(naive_source_timezone)
-        except ZoneInfoNotFoundError as error:
-            raise TimeSemanticsError(
-                f"{field_name} source timezone is not resolvable: {naive_source_timezone}"
-            ) from error
-        return value.replace(tzinfo=source_zone).astimezone(UTC)
-    return value.astimezone(UTC)
-
-
 class MeasurementRuntime:
-    """Thin QuantConnect boundary around the shared deterministic measurement core."""
+    """QuantConnect composition boundary for deterministic multi-market measurement."""
 
     def __init__(
         self,
-        root: str,
-        continuous_subscription: object,
+        roots: tuple[str, ...],
+        continuous_subscriptions: Mapping[str, object],
         session_engine: SessionEngine,
         *,
-        mode: str = "reference",
-        period_start: str = REFERENCE_START_DATE,
-        period_end: str = REFERENCE_END_DATE,
+        mode: str,
+        period_start: str,
+        period_end: str,
     ) -> None:
-        self.root = root
+        if not roots or roots != tuple(root for root in ALL_MARKETS if root in roots):
+            raise MarketConfigurationError(
+                "runtime roots must be a non-empty canonical-order subset of ALL_MARKETS"
+            )
+        if set(continuous_subscriptions) != set(roots):
+            raise MarketConfigurationError("every runtime root requires one continuous subscription")
+        self.roots = roots
         self.mode = mode
         self._period_start = period_start
         self._period_end = period_end
-        self._continuous = cast(Any, continuous_subscription)
         self._sessions = session_engine
-        self._rolls = RollManager()
-        self._mapped_symbol_text: str | None = None
-        self._stream: MeasurementStream | None = None
-        self._completed_streams: list[MeasurementStream] = []
-        self._contracts: set[str] = set()
-        self._roll_count = 0
-        self._non_trade_ticks_ignored = 0
-        self._roll_ticks_ignored = 0
-        self._chain_observations = 0
+        self._continuous: Mapping[str, Any] = MappingProxyType(
+            {root: cast(Any, continuous_subscriptions[root]) for root in roots}
+        )
+        self._pipelines: Mapping[str, MarketPipeline] = MappingProxyType(
+            {
+                root: MarketPipeline(
+                    root=root,
+                    continuous_symbol=str(
+                        getattr(cast(Any, continuous_subscriptions[root]), "symbol", "")
+                    ).strip(),
+                    session_engine=session_engine,
+                    structural_config=DEFAULT_STRUCTURAL_FEATURE_CONFIG,
+                )
+                for root in roots
+            }
+        )
+        self._chain_observations: Counter[str] = Counter()
+        self._non_market_ticks_ignored: Counter[str] = Counter()
         self._finalized = False
         self._runtime_summary: Mapping[str, object] | None = None
 
     @classmethod
     def create(cls, algorithm: object) -> "MeasurementRuntime":
-        """Configure one root's reference or smoke replay from verified QC parameters.
-
-        Units: calendar dates and tick/minute subscriptions. Time semantics: UTC
-        algorithm time; `reference` is the fixed three-market window and `smoke` is
-        the fixed bounded all-market window. Missingness: invalid roots/modes raise
-        without a fallback. Raises: configuration or verified QC API errors.
-        """
+        """Create single, reference-three, or all-eight zero-action measurement runtime."""
 
         host = cast(Any, algorithm)
-        root = str(host.get_parameter("measurement_root", "ES")).strip().upper()
-        mode = str(host.get_parameter("measurement_mode", "reference")).strip().lower()
-        if root not in ALL_MARKETS:
+        requested_root = str(host.get_parameter("measurement_root", "ES")).strip().upper()
+        mode = str(host.get_parameter("measurement_mode", "single")).strip().lower()
+        if requested_root not in ALL_MARKETS:
             raise MarketConfigurationError(f"measurement_root must be one of {ALL_MARKETS}")
-        if mode not in {"reference", "smoke"}:
-            raise MarketConfigurationError("measurement_mode must be 'reference' or 'smoke'")
-        if mode == "reference" and root not in REFERENCE_MARKETS:
-            raise MarketConfigurationError("reference mode is restricted to ES, ZN, and 6E")
+        roots_by_mode = {
+            "single": (requested_root,),
+            "reference": tuple(root for root in ALL_MARKETS if root in REFERENCE_MARKETS),
+            "smoke": ALL_MARKETS,
+        }
+        roots = roots_by_mode.get(mode)
+        if roots is None:
+            raise MarketConfigurationError(
+                "measurement_mode must be 'single', 'reference', or 'smoke'"
+            )
         periods = {
+            "single": (REFERENCE_START_DATE, REFERENCE_END_DATE),
             "reference": (REFERENCE_START_DATE, REFERENCE_END_DATE),
             "smoke": (SMOKE_START_DATE, SMOKE_END_DATE),
         }
@@ -136,10 +131,12 @@ class MeasurementRuntime:
         host.set_time_zone("UTC")
         host.set_start_date(start_date.year, start_date.month, start_date.day)
         host.set_end_date(end_date.year, end_date.month, end_date.day)
-        subscription = register_measurement_future(host, get_market_definition(root))
+        subscriptions = {
+            root: register_measurement_future(host, get_market_definition(root)) for root in roots
+        }
         return cls(
-            root,
-            subscription,
+            roots,
+            subscriptions,
             SessionEngine(
                 reference_session_policies(),
                 reference_session_calendar_exceptions(),
@@ -150,21 +147,22 @@ class MeasurementRuntime:
         )
 
     @property
+    def root(self) -> str:
+        """Return the sole root for single mode, otherwise the explicit MULTI label."""
+
+        return self.roots[0] if len(self.roots) == 1 else "MULTI"
+
+    @property
     def runtime_summary(self) -> Mapping[str, object] | None:
-        """Return the compact finalized runtime summary, if finalization occurred."""
+        """Return compact finalized runtime evidence, if available."""
 
         return self._runtime_summary
 
     def on_slice(self, algorithm: object, qc_slice: object) -> None:
-        """Observe mapping/chain identity and admit only mapped actual-contract trades.
+        """Translate one Slice into deterministic root-scoped batches and state updates."""
 
-        Units: QC native tick price and quantity. Time semantics: LEAN delivers tick
-        EndTime in the configured algorithm timezone (UTC); availability is the same
-        UTC time frontier.
-        Missingness: no mapped contract means no measurement row. Raises: API,
-        boundary, session, timing, or data-quality errors.
-        """
-
+        if self._finalized:
+            raise DataQualityError("finalized runtime cannot process another Slice")
         host = cast(Any, algorithm)
         data = cast(Any, qc_slice)
         observed_at = qc_datetime_to_utc(
@@ -172,78 +170,117 @@ class MeasurementRuntime:
             "algorithm time",
             naive_source_timezone="UTC",
         )
-        mapped = getattr(self._continuous, "mapped", None)
-        if mapped is not None and str(mapped).strip():
-            self._switch_contract(
+        _, tick_type = _load_qc_api()
+        for root in self.roots:
+            subscription = self._continuous[root]
+            pipeline = self._pipelines[root]
+            mapped = getattr(subscription, "mapped", None)
+            activation = self._activation_if_changed(
                 host,
+                root,
+                subscription,
+                pipeline,
                 mapped,
                 observed_at,
                 source="QuantConnect.Security.mapped",
             )
-        chains = getattr(data, "future_chains", None)
-        if chains is not None:
-            chain = chains.get(getattr(self._continuous, "symbol", None))
-            if chain is not None:
-                self._chain_observations += 1
-        if self._stream is None or self._mapped_symbol_text is None:
-            return
-        _, tick_type = _load_qc_api()
-        tick_mapping = getattr(data, "ticks", None)
-        if tick_mapping is None:
-            raise UnverifiedQuantConnectApiError("Slice lacks ticks collection")
-        for symbol, ticks in tick_mapping.items():
-            if str(symbol) != self._mapped_symbol_text:
+            actual_contract = (
+                activation.mapping.actual_contract
+                if activation is not None
+                else pipeline.actual_contract
+            )
+            if actual_contract is None:
                 continue
-            for tick in ticks:
-                if getattr(tick, "tick_type", None) != tick_type.TRADE:
-                    self._non_trade_ticks_ignored += 1
-                    continue
-                exchange_time = qc_datetime_to_utc(
-                    getattr(tick, "end_time", None),
-                    "trade tick end_time",
-                    naive_source_timezone="UTC",
+            roll_state = (
+                activation.mapping.roll_state
+                if activation is not None
+                else pipeline.current_roll_state(observed_at)
+            )
+            chain = self._future_chain(data, subscription)
+            curve = None
+            if chain is not None:
+                self._chain_observations[root] += 1
+                curve = curve_observation_from_chain(
+                    root=root,
+                    continuous_symbol=getattr(subscription, "symbol", None),
+                    mapped_contract=actual_contract,
+                    future_chain=chain,
+                    observed_at_utc=observed_at,
                 )
-                if not hasattr(tick, "suspicious") or not hasattr(tick, "sale_condition"):
-                    raise UnverifiedQuantConnectApiError(
-                        "trade Tick lacks verified suspicious/sale_condition metadata"
-                    )
-                if not hasattr(tick, "price") or not hasattr(tick, "quantity"):
-                    raise UnverifiedQuantConnectApiError(
-                        "trade Tick lacks verified price/quantity fields"
-                    )
-                price = float(tick.price)
-                quantity = float(tick.quantity)
-                trade_condition_text = str(tick.sale_condition).strip()
-                source_quality_flags = ("SOURCE_SUSPICIOUS",) if bool(tick.suspicious) else ()
-                session_id = self._sessions.session_id(self.root, exchange_time)
-                roll_state = self._rolls.current_roll_state(self.root, observed_at)
-                if roll_state not in MEASUREMENT_ELIGIBLE_ROLL_STATES:
-                    self._roll_ticks_ignored += 1
-                    continue
-                self._stream.on_trade(
-                    TradeObservation(
-                        root=self.root,
-                        contract_symbol=self._mapped_symbol_text,
-                        exchange_time_utc=exchange_time,
-                        available_at_utc=observed_at,
-                        price=price,
-                        quantity=quantity,
-                        minimum_tick=self._stream.minimum_tick,
-                        session_id=session_id,
-                        roll_state=roll_state,
-                        trade_condition=trade_condition_text or None,
-                        source_quality_flags=source_quality_flags,
-                    )
-                )
+            ticks = self._ticks_for_contract(data, actual_contract)
+            quote = latest_quote_from_ticks(
+                root=root,
+                actual_contract=actual_contract,
+                ticks=ticks,
+                quote_tick_type=tick_type.QUOTE,
+                observed_at_utc=observed_at,
+                minimum_tick=(
+                    activation.minimum_tick
+                    if activation is not None
+                    else self._required_minimum_tick(pipeline)
+                ),
+            )
+            trades = trade_observations_from_ticks(
+                root=root,
+                actual_contract=actual_contract,
+                ticks=ticks,
+                trade_tick_type=tick_type.TRADE,
+                observed_at_utc=observed_at,
+                minimum_tick=(
+                    activation.minimum_tick
+                    if activation is not None
+                    else self._required_minimum_tick(pipeline)
+                ),
+                session_engine=self._sessions,
+                roll_state=roll_state,
+            )
+            self._non_market_ticks_ignored[root] += sum(
+                getattr(tick, "tick_type", None) not in {tick_type.TRADE, tick_type.QUOTE}
+                for tick in ticks
+            )
+            continuous_bar = continuous_bar_from_slice(
+                root=root,
+                continuous_symbol=getattr(subscription, "symbol", None),
+                mapped_contract=actual_contract,
+                qc_slice=data,
+                observed_at_utc=observed_at,
+                session_engine=self._sessions,
+                roll_state=roll_state,
+            )
+            batch = MarketInputBatch(
+                root=root,
+                observed_at_utc=observed_at,
+                activation=activation,
+                continuous_bar=continuous_bar,
+                curve_observation=curve,
+                quote_observation=quote,
+                trades=trades,
+                quality_flags=(),
+                lineage_hash=sha256_hex(
+                    {
+                        "root": root,
+                        "observed_at_utc": observed_at,
+                        "activation": (
+                            None if activation is None else activation.mapping.lineage_hash
+                        ),
+                        "continuous_bar": (
+                            None
+                            if continuous_bar is None
+                            else continuous_bar.source_lineage_hash
+                        ),
+                        "curve": None if curve is None else curve.source_lineage_hash,
+                        "quote": None if quote is None else quote.source_lineage_hash,
+                        "trades": trades,
+                    }
+                ),
+            )
+            pipeline.on_batch(batch)
 
     def on_mapping_events(self, algorithm: object, events: object) -> None:
-        """Finalize/reset on an explicit mapping change delivered by QC.
+        """Apply explicit QC mapping observations before the matching Slice is processed."""
 
-        Units: one mapping observation. Time semantics: the UTC algorithm clock is the
-        visibility and availability time; no event is backdated. Missingness: unknown
-        continuous identities are rejected. Raises: verified API or contract errors.
-        """
-
+        if self._finalized:
+            raise DataQualityError("finalized runtime cannot process mapping events")
         host = cast(Any, algorithm)
         qc_events = cast(Any, events)
         items = getattr(qc_events, "items", None)
@@ -254,29 +291,53 @@ class MeasurementRuntime:
             "mapping observed_at",
             naive_source_timezone="UTC",
         )
-        continuous_text = str(getattr(self._continuous, "symbol", ""))
+        root_by_continuous = {
+            str(getattr(self._continuous[root], "symbol", "")): root for root in self.roots
+        }
         event_items = cast(Iterable[tuple[object, object]], items())
         for continuous, changed_event in event_items:
-            if str(continuous) != continuous_text:
+            root = root_by_continuous.get(str(continuous))
+            if root is None:
                 raise ContractBoundaryError(f"unknown continuous mapping event: {continuous}")
+            pipeline = self._pipelines[root]
+            old_symbol = getattr(changed_event, "old_symbol", None)
+            if (
+                pipeline.actual_contract is not None
+                and old_symbol is not None
+                and str(old_symbol).strip()
+                and str(old_symbol).strip() != pipeline.actual_contract
+            ):
+                raise ContractBoundaryError("mapping event old contract differs from active contract")
             new_symbol = getattr(changed_event, "new_symbol", None)
             if new_symbol is None or not str(new_symbol).strip():
                 raise ContractBoundaryError("mapping event has no new actual contract")
-            self._switch_contract(
+            activation = self._activation_if_changed(
                 host,
+                root,
+                self._continuous[root],
+                pipeline,
                 new_symbol,
                 observed_at,
                 source="QuantConnect.SymbolChangedEvent",
             )
+            if activation is None:
+                continue
+            pipeline.on_batch(
+                MarketInputBatch(
+                    root=root,
+                    observed_at_utc=observed_at,
+                    activation=activation,
+                    continuous_bar=None,
+                    curve_observation=None,
+                    quote_observation=None,
+                    trades=(),
+                    quality_flags=(),
+                    lineage_hash=sha256_hex((root, activation.mapping.lineage_hash)),
+                )
+            )
 
     def finalize(self, algorithm: object) -> None:
-        """Finalize compact evidence and publish QC summary statistics exactly once.
-
-        Units: observed counts and content hashes. Time semantics: remaining completed
-        buckets use the final UTC algorithm clock; incomplete tails are not emitted.
-        Missingness: absent rare events remain zero. Raises: measurement, canonical
-        serialization, or verified QC statistic errors.
-        """
+        """Finalize every root and publish compact zero-action runtime evidence once."""
 
         if self._finalized:
             raise DataQualityError("MeasurementRuntime may only be finalized once")
@@ -286,113 +347,87 @@ class MeasurementRuntime:
             "algorithm final time",
             naive_source_timezone="UTC",
         )
-        if self._stream is not None:
-            self._stream.finalize(observed_at, observed_at)
-            self._completed_streams.append(self._stream)
-            self._stream = None
-        counts: Counter[str] = Counter()
-        events: list[CandidateEventObservation] = []
-        synergies: dict[str, IndicatorSynergySnapshot] = {}
-        session_types: dict[str, SessionType] = {}
-        stream_hashes: list[str] = []
-        quality: Counter[str] = Counter()
-        for stream in self._completed_streams:
-            counts.update(stream.counts)
-            quality.update(stream.quality_counts)
-            events.extend(stream.candidate_events)
-            synergies.update(stream.synergy_snapshots)
-            session_types.update(stream.session_types)
-            stream_hashes.append(stream.measurement_hash())
-        coverage = candidate_coverage(events, synergies, session_types)
-        measurement_hash = sha256_hex(tuple(stream_hashes))
+        markets = {root: dict(self._pipelines[root].finalize(observed_at)) for root in self.roots}
+        total_counts: Counter[str] = Counter()
+        total_quality: Counter[str] = Counter()
+        total_coverage: Counter[str] = Counter()
+        for root, market in markets.items():
+            total_counts.update(cast(Mapping[str, int], market["counts"]))
+            total_quality.update(cast(Mapping[str, int], market["quality_counts"]))
+            total_coverage.update(cast(Mapping[str, int], market["coverage"]))
+            prefix = f"Measurement.{root}"
+            counts = cast(Mapping[str, int], market["counts"])
+            coverage = cast(Mapping[str, int], market["coverage"])
+            host.set_summary_statistic(f"{prefix}.TradeTicks", counts.get("trade_ticks", 0))
+            host.set_summary_statistic(
+                f"{prefix}.FiveMinuteBars", counts.get("five_minute_bars", 0)
+            )
+            host.set_summary_statistic(
+                f"{prefix}.ThirtyMinuteBars", counts.get("thirty_minute_bars", 0)
+            )
+            host.set_summary_statistic(
+                f"{prefix}.StructuralSnapshots", counts.get("structural_snapshots", 0)
+            )
+            host.set_summary_statistic(
+                f"{prefix}.CandidateEvents", coverage.get("candidate_events_total", 0)
+            )
+            host.set_summary_statistic(
+                f"{prefix}.ContractCount", cast(int, market["contract_count"])
+            )
+            host.set_summary_statistic(f"{prefix}.RollCount", cast(int, market["roll_count"]))
+        measurement_hash = sha256_hex(
+            tuple((root, markets[root]["measurement_hash"]) for root in self.roots)
+        )
         summary: dict[str, object] = {
-            "chain_observations": self._chain_observations,
-            "contract_count": len(self._contracts),
-            "contracts": sorted(self._contracts),
-            "counts": dict(sorted(counts.items())),
-            "coverage": coverage,
-            "coverage_hash": sha256_hex(coverage),
-            "measurement_hash": measurement_hash,
             "mode": self.mode,
-            "numpy_version": np.__version__,
-            "period": {"end": self._period_end, "start": self._period_start},
-            "python_version": platform.python_version(),
-            "quality_counts": dict(sorted(quality.items())),
-            "non_trade_ticks_ignored": self._non_trade_ticks_ignored,
-            "roll_count": self._roll_count,
-            "roll_ticks_ignored": self._roll_ticks_ignored,
             "root": self.root,
+            "roots": self.roots,
+            "period": {"start": self._period_start, "end": self._period_end},
+            "markets": markets,
+            "counts": dict(sorted(total_counts.items())),
+            "quality_counts": dict(sorted(total_quality.items())),
+            "coverage": dict(sorted(total_coverage.items())),
+            "chain_observations": dict(sorted(self._chain_observations.items())),
+            "non_market_ticks_ignored": dict(sorted(self._non_market_ticks_ignored.items())),
+            "measurement_hash": measurement_hash,
+            "numpy_version": np.__version__,
+            "python_version": platform.python_version(),
             "zero_actions": {"insights": 0, "orders": 0, "portfolio_targets": 0},
         }
+        if len(self.roots) == 1:
+            root_summary = markets[self.roots[0]]
+            summary["contract_count"] = root_summary["contract_count"]
+            summary["contracts"] = root_summary["contracts"]
+            summary["roll_count"] = root_summary["roll_count"]
+            summary["non_trade_ticks_ignored"] = self._non_market_ticks_ignored[self.roots[0]]
         self._runtime_summary = MappingProxyType(summary)
-        prefix = f"Measurement.{self.root}"
-        statistic_counts = {
-            "TradeTicks": counts["trade_ticks"],
-            "FiveMinuteBars": counts["five_minute_bars"],
-            "ThirtyMinuteBars": counts["thirty_minute_bars"],
-            "ProfileSnapshots": counts["developing_profiles"] + counts["rolling_profiles"],
-            "FinalProfiles": counts["final_profiles"],
-            "IMSISnapshots": counts["imsi_snapshots"],
-            "ICMSnapshots": counts["icm_snapshots"],
-            "IAERetestEvents": counts["iae_retest_events"],
-            "CandidateEvents": counts["candidate_events"],
-            "CandidateBaseReady": coverage["candidate_events_base_ready"],
-            "CandidateIMSIReady": coverage["candidate_events_imsi_ready"],
-            "CandidateICMReady": coverage["candidate_events_icm_ready"],
-            "CandidateIAEStructuralReady": coverage["candidate_events_iae_structural_ready"],
-            "CandidateIAEScoreReady": coverage["candidate_events_iae_score_ready"],
-            "UniqueSessions": len(session_types),
-            "ContractCount": len(self._contracts),
-            "RollCount": self._roll_count,
-            "NonTradeTicksIgnored": self._non_trade_ticks_ignored,
-            "RollTicksIgnored": self._roll_ticks_ignored,
-        }
-        for name, value in statistic_counts.items():
-            host.set_summary_statistic(f"{prefix}.{name}", value)
         host.set_summary_statistic("Measurement.NoOrders", 0)
         host.set_summary_statistic("Measurement.NoInsights", 0)
         host.set_summary_statistic("Measurement.NoPortfolioTargets", 0)
         host.set_summary_statistic("Measurement.Hash", measurement_hash)
         host.set_summary_statistic("Measurement.NumPyVersion", np.__version__)
         host.set_summary_statistic("Measurement.PythonVersion", platform.python_version())
-        host.set_summary_statistic("Measurement.CoverageHash", summary["coverage_hash"])
         host.set_summary_statistic(
-            "Measurement.Coverage",
-            canonical_json_bytes(coverage).decode("utf-8"),
+            "Measurement.Roots",
+            canonical_json_bytes(self.roots).decode("utf-8"),
         )
         host.log(f"MEASUREMENT_RUNTIME {canonical_json_bytes(summary).decode('utf-8')}")
         self._finalized = True
 
-    def _switch_contract(
+    def _activation_if_changed(
         self,
         algorithm: Any,
+        root: str,
+        subscription: Any,
+        pipeline: MarketPipeline,
         mapped_symbol: object,
         observed_at: datetime,
         *,
         source: str,
-    ) -> None:
-        mapped_text = str(mapped_symbol).strip()
-        if not mapped_text:
-            raise ContractBoundaryError("mapped actual contract must be non-blank")
-        if mapped_text == self._mapped_symbol_text:
-            return
-        old_text = self._mapped_symbol_text
-        observation = make_mapping_observation(
-            root=self.root,
-            continuous_symbol=str(getattr(self._continuous, "symbol", "")).strip(),
-            old_mapped_contract=old_text,
-            new_mapped_contract=mapped_text,
-            actual_contract=mapped_text,
-            event_time_utc=observed_at,
-            available_time_utc=observed_at,
-            mapping_mode=get_market_definition(self.root).mapping_mode,
-            source=source,
-            roll_state=(RollState.NORMAL if old_text is None else RollState.ROLL_TRANSITION),
-        )
-        staged_rolls = RollManager()
-        for existing in self._rolls.observations_for_root(self.root):
-            staged_rolls.observe_mapping(existing)
-        staged_rolls.observe_mapping(observation)
+    ) -> ActualContractActivation | None:
+        mapped_text = str(mapped_symbol).strip() if mapped_symbol is not None else ""
+        if not mapped_text or mapped_text == pipeline.actual_contract:
+            return None
         resolution, _ = _load_qc_api()
         security = algorithm.add_future_contract(
             mapped_symbol,
@@ -406,22 +441,50 @@ class MeasurementRuntime:
             raise UnverifiedQuantConnectApiError(
                 "actual future subscription returned no positive minimum tick"
             )
-        next_stream = MeasurementStream(
-            self.root,
-            mapped_text,
-            minimum_tick,
-            self._sessions,
+        old_contract = pipeline.actual_contract
+        observation = make_mapping_observation(
+            root=root,
+            continuous_symbol=str(getattr(subscription, "symbol", "")).strip(),
+            old_mapped_contract=old_contract,
+            new_mapped_contract=mapped_text,
+            actual_contract=mapped_text,
+            event_time_utc=observed_at,
+            available_time_utc=observed_at,
+            mapping_mode=get_market_definition(root).mapping_mode,
+            source=source,
+            roll_state=(RollState.NORMAL if old_contract is None else RollState.ROLL_TRANSITION),
         )
-        old_stream = self._stream
-        if old_stream is not None:
-            old_stream.finalize(observed_at, observed_at)
-        self._rolls.observe_mapping(observation)
-        if old_stream is not None:
-            self._completed_streams.append(old_stream)
-            self._roll_count += 1
-        self._mapped_symbol_text = mapped_text
-        self._contracts.add(mapped_text)
-        self._stream = next_stream
+        return ActualContractActivation(observation, minimum_tick)
+
+    @staticmethod
+    def _future_chain(data: Any, subscription: Any) -> object | None:
+        chains = getattr(data, "future_chains", None)
+        if chains is None:
+            return None
+        getter = getattr(chains, "get", None)
+        if getter is None or not callable(getter):
+            raise UnverifiedQuantConnectApiError("Slice.future_chains lacks get()")
+        return getter(getattr(subscription, "symbol", None))
+
+    @staticmethod
+    def _ticks_for_contract(data: Any, actual_contract: str) -> tuple[object, ...]:
+        tick_mapping = getattr(data, "ticks", None)
+        if tick_mapping is None:
+            raise UnverifiedQuantConnectApiError("Slice lacks ticks collection")
+        items = getattr(tick_mapping, "items", None)
+        if items is None or not callable(items):
+            raise UnverifiedQuantConnectApiError("Slice.ticks lacks items()")
+        for symbol, ticks in cast(Iterable[tuple[object, Iterable[object]]], items()):
+            if str(symbol) == actual_contract:
+                return tuple(ticks)
+        return ()
+
+    @staticmethod
+    def _required_minimum_tick(pipeline: MarketPipeline) -> float:
+        minimum_tick = pipeline.minimum_tick
+        if minimum_tick is None or not minimum_tick > 0:
+            raise ContractBoundaryError("active actual contract has no minimum tick")
+        return minimum_tick
 
 
 __all__ = ("MeasurementRuntime", "qc_datetime_to_utc")
