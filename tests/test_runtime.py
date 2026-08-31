@@ -11,7 +11,6 @@ import pytest
 from systematic_futures.config.markets import ALL_MARKETS, REFERENCE_MARKETS, all_market_definitions
 from systematic_futures.config.measurement import REFERENCE_END_DATE, REFERENCE_START_DATE
 from systematic_futures.data.sessions import SessionEngine, reference_session_policies
-from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import UnverifiedQuantConnectApiError
 from systematic_futures.measurement.state_models import (
     AuctionFeatureVector,
