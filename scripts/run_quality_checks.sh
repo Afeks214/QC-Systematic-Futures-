@@ -31,6 +31,7 @@ initial_worktree_hash="$(worktree_hash)"
 
 python -m pip check
 python -m compileall systematic_futures main.py
+ruff format --diff . || true
 ruff format --check .
 ruff check .
 pyright
