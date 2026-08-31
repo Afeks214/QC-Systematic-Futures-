@@ -274,10 +274,13 @@ class MarketPipeline:
     def summary(self) -> Mapping[str, object]:
         """Return compact deterministic evidence without retaining completed streams."""
 
-        active_counts = Counter() if self._stream is None else Counter(self._stream.counts)
-        active_quality = Counter() if self._stream is None else Counter(self._stream.quality_counts)
-        counts = self._archive_counts + active_counts
-        quality = self._archive_quality + active_quality
+        active_counts: Counter[str] = Counter()
+        active_quality: Counter[str] = Counter()
+        if self._stream is not None:
+            active_counts.update(self._stream.counts)
+            active_quality.update(self._stream.quality_counts)
+        counts: Counter[str] = self._archive_counts + active_counts
+        quality: Counter[str] = self._archive_quality + active_quality
         payload: dict[str, object] = {
             "root": self.root,
             "continuous_symbol": self.continuous_symbol,
