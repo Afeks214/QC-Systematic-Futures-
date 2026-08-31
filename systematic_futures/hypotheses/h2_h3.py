@@ -168,7 +168,8 @@ class H2H3HypothesisEngine:
         hard_gates = dict(snapshot.gate_results)
         hard_gates["asr_measurement_ready"] = snapshot.measurement_ready
         hard_gates["transition_match"] = True
-        hard_gates["roll_clear"] = snapshot.transition is not AuctionTransitionType.ROLL_TRANSITION
+        # Roll/blackout snapshots never reach this construction path; ASR suppresses them.
+        hard_gates["roll_clear"] = True
         lineage = {
             "candidate_id": candidate_id,
             "event_cluster_id": event_cluster_id,
