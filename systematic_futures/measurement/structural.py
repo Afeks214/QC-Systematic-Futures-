@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from datetime import datetime
 from statistics import median
 
 import numpy as np
@@ -29,6 +30,7 @@ from systematic_futures.measurement.structural_state import (
 _ROBUST_SCALE_CONSTANT = 1.4826
 _EPSILON = 1e-12
 
+
 class StructuralStateEngine:
     """Build transparent structural state from continuous closes and explicit curve pairs."""
 
@@ -47,9 +49,7 @@ class StructuralStateEngine:
         self._realized_volatility_history: deque[float] = deque(
             maxlen=config.volatility_percentile_window_sessions
         )
-        self._carry_history: deque[float] = deque(
-            maxlen=config.carry_normalization_window_sessions
-        )
+        self._carry_history: deque[float] = deque(maxlen=config.carry_normalization_window_sessions)
         self._latest_curve: ContractCurveObservation | None = None
         self._last_curve_time_utc: datetime | None = None
         self._last_session_end_utc: datetime | None = None
@@ -107,9 +107,11 @@ class StructuralStateEngine:
             for component in trend_components
             if component.volatility_normalized_return is not None
         )
-        trend_score = float(math.fsum(normalized_returns) / len(normalized_returns)) if (
-            len(normalized_returns) == len(trend_components)
-        ) else None
+        trend_score = (
+            float(math.fsum(normalized_returns) / len(normalized_returns))
+            if len(normalized_returns) == len(trend_components)
+            else None
+        )
         trend_consistency = self._trend_consistency(normalized_returns, trend_score)
         quality_flags = set(observation.quality_flags)
         if realized_volatility is None:
@@ -305,8 +307,6 @@ class StructuralStateEngine:
         if value is None or len(history) < minimum_history:
             return None
         return sum(item <= value for item in history) / len(history)
-
-
 
 
 __all__ = (
