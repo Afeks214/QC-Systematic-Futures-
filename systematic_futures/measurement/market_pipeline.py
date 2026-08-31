@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import MappingProxyType
-from collections.abc import Mapping
 
 from systematic_futures.config.system import StructuralFeatureConfig
 from systematic_futures.data.rolls import MappingObservation, RollManager
@@ -95,7 +95,9 @@ class MarketInputBatch:
             if trade.available_at_utc > self.observed_at_utc:
                 raise DataTimingInvariantError("trade is unavailable at batch frontier")
             if previous_trade_time is not None and trade.exchange_time_utc < previous_trade_time:
-                raise DataTimingInvariantError("batch trades must preserve nondecreasing delivery time")
+                raise DataTimingInvariantError(
+                    "batch trades must preserve nondecreasing delivery time"
+                )
             previous_trade_time = trade.exchange_time_utc
         for component in (
             self.continuous_bar,
