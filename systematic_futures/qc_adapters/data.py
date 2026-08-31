@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from systematic_futures.data.sessions import SessionEngine
 from systematic_futures.domain.enums import RollState
 from systematic_futures.domain.errors import (
     ContractBoundaryError,
@@ -14,6 +15,7 @@ from systematic_futures.domain.errors import (
     UnverifiedQuantConnectApiError,
 )
 from systematic_futures.domain.serialization import sha256_hex
+from systematic_futures.measurement.state_models import TradeObservation
 from systematic_futures.measurement.structural_inputs import (
     ContinuousBarObservation,
     ContractCurveObservation,
@@ -21,12 +23,14 @@ from systematic_futures.measurement.structural_inputs import (
 )
 
 
-def _qc_datetime_to_utc(
+def qc_datetime_to_utc(
     value: object,
     field_name: str,
     *,
     naive_source_timezone: str | None = None,
 ) -> datetime:
+    """Normalize one dynamic QC boundary timestamp with explicit source timezone."""
+
     if not isinstance(value, datetime):
         raise TimeSemanticsError(f"{field_name} must be a datetime")
     if value.tzinfo is None or value.utcoffset() is None:
@@ -51,16 +55,13 @@ def continuous_bar_from_slice(
     mapped_contract: object,
     qc_slice: object,
     observed_at_utc: datetime,
-    session_id: str,
-    session_start_utc: datetime,
-    session_end_utc: datetime,
+    session_engine: SessionEngine,
     roll_state: RollState,
 ) -> ContinuousBarObservation | None:
-    """Adapt one QC continuous TradeBar without treating it as executable price truth.
+    """Adapt one completed QC continuous TradeBar for structural continuity only.
 
-    QuantConnect documents the continuous symbol price as adjusted and the mapped symbol
-    price as raw. This adapter therefore marks the observation as continuous-series data;
-    actual-contract Profile, labels, and execution must use separate records.
+    The continuous price may be normalized/adjusted. It is never emitted as an executable
+    actual-contract price and cannot enter Profile, label, fill, or P&L truth.
     """
 
     data = cast(Any, qc_slice)
@@ -70,12 +71,12 @@ def continuous_bar_from_slice(
     bar = bars.get(continuous_symbol)
     if bar is None:
         return None
-    start_utc = _qc_datetime_to_utc(
+    start_utc = qc_datetime_to_utc(
         getattr(bar, "time", None),
         "continuous TradeBar.time",
         naive_source_timezone="UTC",
     )
-    end_utc = _qc_datetime_to_utc(
+    end_utc = qc_datetime_to_utc(
         getattr(bar, "end_time", None),
         "continuous TradeBar.end_time",
         naive_source_timezone="UTC",
@@ -94,6 +95,8 @@ def continuous_bar_from_slice(
     continuous_text = str(continuous_symbol).strip()
     if not mapped_text or not continuous_text:
         raise ContractBoundaryError("continuous and mapped contract identities must be present")
+    session_id = session_engine.session_id(root, start_utc)
+    session_start_utc, session_end_utc = session_engine.session_bounds(root, start_utc)
     lineage = sha256_hex(
         {
             "source": "QuantConnect.Slice.bars",
@@ -103,6 +106,7 @@ def continuous_bar_from_slice(
             "start_utc": start_utc,
             "end_utc": end_utc,
             "available_at_utc": observed_at_utc,
+            "session_id": session_id,
             "ohlcv": values,
         }
     )
@@ -127,6 +131,66 @@ def continuous_bar_from_slice(
     )
 
 
+def trade_observations_from_ticks(
+    *,
+    root: str,
+    actual_contract: object,
+    ticks: Iterable[object],
+    trade_tick_type: object,
+    observed_at_utc: datetime,
+    minimum_tick: float,
+    session_engine: SessionEngine,
+    roll_state: RollState,
+) -> tuple[TradeObservation, ...]:
+    """Translate QC trade ticks in delivery order into actual-contract observations."""
+
+    contract_text = str(actual_contract).strip()
+    if not contract_text:
+        raise ContractBoundaryError("actual contract identity must be present")
+    observations: list[TradeObservation] = []
+    previous_event_time: datetime | None = None
+    for raw_tick in ticks:
+        tick = cast(Any, raw_tick)
+        if getattr(tick, "tick_type", None) != trade_tick_type:
+            continue
+        required = ("end_time", "price", "quantity", "suspicious", "sale_condition")
+        if not all(hasattr(tick, name) for name in required):
+            raise UnverifiedQuantConnectApiError(
+                "trade Tick lacks verified time/price/quantity/quality fields"
+            )
+        event_time = qc_datetime_to_utc(
+            tick.end_time,
+            "trade Tick.end_time",
+            naive_source_timezone="UTC",
+        )
+        if previous_event_time is not None and event_time < previous_event_time:
+            raise TimeSemanticsError("trade ticks must preserve nondecreasing delivery time")
+        previous_event_time = event_time
+        session_id = session_engine.session_id(root, event_time)
+        sale_condition = str(tick.sale_condition).strip()
+        source_event_id = _optional_text(getattr(tick, "id", None))
+        source_sequence = _optional_non_negative_int(getattr(tick, "sequence", None))
+        quality_flags = ("SOURCE_SUSPICIOUS",) if bool(tick.suspicious) else ()
+        observations.append(
+            TradeObservation(
+                root=root,
+                contract_symbol=contract_text,
+                exchange_time_utc=event_time,
+                available_at_utc=observed_at_utc,
+                price=float(tick.price),
+                quantity=float(tick.quantity),
+                minimum_tick=minimum_tick,
+                session_id=session_id,
+                roll_state=roll_state,
+                source_event_id=source_event_id,
+                source_sequence=source_sequence,
+                trade_condition=sale_condition or None,
+                source_quality_flags=quality_flags,
+            )
+        )
+    return tuple(observations)
+
+
 def latest_quote_from_ticks(
     *,
     root: str,
@@ -136,29 +200,26 @@ def latest_quote_from_ticks(
     observed_at_utc: datetime,
     minimum_tick: float,
 ) -> QuoteObservation | None:
-    """Return the latest complete two-sided actual-contract quote in delivery order.
-
-    One-sided quotes are skipped because spread and imbalance are undefined. Crossed quotes
-    fail closed. Equal event timestamps preserve the order delivered by LEAN.
-    """
+    """Return the latest complete two-sided actual-contract quote in delivery order."""
 
     contract_text = str(actual_contract).strip()
     if not contract_text:
         raise ContractBoundaryError("actual contract identity must be present")
     latest: QuoteObservation | None = None
-    for tick in ticks:
+    for raw_tick in ticks:
+        tick = cast(Any, raw_tick)
         if getattr(tick, "tick_type", None) != quote_tick_type:
             continue
-        if not all(hasattr(tick, name) for name in ("bid_price", "ask_price")):
-            raise UnverifiedQuantConnectApiError("quote Tick lacks bid_price/ask_price")
+        if not all(hasattr(tick, name) for name in ("bid_price", "ask_price", "end_time")):
+            raise UnverifiedQuantConnectApiError("quote Tick lacks bid_price/ask_price/end_time")
         bid_price = float(tick.bid_price)
         ask_price = float(tick.ask_price)
         if bid_price <= 0 or ask_price <= 0:
             continue
         bid_size = _optional_non_negative_float(getattr(tick, "bid_size", None), "bid_size")
         ask_size = _optional_non_negative_float(getattr(tick, "ask_size", None), "ask_size")
-        event_time = _qc_datetime_to_utc(
-            getattr(tick, "end_time", None),
+        event_time = qc_datetime_to_utc(
+            tick.end_time,
             "quote Tick.end_time",
             naive_source_timezone="UTC",
         )
@@ -200,11 +261,7 @@ def curve_observation_from_chain(
     future_chain: object,
     observed_at_utc: datetime,
 ) -> ContractCurveObservation | None:
-    """Adapt the mapped and nearest later-expiry contracts from one QC FutureChain.
-
-    Open interest is copied as observed context. QuantConnect documents Futures open
-    interest as a daily measure; it is not treated as intraday event flow.
-    """
+    """Adapt mapped and nearest later-expiry actual contracts from one QC FutureChain."""
 
     continuous_text = str(continuous_symbol).strip()
     mapped_text = str(mapped_contract).strip()
@@ -221,7 +278,8 @@ def curve_observation_from_chain(
             raise UnverifiedQuantConnectApiError("FutureChain.contracts lacks values()")
         contracts = tuple(cast(Iterable[object], values()))
     parsed: list[tuple[str, date, float, float | None]] = []
-    for contract in contracts:
+    for raw_contract in contracts:
+        contract = cast(Any, raw_contract)
         symbol = str(getattr(contract, "symbol", "")).strip()
         if not symbol:
             continue
@@ -274,11 +332,12 @@ def _required_numeric_fields(
     field_names: tuple[str, ...],
     object_name: str,
 ) -> dict[str, float]:
+    dynamic = cast(Any, value)
     result: dict[str, float] = {}
     for field_name in field_names:
-        if not hasattr(value, field_name):
+        if not hasattr(dynamic, field_name):
             raise UnverifiedQuantConnectApiError(f"{object_name} lacks {field_name}")
-        numeric = float(getattr(value, field_name))
+        numeric = float(getattr(dynamic, field_name))
         if not math.isfinite(numeric):
             raise DataQualityError(f"{object_name}.{field_name} must be finite")
         result[field_name] = numeric
@@ -288,16 +347,30 @@ def _required_numeric_fields(
 def _optional_non_negative_float(value: object, field_name: str) -> float | None:
     if value is None:
         return None
-    numeric = float(value)
+    numeric = float(cast(Any, value))
     if not math.isfinite(numeric) or numeric < 0:
         raise DataQualityError(f"{field_name} must be finite and non-negative")
     return numeric
 
 
+def _optional_non_negative_int(value: object) -> int | None:
+    if value is None:
+        return None
+    numeric = int(cast(Any, value))
+    return numeric if numeric >= 0 else None
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _positive_or_none(value: object) -> float | None:
     if value is None:
         return None
-    numeric = float(value)
+    numeric = float(cast(Any, value))
     if not math.isfinite(numeric) or numeric <= 0:
         return None
     return numeric
@@ -315,4 +388,6 @@ __all__ = (
     "continuous_bar_from_slice",
     "curve_observation_from_chain",
     "latest_quote_from_ticks",
+    "qc_datetime_to_utc",
+    "trade_observations_from_ticks",
 )
