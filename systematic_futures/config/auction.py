@@ -47,7 +47,11 @@ class AuctionResearchPolicy:
             ("minimum_poc_migration_vol", self.minimum_poc_migration_vol),
             ("minimum_value_migration_vol", self.minimum_value_migration_vol),
         ):
-            if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, int | float)
+                or not math.isfinite(value)
+            ):
                 raise DataQualityError(f"{field_name} must be finite")
             if value < 0:
                 raise DataQualityError(f"{field_name} must be non-negative")

@@ -484,9 +484,7 @@ class AuctionStateMachineV2:
         time_ratio = min(1.0, self._time_outside_minutes / denominator)
         close_ratio = self._outside_updates / max(self._total_updates, 1)
         migration_consistency = (
-            self._migration_aligned / self._migration_checks
-            if self._migration_checks
-            else None
+            self._migration_aligned / self._migration_checks if self._migration_checks else None
         )
         poc = snapshot.features.poc_migration_vol
         value_mid = snapshot.features.value_mid_migration_vol
@@ -517,9 +515,7 @@ class AuctionStateMachineV2:
             "session_id": snapshot.session_id,
             "time_outside_minutes": self._time_outside_minutes,
             "time_outside_value_ratio": time_ratio,
-            "value_mid_migration_vol": (
-                self._side * value_mid if value_mid is not None else None
-            ),
+            "value_mid_migration_vol": (self._side * value_mid if value_mid is not None else None),
             "volume_outside_value_ratio": snapshot.features.volume_outside_value_ratio,
         }
         return AuctionEvidenceVector(
@@ -538,9 +534,7 @@ class AuctionStateMachineV2:
             time_outside_value_ratio=time_ratio,
             volume_outside_value_ratio=snapshot.features.volume_outside_value_ratio,
             poc_migration_vol=self._side * poc if poc is not None else None,
-            value_mid_migration_vol=(
-                self._side * value_mid if value_mid is not None else None
-            ),
+            value_mid_migration_vol=(self._side * value_mid if value_mid is not None else None),
             close_persistence_ratio=close_ratio,
             retest_survival_ratio=None,
             migration_consistency=migration_consistency,
@@ -565,18 +559,14 @@ class AuctionStateMachineV2:
         migration_count = int(poc_pass) + int(value_pass)
         results = {
             "close_persistence": (
-                evidence.close_persistence_ratio
-                >= self.policy.minimum_close_persistence_ratio
+                evidence.close_persistence_ratio >= self.policy.minimum_close_persistence_ratio
             ),
             "excursion": self._minimum_excursion_passes(evidence),
             "migration_blocks": migration_count >= self.policy.required_migration_blocks,
-            "outside_time": (
-                evidence.time_outside_minutes >= self.policy.minimum_outside_minutes
-            ),
+            "outside_time": (evidence.time_outside_minutes >= self.policy.minimum_outside_minutes),
             "outside_volume": (
                 evidence.volume_outside_value_ratio is not None
-                and evidence.volume_outside_value_ratio
-                >= self.policy.minimum_volume_outside_ratio
+                and evidence.volume_outside_value_ratio >= self.policy.minimum_volume_outside_ratio
             ),
         }
         return tuple(sorted(results.items()))

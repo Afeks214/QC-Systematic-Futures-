@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -11,9 +11,9 @@ from systematic_futures.domain.enums import (
 )
 from systematic_futures.domain.errors import DataTimingInvariantError
 from systematic_futures.hypotheses.h2_h3 import (
-    H2H3HypothesisEngine,
     H2_HYPOTHESIS_ID,
     H3_HYPOTHESIS_ID,
+    H2H3HypothesisEngine,
     build_h2_template,
     build_h3_template,
 )
@@ -25,8 +25,7 @@ from systematic_futures.measurement.state_models import (
     ProfileReferenceSet,
 )
 
-
-BASE = datetime(2026, 8, 31, 13, 0, tzinfo=timezone.utc)
+BASE = datetime(2026, 8, 31, 13, 0, tzinfo=UTC)
 
 
 def policy() -> AuctionResearchPolicy:
@@ -269,9 +268,7 @@ def test_bull_bear_mirror_preserves_evidence_magnitude() -> None:
         machine = AuctionStateMachineV2("ES", "ESZ26", policy())
         engine = hypothesis_engine()
         outside = (
-            AuctionLocationState.ABOVE_VALUE
-            if side == 1
-            else AuctionLocationState.BELOW_VALUE
+            AuctionLocationState.ABOVE_VALUE if side == 1 else AuctionLocationState.BELOW_VALUE
         )
         machine.update(auction_snapshot(0, AuctionLocationState.INSIDE_VALUE))
         machine.update(

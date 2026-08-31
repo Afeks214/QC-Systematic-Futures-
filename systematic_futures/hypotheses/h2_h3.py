@@ -168,9 +168,7 @@ class H2H3HypothesisEngine:
         hard_gates = dict(snapshot.gate_results)
         hard_gates["asr_measurement_ready"] = snapshot.measurement_ready
         hard_gates["transition_match"] = True
-        hard_gates["roll_clear"] = (
-            snapshot.transition is not AuctionTransitionType.ROLL_TRANSITION
-        )
+        hard_gates["roll_clear"] = snapshot.transition is not AuctionTransitionType.ROLL_TRANSITION
         lineage = {
             "candidate_id": candidate_id,
             "event_cluster_id": event_cluster_id,
@@ -212,9 +210,9 @@ class H2H3HypothesisEngine:
 
 
 __all__ = (
-    "H2H3HypothesisEngine",
     "H2_HYPOTHESIS_ID",
     "H3_HYPOTHESIS_ID",
+    "H2H3HypothesisEngine",
     "build_h2_template",
     "build_h3_template",
 )
