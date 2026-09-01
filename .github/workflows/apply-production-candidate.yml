@@ -29,8 +29,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .bootstrap/chunk-* | base64 --decode > /tmp/production-candidate.zip
-          unzip -oq /tmp/production-candidate.zip -d .
+          cat .bootstrap/chunk-* | base64 --decode > /tmp/production-candidate.tar.xz
+          tar -xJf /tmp/production-candidate.tar.xz -C .
           rm -rf .bootstrap
 
       - name: Install pinned dependencies
